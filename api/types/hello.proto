@@ -1,0 +1,21 @@
+syntax = "proto3";
+package types;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+message Request {
+    // Message is the message to pass
+    string Message = 1;
+    // ResponseBytes is the amount of response bytes
+    int32 ResponseBytes = 2;
+}
+
+message Response {
+    // Message is the message to pass
+    string Message = 1;
+}
