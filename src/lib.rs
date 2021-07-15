@@ -1,4 +1,7 @@
-use std::ffi::{CStr, CString};
+mod hello;
+
+use hello::{Request, Response, ResponseHeader};
+use protobuf::Message;
 use std::mem;
 use std::os::raw::c_void;
 
@@ -40,12 +43,35 @@ pub extern "C" fn get_at(ptr: *mut c_void, offset: i32) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn log(data: *mut c_void, len: u32) -> u32 {
-    let bytes: Vec<u8> =
-        unsafe { Vec::from_raw_parts(data as *mut u8, len as usize, len as usize) };
+pub extern "C" fn call(
+    req: *mut c_void,
+    req_len: u32,
+    resp_header: *mut c_void,
+    resp_header_len: u32,
+) -> u32 {
+    let req_bytes: Vec<u8> =
+        unsafe { Vec::from_raw_parts(req as *mut u8, req_len as usize, req_len as usize) };
 
-    for byte in bytes.iter() {
-        println!("byte: {}", byte);
-    }
+    let req: Request = Message::parse_from_bytes(&req_bytes).unwrap();
+
+    let resp_header_bytes: Vec<u8> = unsafe {
+        Vec::from_raw_parts(
+            resp_header as *mut u8,
+            resp_header_len as usize,
+            resp_header_len as usize,
+        )
+    };
+
+    let mut resp_header: ResponseHeader = Message::parse_from_bytes(&resp_header_bytes).unwrap();
+
+    let mut re = Response::new();
+    re.set_Message(req.get_Message().to_string());
+
+    resp_header.SizeBytes = re.compute_size();
+    let mut response_bytes = Message::write_to_bytes(&re).unwrap();
+
+    let response_ptr = response_bytes.as_mut_ptr();
+    mem::forget(response_bytes);
+    resp_header.Ptr = response_ptr as u32;
     0
 }

@@ -96,15 +96,42 @@ func ExampleInstance() {
 		panic(err)
 	}
 
+	call, err := instance.Exports.GetFunction("call")
+	if err != nil {
+		panic(err)
+	}
+
 	demo()
 
 	message := &types.Request{
 		Message: "Hello, World!",
 	}
 
-	ptrVal := writeMessage(w, message)
+	responseHeader := &types.ResponseHeader{
+		SizeBytes: 4294967295,
+		Ptr:       4294967295,
+	}
 
-	fmt.Printf("Ptr val: %v", ptrVal)
+	ptrVal, len := writeMessage(w, message)
+	rePtrVal, reLen := writeMessage(w, responseHeader)
+
+	_, err = call(ptrVal, len, rePtrVal, reLen)
+	if err != nil {
+		panic(err)
+	}
+
+	data, err := readMessageBytes(w, rePtrVal, reLen)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Data: %#v", data)
+
+	if err = responseHeader.Unmarshal(data); err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Ptr val: %v %v %v\n", ptrVal, rePtrVal, len)
 
 	// Output:
 	// Compiling module...
@@ -158,7 +185,12 @@ const Int64Size = 8
 // Int32Size is a constant for 32 bit integer byte size
 const Int32Size = 4
 
-func marshalMessage(msg *types.Request) []byte {
+type m interface {
+	MarshalTo(dAtA []byte) (int, error)
+	Size() (n int)
+}
+
+func marshalMessage(msg m) []byte {
 	messageSize := msg.Size()
 	bytes := make([]byte, messageSize)
 	_, err := msg.MarshalTo(bytes)
@@ -168,10 +200,23 @@ func marshalMessage(msg *types.Request) []byte {
 	return bytes
 }
 
-func writeMessage(w wasm, msg *types.Request) interface{} {
+func readMessageBytes(w wasm, ptrVal interface{}, size int) ([]byte, error) {
+	data := make([]byte, size, size)
+	for i := range data {
+		b, err := w.getAt(ptrVal, i)
+		if err != nil {
+			panic(err)
+		}
+		data[i] = byte(b.(int32))
+	}
+	return data, nil
+}
+
+func writeMessage(w wasm, msg m) (interface{}, int) {
 	data := marshalMessage(msg)
 
 	ptrVal, err := w.alloc(len(data))
+	fmt.Printf("allocated: %v for data %v\n", ptrVal, len(data))
 	if err != nil {
 		panic(err)
 	}
@@ -183,7 +228,7 @@ func writeMessage(w wasm, msg *types.Request) interface{} {
 		}
 	}
 
-	return ptrVal
+	return ptrVal, len(data)
 }
 
 func main() {

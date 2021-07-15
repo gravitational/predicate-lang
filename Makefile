@@ -35,5 +35,5 @@ buildbox-grpc:
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
-		--rust_out ./src/ \
+		--rust_out ./src \
 		hello.proto
