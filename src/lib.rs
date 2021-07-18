@@ -43,35 +43,26 @@ pub extern "C" fn get_at(ptr: *mut c_void, offset: i32) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn call(
-    req: *mut c_void,
-    req_len: u32,
-    resp_header: *mut c_void,
-    resp_header_len: u32,
-) -> u32 {
+pub extern "C" fn call(req: *mut c_void, req_len: u32) -> *mut c_void {
     let req_bytes: Vec<u8> =
         unsafe { Vec::from_raw_parts(req as *mut u8, req_len as usize, req_len as usize) };
 
     let req: Request = Message::parse_from_bytes(&req_bytes).unwrap();
 
-    let resp_header_bytes: Vec<u8> = unsafe {
-        Vec::from_raw_parts(
-            resp_header as *mut u8,
-            resp_header_len as usize,
-            resp_header_len as usize,
-        )
-    };
-
-    let mut resp_header: ResponseHeader = Message::parse_from_bytes(&resp_header_bytes).unwrap();
-
     let mut re = Response::new();
     re.set_Message(req.get_Message().to_string());
 
+    let mut resp_header = ResponseHeader::new();
     resp_header.SizeBytes = re.compute_size();
-    let mut response_bytes = Message::write_to_bytes(&re).unwrap();
 
+    let mut response_bytes = Message::write_to_bytes(&re).unwrap();
     let response_ptr = response_bytes.as_mut_ptr();
     mem::forget(response_bytes);
     resp_header.Ptr = response_ptr as u32;
-    0
+
+    let mut resp_header_bytes = Message::write_to_bytes(&resp_header).unwrap();
+
+    let ptr = resp_header_bytes.as_mut_ptr();
+    mem::forget(resp_header_bytes);
+    return ptr as *mut c_void;
 }
