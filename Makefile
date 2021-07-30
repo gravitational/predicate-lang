@@ -12,6 +12,10 @@ gorun:
 build:
 	cargo build --target=wasm32-unknown-unknown
 
+.PHONY: predicate
+predicate:
+	cargo build --bin predicate
+
 .PHONY: clean
 clean:
 	wasm-gc target/wasm32-unknown-unknown/debug/acre.wasm
