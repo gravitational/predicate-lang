@@ -425,6 +425,20 @@ Use [skyler prolog](https://github.com/mthom/scryer-prolog/blob/master/src/lib.r
 For micro-interpreter. Load the interpreter state when database updates for internal systems, provide
 a small interpreter shell to manipulate the database for fun and debugging (e.g. read-only).
 
+## Developer and Deployment life cycle
+
+Predicate comes with a programming environment - users can create in memory transactional databases
+and write full programs in rust before creating new policies.
+
+Users can verify their policies using Z3 SMT solver before commiting them to production.
+
+Users can create policies in "trace" mode that does not apply policies, but logs the result
+of their evaluation, so they can push policies to production and observe their possible behavior.
+
+Users can roll out staged deployment of policies, observing their behavior on a subset on the infrastructure.
+
+It should be fun to use Predicate in production and staging.
+
 ## Extensions
 
 TODO: work in progress
