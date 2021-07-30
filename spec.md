@@ -471,3 +471,8 @@ to find world-open, weak, or duplicate policies.
 
 * [0] [Zanzibar: Google’s Consistent, Global Authorization System](https://research.google/pubs/pub48190/).
 * [1] [Zelkova: Semantic-based Automated Reasoning for AWS Access Policies using SMT](https://d1.awsstatic.com/Security/pdfs/Semantic_Based_Automated_Reasoning_for_AWS_Access_Policies_Using_SMT.pdf)
+
+## Appendix A. Teleport use-cases
+
+TODO: explore all teleport use-cases, role templates, OIDC mappings, access requests,
+impersonation in detail.
