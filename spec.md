@@ -1,15 +1,15 @@
 # Predicate
 
-Predicate is a runtime, database and a mini-programming language
+Predicate is a runtime, a database and a mini-programming language
 for access policies in distributed infrastructure.
 
-Predicate interacts with databases, users and certificate authorities.
-It is designed to be compatible with Teleport's RBAC. Teleport's users can
-use both RBAC systems and Predicate in parallel and upgrade from one to another.
+Predicate's rules are stored in database, and are used to issue short lived certificates.
+
+Teleport's users can use both existing RBAC system and Predicate in parallel.
 
 ## Mini-language
 
-Predicate comes with Prolog-inspired mini-language. It consists
+Predicate comes with a Prolog-inspired mini-language. It consists
 of policies, users, facts and rules.
 
 * User is a human or a non-interactive robot, e.g. bot or SSH server.
@@ -49,19 +49,20 @@ states that `alice` is a member of group `dev`.
 * Allow and deny rules are evaluated by a target system to grant or deny access to the system.
 These rules in more detail in "Allow and deny rules" section. For example,
 
-`allow(ssh, alice, luna, root).` allows user `alice` to ssh into server `luna` as `root`.
+`allow(ssh, alice, luna, root).` allows user `alice` to ssh into server `luna` as SSH principal `root`.
 
-* Attribute clauses are used to assign attributes to certificates when users
-log in. For example, `attribute(alice, source, sso).` assigns user Alice attribute `sso` that is encoded
-in the certificate.
+* Attribute clauses are used to assign attributes to certificates when users log in.
+For example, `attribute(alice, source, sso).` assigns user Alice attribute `sso` that is encoded in the certificate.
 
-* Approvals are stored in database, and show approvals of a request `approve(alice, req1)`.
+* Users can request access to multiple parts of the infrastructure and other users can approve or deny those requests.
+Approvals and access requests are facts. For example, if Alice requests to be added to a group, request is logged as: `request(member, alice, dev, 1h).`
+Approvals show approvals of a request `approve(alice, req1)`.
 
 ## Certificates and Attributes
 
 Predicate encodes user's attributes in X.509 and SSH certificates.
 The attributes in the certificates can not be modified or tampered with.
-Any attribute requires a aser to get a new certificate, this in turn, leads
+Any attribute requires a user to get a new certificate, this in turn, leads
 to usage of a more short lived certificates, ranging from hours, to minutes, or, in some cases,
 seconds.
 
@@ -72,10 +73,10 @@ Some attributes have a special meaning in certificates, and some are arbitrary.
 For example, this attribute allows Alice to enable port forwarding in SSH:
 
 ```prolog
-attribute(alice, allow_port_forwarding, true).
+attribute(alice, port_forwarding, true).
 ```
 
-Because it's translated to SSH certificate extension `port_forwarding`.
+The attribute above translated to SSH certificate extension `port_forwarding`.
 
 Here is another attribute:
 
@@ -111,10 +112,11 @@ access each time a user performs an action.
 
 ## User login and registration
 
-Predicate's programs are applied on multiple stages of interactions of users.
+Predicate's programs are applied on multiple stages of user interaction with a program.
+
 Whenever an interactive user logs in via SSO, or SSH node registers with a join
 token, predicate program can assign attributes based on OIDC Identity provider's
-claims, SAML attribute statements and other third party infromation, for example AWS region
+claims, SAML attribute statements and other third party information, for example AWS region
 information presented by an SSH server during registration.
 
 **Static assignments**
@@ -129,7 +131,7 @@ attribute(bob@example.com, source, sso).
 member(bob@example.com, admins).
 ```
 
-These facts will be encoded in Bob's certificate.
+Attribute `source: sso` will be encoded in Bob's certificate, but `member` will not.
 
 **Dynamic assignments**
 
@@ -156,6 +158,68 @@ role(U, R) :-
 
 **Note:** See [roles SWI prolog implementation example](./role.pl) for a sample implementation.
 
+## Policies, and Allow and Deny rules
+
+TODO: work in progress
+
+Allow rules and facts are in the form of:
+
+```prolog
+allow(Action, User, Target, Principal).
+```
+
+Rules clauses can be more complex and conditional. The rule below allows any member of
+a group `admins` to SSH into any server that is a member of group `db` as root.
+
+```prolog
+allow(ssh, User, Host, root) :-
+    member(User, admins),
+    member(Host, db).
+```
+
+Allow and deny rules can refer to Users' attributes encoded in the certificates,
+can address group memberships, and can address target attributes and node labels.
+
+In the example below, users can login into host as any principal that is encoded
+in their certificate as attribute `login` to any host that matches the label `host_label`
+also encoded in the certificate:
+
+```prolog
+allow(ssh, User, Host, Principal) :-
+    attribute(User, host_label, L),
+    label(Host, host_label, L),
+    attribute(User, login, X),
+    Principal = X.
+```
+
+Allow and deny rules sometimes need to be grouped together:
+
+```prolog
+% Alice can login into any host as root,
+allow(ssh, alice, root, H) :-
+  H = _.
+% Except the hosts that are labeled production
+deny(ssh, alice, root, H) :-
+  label(H, env, prod).
+```
+
+These two rules should always be fetched and evaluated together. If predicate
+only sees the allow, that would let Alice to access any host.
+
+Policy is a named group of clauses that guarantees that rules will be fetched
+by predicate clients in a transaction:
+
+```prolog
+policy(admins) :-
+  member(alice, devs).
+  % Alice can login into any host as root,
+  allow(ssh, alice, root, H) :-
+    H = _.
+  % Except the hosts that are labeled production
+  deny(ssh, alice, root, H) :-
+    label(H, env, prod).
+```
+
 ## Access requests
 
 Users can request access to resources, such as nodes, or request to be added
@@ -163,18 +227,33 @@ to additional groups.
 
 Predicate supports this through access requests.
 
-Users can submit approvals. Lisa and Forrest have approved the requests:
+Alice requests to be added to group `admins` for `1h`:
+
+`request(member, alice, dev, 1h).`
+
+Alice requests SSH access to a node `luna` for `10m` as `root`:
+
+`request(ssh, alice, root, luna, 10m).`
+
+Alice requests an extra attribute for `10m`:
+
+`request(attribute, alice, env, prod, 10m).`
+
+Users can submit their approves and denies as facts to the predicate database.
+
+Lisa and Forrest have approved the requests:
 
 ```prolog
-approval(lisa, req).
-approval(forrest, req).
+approve(lisa, req1, "please proceed with caution").
+approve(forrest, req1, "no comment").
+deny(sasha, req1, "you shall not pass").
 ```
 
-A request is approved if there is enough approvals to match threshold:
+A request is approved if there is enough approvals to match the threshold:
 
 ```prolog
 approved(Req) :-
-    findall(User, approval(User, Req), List),
+    findall(User, approve(User, Req), List),
     length(List, Len),
     Len >= 2.
 ```
@@ -188,8 +267,28 @@ Once the request is approved, the following fact is added to the database,
 member(alice, admins).
 ```
 
-**Note** This model is better than Teleport's model that issues a new certificate, becasue
-membership update
+**Members vs Attributes**
+
+Adding member fact to the database is different than Teleport's model that issues a new certificate, because
+membership update and expiration is propagated instantaneously, and can be revoked
+if the member fact is deleted from the database:
+
+`member(alice, admins).`
+
+The disadvantage compared to existing Teleport's model is that Teleport's access requests
+are embedded in the certificate and can be reviewed by other organizations.
+
+Requesting attribute is similar to Teleport's model, because once `attribute` is added to the database,
+a user can issue a new certificate:
+
+`attribute(alice, env, prod).`
+
+If you combine this with a rule on the leaf or cluster, users will be added to new groups:
+
+```prolog
+member(U, admins) :-
+  attribute(U, env, prod).
+```
 
 ## Policies life-cycle
 
@@ -212,7 +311,7 @@ is if evaluated with a stale ACL list from before Bob's removal.
 
 To solve these problems, Zanzibar providers two solutions:
 
-* Spanner database to assign each ACL udpate a microsecond-accurate timestamp.
+* Spanner database to assign each ACL update a microsecond-accurate timestamp.
 * Clients request "Zookie" 
 
 **External consistency**
@@ -242,6 +341,8 @@ TODO: replay the same scenarios as with Alice and Bob, this section is incomplet
 ## Data model
 
 * All predicate clauses are stored in the database.
+* Each clause has a unique auto generated id. Users can delete or update the clause by id.
+* Every clauses have origin attribute, denoting a user that created and updated it.
 * Clauses have an optional expiration and policy attributes. When clause expires,
 clients reload the state of the prolog interpreter.
 * Clients can retrieve, delete all clauses related to the same policy just like with any other
@@ -271,9 +372,14 @@ policy(mypolicy) :-
 * And prolog interpreter frontend:
 
 ```prolog
+% delete clause by spec or ID
 delete(policy(mypolicy)).
-insert(policy(mypolicy) :- ....)
+% create a new clause
+create(policy(mypolicy) :- ....)
+% list clauses matching pattern
 listing(...)
+% update clause by ID
+update()
 ```
 
 This is where predicate diverges from classic prolog. In prolog, facts do not have expiration date,
@@ -284,9 +390,31 @@ with Datalog-like frontend.
 
 **Scalability**
 
+This fact allow Alice to SSH into server `luna` as ssh principal `root`:
+
+```prolog
+allow(ssh, alice, luna, root).
+```
+
+Internally, these allow rules are stored in a tree:
+
+```
+allow
+|
++----ssh 
+      |
+      +---alice (id=1, created=bob@example.com, policy=mypolicy, ttl=1h)
+```
+
+This allows clients to subscribe to relevant parts of the rules, e.g. SSH nodes
+can only watch SSH rules updates.
+
 Clients can subscribe for updates for rules that they are interested in. For example, SSH node
 can subscribe for allow and deny rules for SSH verb and group membership rules. This will allow
 the system to scale.
+
+Each node has to fetch all membership rules, locks, so there should be a limit on maximum number
+of those in the system.
 
 ## Implementation notes
 
@@ -295,32 +423,7 @@ TODO: Needs more work
 Use [skyler prolog](https://github.com/mthom/scryer-prolog/blob/master/src/lib.rs) subset or build smaller version using [library](https://github.com/ekzhang/crepe)
 
 For micro-interpreter. Load the interpreter state when database updates for internal systems, provide
-a small interpreter shell to manipulate the database for fun and debugging (e.g. readonly).
-
-## Policies, and Allow and Deny rules
-
-TODO: work in progress
-
-Allow rules and facts are in the form of:
-
-```prolog
-allow(Action, User, Target, Principal).
-```
-
-For example, this fact allow Alice to SSH into server `luna` as ssh principal `root`:
-
-```prolog
-allow(ssh, alice, luna, root).
-```
-
-Rules can be more complex and conditional. The rule below allows any member of
-a group `admins` to SSH into any server that is a member of group `db` as root.
-
-```prolog
-allow(ssh, User, Host, root) :-
-    member(User, admins),
-    member(Host, db).
-```
+a small interpreter shell to manipulate the database for fun and debugging (e.g. read-only).
 
 ## Extensions
 
