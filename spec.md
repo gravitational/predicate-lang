@@ -45,9 +45,17 @@ Both facts and rules are clauses.
 
 * Groups assign users to a collection. For example `member(alice, dev).`
 states that `alice` is a member of group `dev`.
+
 * Allow and deny rules are evaluated by a target system to grant or deny access to the system.
-These rules in more detail in "Allow and deny rules" section.
-* Attribute-related  are used to assign attributes 
+These rules in more detail in "Allow and deny rules" section. For example,
+
+`allow(ssh, alice, luna, root).` allows user `alice` to ssh into server `luna` as `root`.
+
+* Attribute clauses are used to assign attributes to certificates when users
+log in. For example, `attribute(alice, source, sso).` assigns user Alice attribute `sso` that is encoded
+in the certificate.
+
+* Approvals are stored in database, and show approvals of a request `approve(alice, req1)`.
 
 ## Certificates and Attributes
 
@@ -77,17 +85,6 @@ attribute(alice, env, prod).
 
 This is an arbitrary attribute that is simply encoded in X.509 and SSH certificate.
 
-**Groups**
-
-Group membership rules are **not** encoded in the certificates. 
-
-```prolog
-member(bob, prod).
-```
-
-It is important because a user may be assigned or unassigned a group to have their
-access revoked.
-
 **Roles**
 
 Roles help Teleport's users to migrate from Teleport's RBAC to Predicate. For example,
@@ -99,6 +96,18 @@ role(alice, admins).
 
 In this case, Alice's certificate will have Teleport role `admins` and Teleport's
 RBAC will evaluate it as usual.
+
+## Groups
+
+Group membership rules are **not** encoded in the certificates.
+
+```prolog
+member(bob, prod).
+```
+
+It is important because a user may be assigned or unassigned a group to have their
+access revoked. Clients fetch group membership, and allow and deny clauses and use them to evaluate
+access each time a user performs an action.
 
 ## User login and registration
 
@@ -232,9 +241,11 @@ TODO: replay the same scenarios as with Alice and Bob, this section is incomplet
 
 ## Data model
 
-* All facts and rules are stored in the database.
-* Clauses have an optional expiration and policy attributes.
-* Clients can retrieve, delete all clauses related to the same policy
+* All predicate clauses are stored in the database.
+* Clauses have an optional expiration and policy attributes. When clause expires,
+clients reload the state of the prolog interpreter.
+* Clients can retrieve, delete all clauses related to the same policy just like with any other
+database.
 
 ```prolog
 % show me all policies
