@@ -17,8 +17,8 @@ of policies, users, facts and rules.
 * Attributes are a key-value pairs describing properties of a user or a resource,
 for example `env: prod`. A user can have none or several attributes.
 
-* Facts state relationships between objects or define attributes, for example, `user(alice).` - a fact
-that states that `alice` is a user. A fact `attribute(alice, env, prod).` states that alice has an attribute
+* Facts state relationships between objects or define attributes, for example, `user(alice);` is a fact
+that states that `alice` is a user. A fact `attribute(alice, env, prod);` states that alice has an attribute
 `env: prod`.
 
 * Rules define relationships between statements.
@@ -27,36 +27,36 @@ Admins can use rules to define group memberships.
 This rule states that `U` is a member of a group `view` if `U` is a user and `U` is a member of a group `dev`:
 
 ```prolog
-member(U, view) :-
-  member(U, dev), user(U).
+member(U, view) <-
+  member(U, dev), user(U);
 ```
 
 Rules like `allow` also govern access to resources. This rule
 allows any user who is a member of group `dev` to access any server as `root`:
 
 ```prolog
-allow(ssh, User, root, Server),
-   member(User, dev).
+allow(ssh, User, root, Server) <-
+   member(User, dev);
 ```
 
 Both facts and rules are clauses.
 
 ## Built-in clauses
 
-* Groups assign users to a collection. For example `member(alice, dev).`
+* Groups assign users to a collection. For example `member(alice, dev);`
 states that `alice` is a member of group `dev`.
 
 * Allow and deny rules are evaluated by a target system to grant or deny access to the system.
 These rules in more detail in "Allow and deny rules" section. For example,
 
-`allow(ssh, alice, luna, root).` allows user `alice` to ssh into server `luna` as SSH principal `root`.
+`allow(ssh, alice, luna, root);` allows user `alice` to ssh into server `luna` as SSH principal `root`.
 
 * Attribute clauses are used to assign attributes to certificates when users log in.
-For example, `attribute(alice, source, sso).` assigns user Alice attribute `sso` that is encoded in the certificate.
+For example, `attribute(alice, source, sso);` assigns user Alice attribute `sso` that is encoded in the certificate.
 
 * Users can request access to multiple parts of the infrastructure and other users can approve or deny those requests.
 Approvals and access requests are facts. For example, if Alice requests to be added to a group, request is logged as: `request(member, alice, dev, 1h).`
-Approvals show approvals of a request `approve(alice, req1)`.
+Approvals show approvals of a request `approve(alice, req1);`.
 
 ## Certificates and Attributes
 
@@ -73,7 +73,7 @@ Some attributes have a special meaning in certificates, and some are arbitrary.
 For example, this attribute allows Alice to enable port forwarding in SSH:
 
 ```prolog
-attribute(alice, port_forwarding, true).
+attribute(alice, port_forwarding, true);
 ```
 
 The attribute above translated to SSH certificate extension `port_forwarding`.
@@ -81,7 +81,7 @@ The attribute above translated to SSH certificate extension `port_forwarding`.
 Here is another attribute:
 
 ```prolog
-attribute(alice, env, prod).
+attribute(alice, env, prod);
 ```
 
 This is an arbitrary attribute that is simply encoded in X.509 and SSH certificate.
@@ -92,7 +92,7 @@ Roles help Teleport's users to migrate from Teleport's RBAC to Predicate. For ex
 here is a fact that assigns `alice` to role `admins`.
 
 ```prolog
-role(alice, admins).
+role(alice, admins);
 ```
 
 In this case, Alice's certificate will have Teleport role `admins` and Teleport's
@@ -103,7 +103,7 @@ RBAC will evaluate it as usual.
 Group membership rules are **not** encoded in the certificates.
 
 ```prolog
-member(bob, prod).
+member(bob, prod);
 ```
 
 It is important because a user may be assigned or unassigned a group to have their
@@ -127,8 +127,8 @@ Any user logging in with email: `bob@example.com` will get an attribute `source:
 and is assigned to a group `sso`.
 
 ```prolog
-attribute(bob@example.com, source, sso).
-member(bob@example.com, admins).
+attribute(bob@example.com, source, sso);
+member(bob@example.com, admins);
 ```
 
 Attribute `source: sso` will be encoded in Bob's certificate, but `member` will not.
@@ -140,8 +140,8 @@ information about users. The example below takes all traits from OIDC or SAML
 and assigns them to attributes:
 
 ```prolog
-attribute(U, Key, Val) :-
-  sso_attribute(U, Key, Val).
+attribute(U, Key, Val) <-
+  sso_attribute(U, Key, Val);
 ```
 
 Rules work with regular expression matches and group captures.
@@ -150,10 +150,10 @@ Here is an example assigns a user to a role `admin-test` if there is a matching
 SAML attribute statement or OIDC claim `group: ssh_admin_test`:
 
 ```prolog
-role(U, R) :-
+role(U, R) <-
     sso_attribute(U, group, Attr),
     regexp("ssh_admin_(?<group>.*)", Attr, Match),
-    R = "admin-" + Match.group.
+    (R = "admin-" + Match.group);
 ```
 
 **Note:** See [roles SWI prolog implementation example](./role.pl) for a sample implementation.
@@ -165,16 +165,16 @@ TODO: work in progress
 Allow rules and facts are in the form of:
 
 ```prolog
-allow(Action, User, Target, Principal).
+allow(Action, User, Target, Principal);
 ```
 
 Rules clauses can be more complex and conditional. The rule below allows any member of
 a group `admins` to SSH into any server that is a member of group `db` as root.
 
 ```prolog
-allow(ssh, User, Host, root) :-
+allow(ssh, User, Host, root) <-
     member(User, admins),
-    member(Host, db).
+    member(Host, db);
 ```
 
 Allow and deny rules can refer to Users' attributes encoded in the certificates,
@@ -185,22 +185,22 @@ in their certificate as attribute `login` to any host that matches the label `ho
 also encoded in the certificate:
 
 ```prolog
-allow(ssh, User, Host, Principal) :-
+allow(ssh, User, Host, Principal) <-
     attribute(User, host_label, L),
     label(Host, host_label, L),
     attribute(User, login, X),
-    Principal = X.
+    (Principal = X);
 ```
 
 Allow and deny rules sometimes need to be grouped together:
 
 ```prolog
 % Alice can login into any host as root,
-allow(ssh, alice, root, H) :-
-  H = _.
+allow(ssh, alice, root, H) <-
+  (H = _);
 % Except the hosts that are labeled production
-deny(ssh, alice, root, H) :-
-  label(H, env, prod).
+deny(ssh, alice, root, H) <-
+  label(H, env, prod);
 ```
 
 These two rules should always be fetched and evaluated together. If predicate
@@ -210,14 +210,14 @@ Policy is a named group of clauses that guarantees that rules will be fetched
 by predicate clients in a transaction:
 
 ```prolog
-policy(admins) :-
-  member(alice, devs).
+policy(admins) <-
+  member(alice, devs);
   % Alice can login into any host as root,
-  allow(ssh, alice, root, H) :-
-    H = _.
+  allow(ssh, alice, root, H) <-
+    (H = _);
   % Except the hosts that are labeled production
-  deny(ssh, alice, root, H) :-
-    label(H, env, prod).
+  deny(ssh, alice, root, H) <-
+    label(H, env, prod);
 ```
 
 ## Access requests
@@ -229,33 +229,33 @@ Predicate supports this through access requests.
 
 Alice requests to be added to group `admins` for `1h`:
 
-`request(member, alice, dev, 1h).`
+`request(member, alice, dev, 1h);`
 
 Alice requests SSH access to a node `luna` for `10m` as `root`:
 
-`request(ssh, alice, root, luna, 10m).`
+`request(ssh, alice, root, luna, 10m);`
 
 Alice requests an extra attribute for `10m`:
 
-`request(attribute, alice, env, prod, 10m).`
+`request(attribute, alice, env, prod, 10m);`
 
 Users can submit their approves and denies as facts to the predicate database.
 
 Lisa and Forrest have approved the requests:
 
 ```prolog
-approve(lisa, req1, "please proceed with caution").
-approve(forrest, req1, "no comment").
-deny(sasha, req1, "you shall not pass").
+approve(lisa, req1, "please proceed with caution");
+approve(forrest, req1, "no comment");
+deny(sasha, req1, "you shall not pass");
 ```
 
 A request is approved if there is enough approvals to match the threshold:
 
 ```prolog
-approved(Req) :-
+approved(Req) <-
     findall(User, approve(User, Req), List),
     length(List, Len),
-    Len >= 2.
+    Len >= 2;
 ```
 
 **Note:** See [roles SWI prolog implementation example](./aggregate.pl) for a sample implementation.
@@ -264,7 +264,7 @@ Once the request is approved, the following fact is added to the database,
 
 ```
 % a fact added with TTL of 10 hours and distributed in the database of rules
-member(alice, admins).
+member(alice, admins);
 ```
 
 **Members vs Attributes**
@@ -273,7 +273,7 @@ Adding member fact to the database is different than Teleport's model that issue
 membership update and expiration is propagated instantaneously, and can be revoked
 if the member fact is deleted from the database:
 
-`member(alice, admins).`
+`member(alice, admins);`
 
 The disadvantage compared to existing Teleport's model is that Teleport's access requests
 are embedded in the certificate and can be reviewed by other organizations.
@@ -281,13 +281,13 @@ are embedded in the certificate and can be reviewed by other organizations.
 Requesting attribute is similar to Teleport's model, because once `attribute` is added to the database,
 a user can issue a new certificate:
 
-`attribute(alice, env, prod).`
+`attribute(alice, env, prod);`
 
 If you combine this with a rule on the leaf or cluster, users will be added to new groups:
 
 ```prolog
-member(U, admins) :-
-  attribute(U, env, prod).
+member(U, admins) <-
+  attribute(U, env, prod);
 ```
 
 ## Policies life-cycle
@@ -355,12 +355,12 @@ P = admins;
 P = devs.
 
 % show me the spec for policy admins
-listing(policy(mypolicy)).
+listing(policy(mypolicy));
 
 ?- listing(policy(mypolicy)).
-policy(mypolicy) :-
+policy(mypolicy) <-
     allow(ssh, alice, dev),
-    deny(ssh, alice, admin).
+    deny(ssh, alice, admin);
 ```
 
 **Note:** See [policies SWI prolog implementation example](./aggregate.pl) for a sample implementation.
@@ -373,13 +373,13 @@ policy(mypolicy) :-
 
 ```prolog
 % delete clause by spec or ID
-delete(policy(mypolicy)).
+delete(policy(mypolicy));
 % create a new clause
-create(policy(mypolicy) :- ....)
+create(policy(mypolicy) :- ....);
 % list clauses matching pattern
-listing(...)
+listing(...);
 % update clause by ID
-update()
+update();
 ```
 
 This is where predicate diverges from classic prolog. In prolog, facts do not have expiration date,
@@ -393,7 +393,7 @@ with Datalog-like frontend.
 This fact allow Alice to SSH into server `luna` as ssh principal `root`:
 
 ```prolog
-allow(ssh, alice, luna, root).
+allow(ssh, alice, luna, root);
 ```
 
 Internally, these allow rules are stored in a tree:
@@ -446,7 +446,7 @@ TODO: work in progress
 Users can define custom predicates using web assembly and plug them into the built-in prolog interpreter
 
 ```prolog
-wasm.time(Stamp) <- assigns time to Stamp
+wasm.time(Stamp); % assigns time to Stamp
 ```
 
 ## Backwards compatibility
@@ -458,7 +458,55 @@ Prolog frontend provides a nice way to interface with existing Teleport's object
 ```prolog
 % lock alice out of the system for one hour
 insert(
-  lock(alice), 1h).
+  lock(alice), 1h);
+```
+
+## Safety
+
+TODO: explore constraints
+
+**Constraints**
+
+Users can use Predicate's constraints to prevent accidental policy applications:
+
+```prolog
+% Devs can't be admins
+member(U, admin) <-
+  !member(U, devs);
+
+% Users from other ogs can't be admins
+member(U, admin) <-
+   (U.org == "myorg.com");
+```
+
+**Type constraints**
+
+Prevent accidental group memberships using type checks
+
+TODO: what other type checks can be there?
+
+```
+% Nodes can't be admins
+member(U, admins) <-
+   !type(U, types.User)
+```
+
+**Undeclared atoms**
+
+TODO: Use type checking and undeclared variables to bring safety
+
+```prolog
+% error: member's second type can be only types.Group, not string
+member(U, "alice@example.com");
+
+% error: atom devz is undeclared
+member(U, devz);
+
+% Experiment devz is a types.Group
+atom(devz, types.Group);
+
+% OK
+member(U, devz);
 ```
 
 ## Static analysis of access policies
