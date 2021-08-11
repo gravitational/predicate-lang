@@ -416,13 +416,60 @@ the system to scale.
 Each node has to fetch all membership rules, locks, so there should be a limit on maximum number
 of those in the system.
 
+## Permission boundaries
+
+[AWS Permission boundaries](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html) can specify maximum boundaries
+that identity can operate on. The permissin boundary below limits any holder to only operate on S3, cloudwatch and ec2 even if there is a policy that allows otherwise:
+
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:*",
+                "cloudwatch:*",
+                "ec2:*"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+Predicate won't need a special construct to achieve the same goal:
+
+```prolog
+% deny any modification on resource that is not a node
+deny(Verb, User, Resource) <-
+   contains(Verb, [create, delete, update]),
+   ! contains(Resource, ["node"]);
+```
+
+## Lists, Sets and Maps
+
+Predicate supports standard lists that can be loaded from external resources to simplify automation:
+
+```prolog
+member(U, dev) <-
+  contains(U, external.Myset);
+```
+
+I this case `external` is a user-defined list that can be managed using any external source, or API. For example, `csv` list, github source, or Teleport's collections.
+
+
 ## Implementation notes
 
 TODO: Needs more work
 
-Use [skyler prolog](https://github.com/mthom/scryer-prolog/blob/master/src/lib.rs) subset or build smaller version using [library](https://github.com/ekzhang/crepe)
+Build a compiled version [rust macro library](https://github.com/ekzhang/crepe). It can be compiled as-is in a WASM module
+and loaded to any program. This has a benefit of compilation, unit tests, etc.
 
-For micro-interpreter. Load the interpreter state when database updates for internal systems, provide
+One can also build an interpreted version for quick experimentation using similar library, but dynamically.
+
+Load the interpreter state when database updates for internal systems, provide
 a small interpreter shell to manipulate the database for fun and debugging (e.g. read-only).
 
 ## Developer and Deployment life cycle
