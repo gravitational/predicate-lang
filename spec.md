@@ -538,9 +538,9 @@ member(U, admins) <-
    !type(U, types.User)
 ```
 
-**Undeclared atoms**
+**Undeclared atoms and clauses**
 
-TODO: Use type checking and undeclared variables to bring safety
+Use type checking and undeclared variables to bring safety:
 
 ```prolog
 % error: member's second type can be only types.Group, not string
@@ -556,10 +556,17 @@ atom(devz, types.Group);
 member(U, devz);
 ```
 
+Predicate programmers will declare clauses signatures that are accepted:
+
+```prolog
+clause(allow, ssh, types.String, ...);
+```
+
+This will avoid making a mistake and using the wrong clause or signature.
+
 ## Static analysis of access policies
 
 TODO: Describe how one would use SMT solver like Z3 similar to Zelkova [1]
-
 to find world-open, weak, or duplicate policies.
 
 ## References

@@ -8,6 +8,10 @@ all: build clean gorun
 gorun:
 	go build main.go && ./main
 
+.PHONY: run
+run:
+	./target/debug/predicate
+
 .PHONY: build
 build:
 	cargo build --target=wasm32-unknown-unknown
