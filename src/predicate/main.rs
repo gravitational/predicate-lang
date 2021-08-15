@@ -1,22 +1,49 @@
 use crepe::crepe;
 
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+enum Action {
+    SSH,
+}
+
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+struct User {
+    name: &'static str,
+}
+
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+struct Host {
+    name: &'static str,
+}
+
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+enum Target {
+    Host(Host),
+}
+
 crepe! {
-    @input
-    struct Edge(i32, i32);
-
     @output
-    struct Reachable(i32, i32);
+    #[derive(Debug)]
+    struct Allow(Action, User, Target, &'static str);
 
-    Reachable(x, y) <- Edge(x, y);
-    Reachable(x, z) <- Edge(x, y), Reachable(y, z);
+    struct Member(User, &'static str);
+
+    Allow(Action::SSH, User{name: "alice"}, Target::Host(Host{name: "mars"}), "root");
+
+    Allow(Action::SSH, u, t, p) <-
+        Member(u, "admin"),
+        ( p  == "root");
 }
 
 fn main() {
-    let mut runtime = Crepe::new();
-    runtime.extend(&[Edge(1, 2), Edge(2, 3), Edge(3, 4), Edge(2, 5)]);
+    let runtime = Crepe::new();
+    /*
+    runtime.extend(&[Allow(
+        Action::SSH,
+        User { name: "alice" },
+        Target::Host {},
+        "root",
+    )]);*/
 
-    let (reachable,) = runtime.run();
-    for Reachable(x, y) in reachable {
-        println!("node {} can reach node {}", x, y);
-    }
+    let results = runtime.run();
+    println!("results: {:?}", results);
 }
