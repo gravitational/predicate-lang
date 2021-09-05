@@ -51,50 +51,99 @@ impl Attribute {
     }
 }
 
-type Predicate<T> = fn(&dyn Query<T>) -> Option<T>;
+type Predicate<T> = fn(&dyn Db, &dyn Query<T>) -> Option<T>;
 
-// find finds first matching query on the predicate and returns it or None
-// if nothing matches
-fn find<T>(q: &dyn Query<T>, predicates: &Vec<Predicate<T>>) -> Option<T> {
-    for pred in predicates.into_iter() {
-        match pred(q) {
-            Some(t) => return Some(t),
-            None => continue,
+trait Collection<T> {
+    fn find(&self, db: &dyn Db, q: &dyn Query<T>) -> Option<T>;
+    fn push(&mut self, p: Predicate<T>);
+}
+
+struct VecCollection<T> {
+    vals: Vec<Predicate<T>>,
+}
+
+impl<T> VecCollection<T> {
+    fn new() -> Self {
+        Self { vals: vec![] }
+    }
+}
+
+impl<T> Collection<T> for VecCollection<T> {
+    fn find(&self, db: &dyn Db, q: &dyn Query<T>) -> Option<T> {
+        for pred in self.vals.iter() {
+            match pred(db, q) {
+                Some(t) => return Some(t),
+                None => continue,
+            }
+        }
+        None
+    }
+
+    fn push(&mut self, p: Predicate<T>) {
+        self.vals.push(p);
+    }
+}
+
+trait Db {
+    fn get_attrs(&self) -> &dyn Collection<Attribute>;
+    fn get_user_attrs(&self) -> &dyn Collection<Attribute>;
+}
+
+struct LocalDb {
+    attrs: VecCollection<Attribute>,
+    user_attrs: VecCollection<Attribute>,
+}
+
+impl LocalDb {
+    fn new() -> Self {
+        Self {
+            attrs: VecCollection::<Attribute>::new(),
+            user_attrs: VecCollection::<Attribute>::new(),
         }
     }
-    None
 }
 
-/*
-trait Db  {
-    fn attributes() -> &Vec<Predicate<Attribute>>,
+impl Db for LocalDb {
+    fn get_attrs(&self) -> &dyn Collection<Attribute> {
+        &self.attrs
+    }
+
+    fn get_user_attrs(&self) -> &dyn Collection<Attribute> {
+        &self.user_attrs
+    }
 }
-*/
 
 fn main() {
-    let mut predicates: Vec<Predicate<Attribute>> = vec![];
+    let mut db = LocalDb::new();
+
+    // let mut sso_attrs: Vec<Predicate<Attribute>> = vec![];
 
     // declares a fact: Bob has attributre, key:val
-    predicates.push(|q| q.fact(&Attribute::new("bob", "key", "val")));
+    db.attrs
+        .push(|_, q| q.fact(&Attribute::new("bob", "key", "val")));
 
     // any user named alice has attribute key:val
-    predicates.push(|q| match q.arg().id.as_str() {
+    db.attrs.push(|_, q| match q.arg().id.as_str() {
         "alice" => Some(Attribute::new(&q.arg().id, "key", "val")),
         _ => None,
     });
 
-    // if a user has sso_attribute group: admins, assign attribute env: prod
-    predicates.push(|q| match q.arg().id.as_str() {
-        "alice" => Some(Attribute::new(&q.arg().id, "key", "val")),
-        _ => None,
-    });
-
+    /*
+        // if a user has sso_attribute group: admins, assign attribute env: prod
+        predicates.push(
+            |q| match find(&Attribute(q.arg().id, "group", "admins"), &z) {
+                Some(_) => Some(Attribute::new(&q.arg().id, "env", "prod")),
+                _ => None,
+            },
+        );
+    */
     println!(
         "bob: {:?}\n",
-        find(&Attribute::new("bob", "key", "val"), &predicates),
+        db.attrs
+            .find(&db as &dyn Db, &Attribute::new("bob", "key", "val")),
     );
     println!(
         "alice: {:?}\n",
-        find(&Attribute::new("alice", "key", "val"), &predicates)
+        db.attrs.find(&db, &Attribute::new("alice", "key", "val"))
     );
 }
