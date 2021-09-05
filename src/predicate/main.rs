@@ -51,6 +51,25 @@ impl Attribute {
     }
 }
 
+struct Arg<T> {
+    v: Option<T>,
+}
+
+impl<T> Arg<T> {
+    fn var() -> Self {
+        Self { v: None }
+    }
+    fn bound(v: T) -> Self {
+        Self { v: Some(v) }
+    }
+}
+
+struct AttributeQuery {
+    id: Arg<String>,
+    key: Arg<String>,
+    val: Arg<String>,
+}
+
 type Predicate<T> = fn(&dyn Db, &dyn Query<T>) -> Option<T>;
 
 trait Collection<T> {
@@ -86,19 +105,19 @@ impl<T> Collection<T> for VecCollection<T> {
 
 trait Db {
     fn get_attrs(&self) -> &dyn Collection<Attribute>;
-    fn get_user_attrs(&self) -> &dyn Collection<Attribute>;
+    fn get_sso_attrs(&self) -> &dyn Collection<Attribute>;
 }
 
 struct LocalDb {
     attrs: VecCollection<Attribute>,
-    user_attrs: VecCollection<Attribute>,
+    sso_attrs: VecCollection<Attribute>,
 }
 
 impl LocalDb {
     fn new() -> Self {
         Self {
             attrs: VecCollection::<Attribute>::new(),
-            user_attrs: VecCollection::<Attribute>::new(),
+            sso_attrs: VecCollection::<Attribute>::new(),
         }
     }
 }
@@ -108,15 +127,13 @@ impl Db for LocalDb {
         &self.attrs
     }
 
-    fn get_user_attrs(&self) -> &dyn Collection<Attribute> {
-        &self.user_attrs
+    fn get_sso_attrs(&self) -> &dyn Collection<Attribute> {
+        &self.sso_attrs
     }
 }
 
 fn main() {
     let mut db = LocalDb::new();
-
-    // let mut sso_attrs: Vec<Predicate<Attribute>> = vec![];
 
     // declares a fact: Bob has attributre, key:val
     db.attrs
@@ -124,26 +141,51 @@ fn main() {
 
     // any user named alice has attribute key:val
     db.attrs.push(|_, q| match q.arg().id.as_str() {
-        "alice" => Some(Attribute::new(&q.arg().id, "key", "val")),
+        "alice" => q.fact(&Attribute::new(&q.arg().id, "key", "val")),
         _ => None,
     });
 
-    /*
-        // if a user has sso_attribute group: admins, assign attribute env: prod
-        predicates.push(
-            |q| match find(&Attribute(q.arg().id, "group", "admins"), &z) {
-                Some(_) => Some(Attribute::new(&q.arg().id, "env", "prod")),
-                _ => None,
-            },
-        );
-    */
+    db.sso_attrs
+        .push(|_, q| q.fact(&Attribute::new("alice", "group", "admins")));
+
+    // if a user has sso_attribute group: admins, assign attribute env: prod
+    db.attrs.push(|db, q| {
+        match db
+            .get_sso_attrs()
+            .find(db, &Attribute::new(&q.arg().id, "group", "admins"))
+        {
+            Some(_) => q.fact(&Attribute::new(&q.arg().id, "env", "prod")),
+            _ => None,
+        }
+    });
+
     println!(
-        "bob: {:?}\n",
+        "Does bob have attriube key, val? {:?}\n",
         db.attrs
             .find(&db as &dyn Db, &Attribute::new("bob", "key", "val")),
     );
+
     println!(
-        "alice: {:?}\n",
+        "Does alice have attribute(alice, key, val)? {:?}\n",
         db.attrs.find(&db, &Attribute::new("alice", "key", "val"))
+    );
+
+    println!(
+        "Does alice have attribute env, prod? {:?}\n",
+        db.attrs.find(&db, &Attribute::new("alice", "env", "prod"))
+    );
+
+    println!(
+        "Does alice have attribute env, stage? {:?}\n",
+        db.attrs.find(&db, &Attribute::new("alice", "env", "stage"))
+    );
+
+    // what attriubutes alice has?
+    println!(
+        "Does alice have attribute env, stage? {:?}\n",
+        db.attrs.find(
+            &db,
+            &Attribute::query("alice", Arg::<String>::var(), Arg::<String>::var())
+        )
     );
 }
