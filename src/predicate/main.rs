@@ -9,6 +9,8 @@
 //}
 
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 struct User {
@@ -21,17 +23,27 @@ trait Query<T> {
     fn arg(&self) -> T;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct Attribute {
-    id: String,
-    key: String,
-    val: String,
+    id: Arg<String>,
+    key: Arg<String>,
+    val: Arg<String>,
+}
+
+impl std::fmt::Debug for Attribute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Attribute")
+            .field("id", &self.id)
+            .field("key", &self.key)
+            .field("val", &self.val)
+            .finish()
+    }
 }
 
 impl Query<Attribute> for Attribute {
     fn fact(&self, a: &Self) -> Option<Self> {
         if self.id == a.id && self.key == a.key && self.val == a.val {
-            return Some(self.clone());
+            return Some(a.clone());
         }
         None
     }
@@ -42,38 +54,68 @@ impl Query<Attribute> for Attribute {
 }
 
 impl Attribute {
-    fn new(id: &str, key: &str, val: &str) -> Self {
+    fn literal<Z: Into<String>>(id: Z, key: Z, val: Z) -> Self {
         Self {
-            id: id.to_string(),
-            key: key.to_string(),
-            val: val.to_string(),
+            id: Arg::new(id),
+            key: Arg::new(key),
+            val: Arg::new(val),
+        }
+    }
+
+    fn new<Z: Into<Arg<String>>>(id: Z, key: Z, val: Z) -> Self {
+        Self {
+            id: id.into(),
+            key: key.into(),
+            val: val.into(),
         }
     }
 }
 
-struct Arg<T> {
+impl Into<Arg<String>> for String {
+    fn into(self) -> Arg<String> {
+        Arg::new(self.clone())
+    }
+}
+
+#[derive(Clone)]
+struct Arg<T: Debug + Clone> {
     v: Option<T>,
 }
 
-impl<T> Arg<T> {
+impl<T: Debug + Clone> Arg<T> {
     fn var() -> Self {
         Self { v: None }
     }
-    fn bound(v: T) -> Self {
-        Self { v: Some(v) }
+    fn new<Z: Into<T>>(v: Z) -> Self {
+        Self { v: Some(v.into()) }
     }
 }
 
-struct AttributeQuery {
-    id: Arg<String>,
-    key: Arg<String>,
-    val: Arg<String>,
+impl<T: Debug + Clone> std::fmt::Debug for Arg<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.v.fmt(f)
+    }
+}
+
+impl<T: PartialEq + Debug + Clone> PartialEq for Arg<T> {
+    fn eq(&self, other: &Self) -> bool {
+        if let Some(a) = &self.v {
+            if let Some(b) = &other.v {
+                return a == b;
+            }
+        } else {
+            // unbound arg will match any other argument
+            return true;
+        }
+        false
+    }
 }
 
 type Predicate<T> = fn(&dyn Db, &dyn Query<T>) -> Option<T>;
 
 trait Collection<T> {
     fn find(&self, db: &dyn Db, q: &dyn Query<T>) -> Option<T>;
+    fn find_all(&self, db: &dyn Db, q: &dyn Query<T>) -> Vec<T>;
     fn push(&mut self, p: Predicate<T>);
 }
 
@@ -96,6 +138,17 @@ impl<T> Collection<T> for VecCollection<T> {
             }
         }
         None
+    }
+
+    fn find_all(&self, db: &dyn Db, q: &dyn Query<T>) -> Vec<T> {
+        let mut res = vec![];
+        for pred in self.vals.iter() {
+            match pred(db, q) {
+                Some(t) => res.push(t),
+                None => continue,
+            }
+        }
+        res
     }
 
     fn push(&mut self, p: Predicate<T>) {
@@ -137,24 +190,35 @@ fn main() {
 
     // declares a fact: Bob has attributre, key:val
     db.attrs
-        .push(|_, q| q.fact(&Attribute::new("bob", "key", "val")));
+        .push(|_, q| q.fact(&Attribute::literal("bob", "key", "val")));
 
-    // any user named alice has attribute key:val
-    db.attrs.push(|_, q| match q.arg().id.as_str() {
-        "alice" => q.fact(&Attribute::new(&q.arg().id, "key", "val")),
-        _ => None,
+    db.attrs
+        .push(|_, q| q.fact(&Attribute::literal("alice", "key", "val")));
+
+    // any user has attribute source: demo
+    db.attrs.push(|_, q| {
+        q.fact(&Attribute::new(
+            q.arg().id,
+            Arg::new("soruce"),
+            Arg::new("demo"),
+        ))
     });
 
+    // Alice has sso_attribute group:admins
     db.sso_attrs
-        .push(|_, q| q.fact(&Attribute::new("alice", "group", "admins")));
+        .push(|_, q| q.fact(&Attribute::literal("alice", "group", "admins")));
 
     // if a user has sso_attribute group: admins, assign attribute env: prod
     db.attrs.push(|db, q| {
-        match db
-            .get_sso_attrs()
-            .find(db, &Attribute::new(&q.arg().id, "group", "admins"))
-        {
-            Some(_) => q.fact(&Attribute::new(&q.arg().id, "env", "prod")),
+        match db.get_sso_attrs().find(
+            db,
+            &Attribute::new(q.arg().id, Arg::new("group"), Arg::new("admins")),
+        ) {
+            Some(_) => q.fact(&Attribute::new(
+                q.arg().id,
+                Arg::new("env"),
+                Arg::new("prod"),
+            )),
             _ => None,
         }
     });
@@ -162,30 +226,50 @@ fn main() {
     println!(
         "Does bob have attriube key, val? {:?}\n",
         db.attrs
-            .find(&db as &dyn Db, &Attribute::new("bob", "key", "val")),
+            .find(&db as &dyn Db, &Attribute::literal("bob", "key", "val")),
     );
 
     println!(
-        "Does alice have attribute(alice, key, val)? {:?}\n",
-        db.attrs.find(&db, &Attribute::new("alice", "key", "val"))
+        "What attributes bob has? {:?}\n",
+        db.attrs.find_all(
+            &db,
+            &Attribute::new(
+                Arg::<String>::new("bob"),
+                Arg::<String>::var(),
+                Arg::<String>::var()
+            )
+        )
+    );
+
+    println!(
+        "Who has attribute key: val? {:?}\n",
+        db.attrs.find_all(
+            &db,
+            &Attribute::new(
+                Arg::<String>::var(),
+                Arg::<String>::new("key"),
+                Arg::<String>::new("val")
+            )
+        )
     );
 
     println!(
         "Does alice have attribute env, prod? {:?}\n",
-        db.attrs.find(&db, &Attribute::new("alice", "env", "prod"))
+        db.attrs
+            .find(&db, &Attribute::literal("alice", "env", "prod"))
     );
 
     println!(
-        "Does alice have attribute env, stage? {:?}\n",
-        db.attrs.find(&db, &Attribute::new("alice", "env", "stage"))
+        "Does bob have attribute env, prod? {:?}\n",
+        db.attrs
+            .find(&db, &Attribute::literal("bob", "env", "prod"))
     );
 
-    // what attriubutes alice has?
     println!(
-        "Does alice have attribute env, stage? {:?}\n",
-        db.attrs.find(
+        "What attriubutes alice has? {:?}\n",
+        db.attrs.find_all(
             &db,
-            &Attribute::query("alice", Arg::<String>::var(), Arg::<String>::var())
+            &Attribute::new(Arg::new("alice"), Arg::var(), Arg::var())
         )
     );
 }
