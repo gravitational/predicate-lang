@@ -6,7 +6,7 @@ edition = "2018"
 
 [[bin]]
 name = "predicate"
-path = "src/predicate/main.rs"
+path = "src/tool.rs"
 
 [lib]
 crate-type =["cdylib"]
