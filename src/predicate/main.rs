@@ -80,14 +80,27 @@ impl Into<Arg<String>> for String {
 #[derive(Clone)]
 struct Arg<T: Debug + Clone> {
     v: Option<T>,
+    compare: Option<fn(other: &T) -> bool>,
 }
 
 impl<T: Debug + Clone> Arg<T> {
     fn var() -> Self {
-        Self { v: None }
+        Self {
+            v: None,
+            compare: None,
+        }
     }
     fn new<Z: Into<T>>(v: Z) -> Self {
-        Self { v: Some(v.into()) }
+        Self {
+            v: Some(v.into()),
+            compare: None,
+        }
+    }
+    fn compare(f: fn(other: &T) -> bool) -> Self {
+        Self {
+            v: None,
+            compare: Some(f),
+        }
     }
 }
 
@@ -99,6 +112,13 @@ impl<T: Debug + Clone> std::fmt::Debug for Arg<T> {
 
 impl<T: PartialEq + Debug + Clone> PartialEq for Arg<T> {
     fn eq(&self, other: &Self) -> bool {
+        if let Some(cmp) = &self.compare {
+            if let Some(b) = &other.v {
+                return cmp(b);
+            }
+            // unbound arg will match any other argument
+            return true;
+        }
         if let Some(a) = &self.v {
             if let Some(b) = &other.v {
                 return a == b;
@@ -208,6 +228,10 @@ fn main() {
     db.sso_attrs
         .push(|_, q| q.fact(&Attribute::literal("alice", "group", "admins")));
 
+    // Alice has sso_attribute team-
+    db.sso_attrs
+        .push(|_, q| q.fact(&Attribute::literal("alice", "team-devs", "true")));
+
     // if a user has sso_attribute group: admins, assign attribute env: prod
     db.attrs.push(|db, q| {
         match db.get_sso_attrs().find(
@@ -219,6 +243,21 @@ fn main() {
                 Arg::new("env"),
                 Arg::new("prod"),
             )),
+            _ => None,
+        }
+    });
+
+    // if a user has sso_attribute that starts with `team-`, assign them this attribute: verified
+    db.attrs.push(|db, q| {
+        match db.get_sso_attrs().find(
+            db,
+            &Attribute::new(
+                q.arg().id,
+                Arg::compare(|x| x.starts_with("team-")),
+                Arg::var(),
+            ),
+        ) {
+            Some(a) => q.fact(&Attribute::new(q.arg().id, a.key, Arg::new("verified"))),
             _ => None,
         }
     });
