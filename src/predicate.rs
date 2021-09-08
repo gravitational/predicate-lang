@@ -214,7 +214,7 @@ mod test {
         db.attrs.push(|_, q| {
             q.fact(&Attribute::new(
                 q.arg().id,
-                Arg::new("soruce"),
+                Arg::new("source"),
                 Arg::new("demo"),
             ))
         });
@@ -242,7 +242,7 @@ mod test {
             }
         });
 
-        // if a user has sso_attribute that starts with `team-`, assign them this attribute: verified
+        // if a user has sso_attribute that starts with `team-`, assign them this attribute: generated
         db.attrs.push(|db, q| {
             match db.get_sso_attrs().find(
                 db,
@@ -252,7 +252,7 @@ mod test {
                     Arg::var(),
                 ),
             ) {
-                Some(a) => q.fact(&Attribute::new(q.arg().id, a.key, Arg::new("verified"))),
+                Some(a) => q.fact(&Attribute::new(q.arg().id, a.key, Arg::new("generated"))),
                 _ => None,
             }
         });
@@ -264,8 +264,7 @@ mod test {
             "Bob has attribute key: val",
         );
 
-        println!(
-            "What attributes bob has? {:?}\n",
+        assert_eq!(
             db.attrs.find_all(
                 &db,
                 &Attribute::new(
@@ -273,11 +272,15 @@ mod test {
                     Arg::<String>::var(),
                     Arg::<String>::var()
                 )
-            )
+            ),
+            vec![
+                Attribute::literal("bob", "key", "val"),
+                Attribute::literal("bob", "source", "demo")
+            ],
+            "Query finds all attributes for Bob, static and dynamic",
         );
 
-        println!(
-            "Who has attribute key: val? {:?}\n",
+        assert_eq!(
             db.attrs.find_all(
                 &db,
                 &Attribute::new(
@@ -285,35 +288,49 @@ mod test {
                     Arg::<String>::new("key"),
                     Arg::<String>::new("val")
                 )
-            )
+            ),
+            vec![
+                Attribute::literal("bob", "key", "val"),
+                Attribute::literal("alice", "key", "val")
+            ],
+            "Query finds that both alice and bob have key and val attributes",
         );
 
-        println!(
-            "Does alice have attribute env, prod? {:?}\n",
+        assert_eq!(
             db.attrs
-                .find(&db, &Attribute::literal("alice", "env", "prod"))
+                .find(&db, &Attribute::literal("alice", "env", "prod")),
+            Some(Attribute::literal("alice", "env", "prod")),
+            "Query finds derived attribute env: prod for alice",
         );
 
-        println!(
-            "Does alice have attribute team-devs? {:?}\n",
+        assert_eq!(
+            db.attrs
+                .find(&db, &Attribute::literal("bob", "env", "prod")),
+            None,
+            "Query does not find derived attribute env: prod for bob",
+        );
+
+        assert_eq!(
             db.attrs.find(
                 &db,
                 &Attribute::new(Arg::new("alice"), Arg::new("team-devs"), Arg::var())
-            )
+            ),
+            Some(Attribute::literal("alice", "team-devs", "generated")),
+            "Query finds derived attribute env: team-devs for alice",
         );
 
-        println!(
-            "Does bob have attribute env, prod? {:?}\n",
-            db.attrs
-                .find(&db, &Attribute::literal("bob", "env", "prod"))
-        );
-
-        println!(
-            "What attriubutes alice has? {:?}\n",
+        assert_eq!(
             db.attrs.find_all(
                 &db,
                 &Attribute::new(Arg::new("alice"), Arg::var(), Arg::var())
-            )
+            ),
+            vec![
+                Attribute::literal("alice", "key", "val"),
+                Attribute::literal("alice", "source", "demo"),
+                Attribute::literal("alice", "env", "prod"),
+                Attribute::literal("alice", "team-devs", "generated"),
+            ],
+            "Query finds all attributes for alice",
         );
     }
 }
