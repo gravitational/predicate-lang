@@ -9,8 +9,27 @@ pub struct User {
 }
 
 pub trait Query<T> {
-    fn fact(&self, arg: &T) -> Option<T>;
+    fn fact(&self, arg: &T) -> SearchResult<T>;
     fn arg(&self) -> T;
+}
+
+pub struct Fact<T: Clone> {
+    val: T,
+}
+
+impl<T: Clone> Fact<T> {
+    pub fn new(val: &T) -> Self {
+        Self { val: val.clone() }
+    }
+}
+
+impl<T: Clone> Query<T> for Fact<T> {
+    fn fact(&self, _: &T) -> SearchResult<T> {
+        SearchResult::Some(self.val.clone())
+    }
+    fn arg(&self) -> T {
+        self.val.clone()
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -31,11 +50,11 @@ impl std::fmt::Debug for Attribute {
 }
 
 impl Query<Attribute> for Attribute {
-    fn fact(&self, a: &Self) -> Option<Self> {
+    fn fact(&self, a: &Self) -> SearchResult<Self> {
         if self.id == a.id && self.key == a.key && self.val == a.val {
-            return Some(a.clone());
+            return SearchResult::Some(a.clone());
         }
-        None
+        SearchResult::None
     }
 
     fn arg(&self) -> Self {
@@ -121,9 +140,22 @@ impl<T: PartialEq + Debug + Clone> PartialEq for Arg<T> {
     }
 }
 
-pub type Predicate<T> = fn(&dyn Db, &dyn Query<T>) -> Option<T>;
+// Define our error types. These may be customized for our error handling cases.
+// Now we will be able to write our own errors, defer to an underlying error
+// implementation, or do something in between.
+#[derive(Debug, Clone)]
+pub enum SearchResult<T> {
+    // Some means found something
+    Some(T),
+    // Deny value matching the search result
+    Deny,
+    // None means not found, keep searching
+    None,
+}
 
-pub trait Collection<T> {
+pub type Predicate<T> = fn(&dyn Db, &dyn Query<T>) -> SearchResult<T>;
+
+pub trait Collection<T: Clone> {
     fn find(&self, db: &dyn Db, q: &dyn Query<T>) -> Option<T>;
     fn find_all(&self, db: &dyn Db, q: &dyn Query<T>) -> Vec<T>;
     fn push(&mut self, p: Predicate<T>);
@@ -139,55 +171,75 @@ impl<T> VecCollection<T> {
     }
 }
 
-impl<T> Collection<T> for VecCollection<T> {
+impl<T: Clone> Collection<T> for VecCollection<T> {
     fn find(&self, db: &dyn Db, q: &dyn Query<T>) -> Option<T> {
-        for pred in self.vals.iter() {
-            match pred(db, q) {
-                Some(t) => return Some(t),
-                None => continue,
-            }
-        }
-        None
+        self.find_all(db, q).pop()
     }
 
     fn find_all(&self, db: &dyn Db, q: &dyn Query<T>) -> Vec<T> {
         let mut res = vec![];
+        let mut deny_pred = vec![];
+
         for pred in self.vals.iter() {
             match pred(db, q) {
-                Some(t) => res.push(t),
-                None => continue,
+                SearchResult::Some(t) => res.push(t),
+                SearchResult::Deny => deny_pred.push(pred),
+                SearchResult::None => continue,
             }
         }
+
+        // pass each value in the resulting set
+        // through the predicates that denied the original query
+        // and filter out those values that are denied by the predicates
+        // on each value as new query
+        res.retain(|v| {
+            for deny_pred in deny_pred.iter() {
+                match deny_pred(db, &Fact::new(v)) {
+                    SearchResult::Some(_) => continue,
+                    SearchResult::Deny => return false,
+                    SearchResult::None => continue,
+                }
+            }
+            true
+        });
         res
     }
 
     fn push(&mut self, p: Predicate<T>) {
+        //-> Sort values here, facts should go first, all rules should be evaluated
         self.vals.push(p);
     }
 }
 
 pub trait Db {
-    fn get_attrs(&self) -> &dyn Collection<Attribute>;
+    fn get_allow_attrs(&self) -> &dyn Collection<Attribute>;
+    fn get_deny_attrs(&self) -> &dyn Collection<Attribute>;
     fn get_sso_attrs(&self) -> &dyn Collection<Attribute>;
 }
 
 pub struct LocalDb {
-    pub attrs: VecCollection<Attribute>,
+    pub allow_attrs: VecCollection<Attribute>,
+    pub deny_attrs: VecCollection<Attribute>,
     pub sso_attrs: VecCollection<Attribute>,
 }
 
 impl LocalDb {
     pub fn new() -> Self {
         Self {
-            attrs: VecCollection::<Attribute>::new(),
+            allow_attrs: VecCollection::<Attribute>::new(),
+            deny_attrs: VecCollection::<Attribute>::new(),
             sso_attrs: VecCollection::<Attribute>::new(),
         }
     }
 }
 
 impl Db for LocalDb {
-    fn get_attrs(&self) -> &dyn Collection<Attribute> {
-        &self.attrs
+    fn get_allow_attrs(&self) -> &dyn Collection<Attribute> {
+        &self.allow_attrs
+    }
+
+    fn get_deny_attrs(&self) -> &dyn Collection<Attribute> {
+        &self.deny_attrs
     }
 
     fn get_sso_attrs(&self) -> &dyn Collection<Attribute> {
@@ -196,22 +248,22 @@ impl Db for LocalDb {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
-    fn test_basics() {
+    fn basics() {
         let mut db = LocalDb::new();
 
         // declares a fact: Bob has attributre, key:val
-        db.attrs
+        db.allow_attrs
             .push(|_, q| q.fact(&Attribute::literal("bob", "key", "val")));
 
-        db.attrs
+        db.allow_attrs
             .push(|_, q| q.fact(&Attribute::literal("alice", "key", "val")));
 
         // any user has attribute source: demo
-        db.attrs.push(|_, q| {
+        db.allow_attrs.push(|_, q| {
             q.fact(&Attribute::new(
                 q.arg().id,
                 Arg::new("source"),
@@ -228,7 +280,7 @@ mod test {
             .push(|_, q| q.fact(&Attribute::literal("alice", "team-devs", "true")));
 
         // if a user has sso_attribute group: admins, assign attribute env: prod
-        db.attrs.push(|db, q| {
+        db.allow_attrs.push(|db, q| {
             match db.get_sso_attrs().find(
                 db,
                 &Attribute::new(q.arg().id, Arg::new("group"), Arg::new("admins")),
@@ -238,12 +290,12 @@ mod test {
                     Arg::new("env"),
                     Arg::new("prod"),
                 )),
-                _ => None,
+                _ => SearchResult::None,
             }
         });
 
         // if a user has sso_attribute that starts with `team-`, assign them this attribute: generated
-        db.attrs.push(|db, q| {
+        db.allow_attrs.push(|db, q| {
             match db.get_sso_attrs().find(
                 db,
                 &Attribute::new(
@@ -253,19 +305,19 @@ mod test {
                 ),
             ) {
                 Some(a) => q.fact(&Attribute::new(q.arg().id, a.key, Arg::new("generated"))),
-                _ => None,
+                _ => SearchResult::None,
             }
         });
 
         assert_eq!(
-            db.attrs
+            db.allow_attrs
                 .find(&db as &dyn Db, &Attribute::literal("bob", "key", "val")),
             Some(Attribute::literal("bob", "key", "val")),
             "Bob has attribute key: val",
         );
 
         assert_eq!(
-            db.attrs.find_all(
+            db.allow_attrs.find_all(
                 &db,
                 &Attribute::new(
                     Arg::<String>::new("bob"),
@@ -281,7 +333,7 @@ mod test {
         );
 
         assert_eq!(
-            db.attrs.find_all(
+            db.allow_attrs.find_all(
                 &db,
                 &Attribute::new(
                     Arg::<String>::var(),
@@ -297,21 +349,21 @@ mod test {
         );
 
         assert_eq!(
-            db.attrs
+            db.allow_attrs
                 .find(&db, &Attribute::literal("alice", "env", "prod")),
             Some(Attribute::literal("alice", "env", "prod")),
             "Query finds derived attribute env: prod for alice",
         );
 
         assert_eq!(
-            db.attrs
+            db.allow_attrs
                 .find(&db, &Attribute::literal("bob", "env", "prod")),
             None,
             "Query does not find derived attribute env: prod for bob",
         );
 
         assert_eq!(
-            db.attrs.find(
+            db.allow_attrs.find(
                 &db,
                 &Attribute::new(Arg::new("alice"), Arg::new("team-devs"), Arg::var())
             ),
@@ -320,7 +372,7 @@ mod test {
         );
 
         assert_eq!(
-            db.attrs.find_all(
+            db.allow_attrs.find_all(
                 &db,
                 &Attribute::new(Arg::new("alice"), Arg::var(), Arg::var())
             ),
@@ -331,6 +383,53 @@ mod test {
                 Attribute::literal("alice", "team-devs", "generated"),
             ],
             "Query finds all attributes for alice",
+        );
+    }
+
+    #[test]
+    fn deny() {
+        let mut db = LocalDb::new();
+
+        // declares a fact: Bob has attribute, env:prod
+        db.allow_attrs
+            .push(|_, q| q.fact(&Attribute::literal("bob", "env", "prod")));
+
+        // declares a fact: Bob has attribute, key:val
+        db.allow_attrs
+            .push(|_, q| q.fact(&Attribute::literal("bob", "key", "val")));
+
+        // no user can have allow attribute that is denied
+        db.allow_attrs
+            .push(|db, q| match db.get_deny_attrs().find(db, &q.arg()) {
+                Some(_) => SearchResult::Deny,
+                _ => SearchResult::None,
+            });
+
+        // no user can have an attribute env:prod
+        db.deny_attrs.push(|_, q| {
+            q.fact(&Attribute::new(
+                q.arg().id,
+                Arg::new("env"),
+                Arg::new("prod"),
+            ))
+        });
+
+        // conflicting requirement - any user has attribute env:prod
+        db.deny_attrs.push(|_, q| {
+            q.fact(&Attribute::new(
+                q.arg().id,
+                Arg::new("env"),
+                Arg::new("prod"),
+            ))
+        });
+
+        assert_eq!(
+            db.allow_attrs.find_all(
+                &db,
+                &Attribute::new(Arg::new("bob"), Arg::var(), Arg::var())
+            ),
+            vec![Attribute::literal("bob", "key", "val"),],
+            "Bob only gets attributes that are not denied",
         );
     }
 }
