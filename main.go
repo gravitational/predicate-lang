@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"time"
 
 	"github.com/gravitational/acre/pkg/types"
 	"github.com/wasmerio/wasmer-go/wasmer"
@@ -96,21 +97,65 @@ func ExampleInstance() {
 		panic(err)
 	}
 
-	demo()
-
-	message := &types.Request{
-		Message: "Hello, World!",
+	w.call, err = instance.Exports.GetFunction("call")
+	if err != nil {
+		panic(err)
 	}
 
-	ptrVal := writeMessage(w, message)
-
-	fmt.Printf("Ptr val: %v", ptrVal)
+	start := time.Now()
+	iters := 13000
+	for i := 0; i < iters; i++ {
+		requestResponse(w)
+	}
+	diff := time.Now().Sub(start)
+	fmt.Printf("%v iterations in %v, %v per iteration", iters, diff, diff/time.Duration(iters))
 
 	// Output:
 	// Compiling module...
 	// Instantiating module...
 	// Calling `add_one` function...
 	// Results of `add_one`: 2
+}
+
+func requestResponse(w wasm) {
+	message := &types.Request{
+		Message: "Hello, World!",
+	}
+
+	responseHeader := &types.ResponseHeader{
+		SizeBytes: 4294967295,
+		Ptr:       4294967295,
+	}
+
+	ptrVal, len := writeMessage(w, message)
+
+	rePtrVal, err := w.call(ptrVal, len)
+	if err != nil {
+		panic(err)
+	}
+
+	data, err := readMessageBytes(w, rePtrVal, responseHeader.Size())
+	if err != nil {
+		panic(err)
+	}
+
+	//fmt.Printf("Data: %#v\n", data)
+
+	if err = responseHeader.Unmarshal(data); err != nil {
+		panic(err)
+	}
+
+	//	fmt.Printf("Ptr val: %v %v %v\n", ptrVal, rePtrVal, len)
+	//	fmt.Printf("Out: %v %v", responseHeader.SizeBytes, responseHeader.Ptr)
+
+	responseData, err := readMessageBytes(w, int32(responseHeader.Ptr), int(responseHeader.SizeBytes))
+	if err != nil {
+		panic(err)
+	}
+
+	var response types.Response
+	response.Unmarshal(responseData)
+	//fmt.Printf("Response: %#v", response)
 }
 
 func demo() {
@@ -150,6 +195,7 @@ type wasm struct {
 	alloc func(...interface{}) (interface{}, error)
 	setAt func(...interface{}) (interface{}, error)
 	getAt func(...interface{}) (interface{}, error)
+	call  func(...interface{}) (interface{}, error)
 }
 
 // Int64Size is a constant for 64 bit integer byte size
@@ -158,7 +204,12 @@ const Int64Size = 8
 // Int32Size is a constant for 32 bit integer byte size
 const Int32Size = 4
 
-func marshalMessage(msg *types.Request) []byte {
+type m interface {
+	MarshalTo(dAtA []byte) (int, error)
+	Size() (n int)
+}
+
+func marshalMessage(msg m) []byte {
 	messageSize := msg.Size()
 	bytes := make([]byte, messageSize)
 	_, err := msg.MarshalTo(bytes)
@@ -168,10 +219,23 @@ func marshalMessage(msg *types.Request) []byte {
 	return bytes
 }
 
-func writeMessage(w wasm, msg *types.Request) interface{} {
+func readMessageBytes(w wasm, ptrVal interface{}, size int) ([]byte, error) {
+	data := make([]byte, size, size)
+	for i := range data {
+		b, err := w.getAt(ptrVal, i)
+		if err != nil {
+			panic(err)
+		}
+		data[i] = byte(b.(int32))
+	}
+	return data, nil
+}
+
+func writeMessage(w wasm, msg m) (interface{}, int) {
 	data := marshalMessage(msg)
 
 	ptrVal, err := w.alloc(len(data))
+	//	fmt.Printf("allocated: %v for data(%v) %#v\n", ptrVal, len(data), data)
 	if err != nil {
 		panic(err)
 	}
@@ -183,7 +247,7 @@ func writeMessage(w wasm, msg *types.Request) interface{} {
 		}
 	}
 
-	return ptrVal
+	return ptrVal, len(data)
 }
 
 func main() {

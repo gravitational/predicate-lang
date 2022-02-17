@@ -8,9 +8,17 @@ all: build clean gorun
 gorun:
 	go build main.go && ./main
 
+.PHONY: run
+run:
+	./target/debug/predicate
+
 .PHONY: build
 build:
 	cargo build --target=wasm32-unknown-unknown
+
+.PHONY: predicate
+predicate:
+	cargo build --bin predicate
 
 .PHONY: clean
 clean:
@@ -35,5 +43,5 @@ buildbox-grpc:
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
-		--rust_out ./src/ \
+		--rust_out ./src \
 		hello.proto
