@@ -1,3 +1,3 @@
-# ACRE
+## Predicate
 
-Access Control RuntimE
+Access control runtime and expression library.
