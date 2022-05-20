@@ -55,20 +55,48 @@ class Or:
     def __or__(self, other):
         return Or(self, other)
 
-class Server:
-    env = String("env")
-
-class User:
-    team = String("team")
-
+# user model
 def predicate(*expr):
     solver = z3.Solver()
     for e in expr:
         solver.add(e.traverse())
     return solver
 
-pred = (Server.env == User.team) | (Server.env == "stage")
+def equivalent(a, b):
+    solver = z3.Solver()
+    solver.add(z3.Distinct(a.traverse(), b.traverse()))
+    result = solver.check()
+    if z3.unsat == result:
+        return (True, "Roles are equivalent")
+    elif z3.sat == result:
+        return (False, f"Roles are not equivalent; counterexample: {solver.model()}")
+    else:
+        return (False, str(result))
 
+# User-defined model here
+    
+class Server:
+    '''
+    Server is a domain-specific model (e.g. Teleport server)
+    '''
+    env = String("env")
+
+class User:
+    '''
+    User is a domain specific model (e.g. Teleport user)
+    '''
+    team = String("team")
+
+
+# Predicate looks like a simple logical expression,
+# so no prior Z3 knowledge is required
+pred = (Server.env == User.team) | (Server.env == "stage")
+pred2 = (Server.env == "stage")
+
+# But it comes with super-powers!
+print(equivalent(pred, pred2))
+
+# And just regular checks against random data:
 p = predicate(pred, Server.env == "stage")
 print(p.check())
 print(p.model())
@@ -76,3 +104,8 @@ print(p.model())
 p = predicate(pred, User.team == "prod", Server.env == "prod")
 print(p.check())
 print(p.model())
+
+p = predicate(pred, User.team == "prod", Server.env == "pro")
+print(p.check())
+
+# TODO: how to build an oracle?
