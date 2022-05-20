@@ -17,6 +17,8 @@ class String:
     def __eq__(self, val):
         if isinstance(val, str):
             return Eq(self, StringLiteral(val))
+        if isinstance(val, String):
+            return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __str__(self):
@@ -59,15 +61,18 @@ class Server:
 class User:
     team = String("team")
 
-def predicate(expr):
-    print(expr)
+def predicate(*expr):
     solver = z3.Solver()
-    solver.add(expr.traverse())
-    print(solver.check())
+    for e in expr:
+        solver.add(e.traverse())
     return solver
 
-pred = predicate((Server.env == "prod") | (Server.env == "stage"))
-print(pred.model())
-pred.add(Server.env.fn(z3.StringVal(Server.env.name)) == z3.StringVal("stage"))
-print(pred.check())
+pred = (Server.env == User.team) | (Server.env == "stage")
 
+p = predicate(pred, Server.env == "stage")
+print(p.check())
+print(p.model())
+
+p = predicate(pred, User.team == "prod", Server.env == "prod")
+print(p.check())
+print(p.model())
