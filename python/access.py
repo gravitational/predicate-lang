@@ -53,8 +53,11 @@ class Or:
     def __or__(self, other):
         return Or(self, other)
 
-class Labels:
+class Server:
     env = String("env")
+
+class User:
+    team = String("team")
 
 def predicate(expr):
     print(expr)
@@ -63,8 +66,8 @@ def predicate(expr):
     print(solver.check())
     return solver
 
-pred = predicate((Labels.env == "prod") | (Labels.env == "stage"))
+pred = predicate((Server.env == "prod") | (Server.env == "stage"))
 print(pred.model())
-pred.add(Labels.env.fn(z3.StringVal(Labels.env.name)) == z3.StringVal("stage"))
+pred.add(Server.env.fn(z3.StringVal(Server.env.name)) == z3.StringVal("stage"))
 print(pred.check())
 
