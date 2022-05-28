@@ -238,12 +238,16 @@ class Server:
     Server is a domain-specific model (e.g. Teleport server)
     '''
     env = String("server.env")
+    # login is SSH server login
+    login = String("server.login")
 
 class User:
     '''
     User is a domain specific model (e.g. Teleport user)
     '''
     team = String("user.team")
+    # name is username
+    name = String("user.name")
 
 
 p = Predicate(
@@ -285,6 +289,29 @@ p = Predicate(
     (User.team == "stage") | (Server.env == "stage")
 )
 print(p.simplify())
+
+## Let's build more complex expressions
+## Any user can access servers marked with their team with their username
+
+p = Predicate((Server.env == User.team) & (Server.login == User.name))
+
+# Bob can access server with label prod with his name
+ret, _ = p.check(
+    Predicate((Server.env == "prod") & (User.team == "prod") & (User.name == "bob") & (Server.login == "bob"))
+)
+print(ret)
+
+# Bob can't access server prod with someone else's name
+ret, _ = p.check(
+    Predicate((Server.env == "prod") & (User.team == "prod") & (User.name == "bob") & (Server.login == "jim"))
+)
+print(ret)
+
+# Bob can't access server prod if Bob's team is not valid
+ret, _ = p.check(
+    Predicate((Server.env == "prod") & (User.team == "stage") & (User.name == "bob") & (Server.login == "bob"))
+)
+print(ret)
 
 # Predicate looks like a simple logical expression,
 # so no prior Z3 knowledge is required
