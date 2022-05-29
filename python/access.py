@@ -185,6 +185,12 @@ class Predicate:
                 '''check can not resolve ambiguity, predicates use different symbols %s and %s, diff: %s,
                 add missing symbols in both predicates to proceed with check''' % (self.symbols, other.symbols, diff))
 
+        return self.query(other)
+
+    def query(self, other):
+        '''
+        Query checks if the predicate could satisfy with the other predicate that holds true.
+        '''
         solver = z3.Solver()
         solver.add(self.expr.traverse())
         if solver.check() == z3.unsat:
@@ -193,7 +199,7 @@ class Predicate:
         solver.add(other.expr.traverse())
         if solver.check() == z3.unsat:
             return (False, "predicate is unsolvable against %s" % (other.expr, ))
-        return (True, solver.model())
+        return (True, solver.model())    
 
     def equivalent(self, other):
         solver = z3.Solver()
@@ -301,6 +307,16 @@ ret, _ = p.check(
 )
 print(ret)
 
+# Query helps to ask more broad questions, e.g. can bob access servers labeled as "prod"?
+ret, _ = p.query(
+    Predicate((Server.env == "prod") & (User.team == "prod") & (User.name == "bob")))
+print("Can bob access servers labeled as prod?", ret)
+
+# Can bob access servers labeled as stage?
+ret, _ = p.query(
+    Predicate((Server.env == "stage") & (User.team == "prod") & (User.name == "bob")))
+print("Can bob access servers labeled as stage?", ret)
+
 # Bob can't access server prod with someone else's name
 ret, _ = p.check(
     Predicate((Server.env == "prod") & (User.team == "prod") & (User.name == "bob") & (Server.login == "jim"))
@@ -313,26 +329,5 @@ ret, _ = p.check(
 )
 print(ret)
 
-# Predicate looks like a simple logical expression,
-# so no prior Z3 knowledge is required
-'''
-pred = (Server.env == User.team) | (Server.env == "stage")
-pred2 = (Server.env == "stage")
-
-# But it comes with super-powers!
-print(equivalent(pred, pred2))
-
-# And just regular checks against random data:
-p = predicate(pred, Server.env == "stage")
-print(p.check())
-print(p.model())
-
-p = predicate(pred, User.team == "prod", Server.env == "prod")
-print(p.check())
-print(p.model())
-
-p = predicate(pred, User.team == "prod", Server.env == "pro")
-print(p.check())
-
 # TODO: how to build an oracle?
-'''
+# TODO: sets, regexps, arrays?
