@@ -374,6 +374,8 @@ print(ret)
 ## For security invariant to hold, it has to be & with other rules
 prod = (Server.env == "prod") & (Server.login == "root")
 root = ((User.name == "alice") & prod)
+
+# "Deny condition if x" <==> condition & ~x
 general = ((User.team == Server.env) & (Server.login == User.name) & ~ prod)
 p = Predicate(
     root | general
