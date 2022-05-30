@@ -375,7 +375,6 @@ print(ret)
 prod = (Server.env == "prod") & (Server.login == "root")
 root = ((User.name == "alice") & prod)
 general = ((User.team == Server.env) & (Server.login == User.name) & ~ prod)
-violation = ((User.name == "jim") & (Server.env == "prod") & (Server.login == "root")  & ~prod)
 p = Predicate(
     root | general
 )
@@ -398,7 +397,8 @@ ret, _ = p.check(
 )
 print("Bob can access prod as root:", ret)
 
-# Query, is it possible for some user to access prod as root?
+# Queries:
+
 ret, _ = p.query(
     Predicate((Server.env == "prod") & (Server.login == "root")))
 print("Is it possible to access prod as root?", ret)
@@ -408,9 +408,15 @@ ret, _ = p.query(
     Predicate((Server.env == "prod") & (Server.login == "root") & (User.name == "bob")))
 print("Can bob access prod as root?", ret)
 
+# Is it possible for anyone who is not alice to access prod as root
+# <- This could be a linter checker
+ret, _ = p.query(
+    Predicate((Server.env == "prod") & (Server.login == "root") & (User.name != "alice")))
+print("Is it possible for anyone who is not alice to access prod as root?", ret)
 
+# try the case that contradicts the predicate
+violation = ((User.name == "jim") & (Server.env == "prod") & (Server.login == "root")  & ~prod)
 p = Predicate(
-    # Security invariant:
     root | violation
 )
 
