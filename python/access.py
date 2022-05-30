@@ -53,7 +53,7 @@ class Not:
         self.V = v
 
     def __str__(self):
-        return '!{}'.format(self.V)
+        return '^({})'.format(self.V)
 
     def walk(self, fn):
         fn(self)
@@ -65,11 +65,14 @@ class Not:
     def __or__(self, other):
         return Or(self, other)
 
+    def __xor__(self, other):
+        return Xor(self, other)
+
     def __and__(self, other):
         return And(self, other)
 
-    def __inverse__(self, other):
-        return Not(self, other)
+    def __invert__(self):
+        return Not(self)
 
 class Eq:
     def __init__(self, l, r):
@@ -82,7 +85,7 @@ class Eq:
         self.R.walk(fn)
 
     def __str__(self):
-        return '{} == {}'.format(self.L, self.R)
+        return '''({} == {})'''.format(self.L, self.R)
 
     def traverse(self):
         return self.L.traverse() == self.R.traverse()
@@ -90,11 +93,14 @@ class Eq:
     def __or__(self, other):
         return Or(self, other)
 
+    def __xor__(self, other):
+        return Xor(self, other)    
+
     def __and__(self, other):
         return And(self, other)
 
-    def __inverse__(self, other):
-        return Not(self, other)
+    def __invert__(self):
+        return Not(self)
 
 class Or:
     def __init__(self, l, r):
@@ -107,7 +113,7 @@ class Or:
         self.R.walk(fn)
 
     def __str__(self):
-        return '{} | {}'.format(self.L, self.R)
+        return '''({} | {})'''.format(self.L, self.R)
 
     def traverse(self):
         return z3.Or(self.L.traverse(), self.R.traverse())
@@ -115,11 +121,14 @@ class Or:
     def __or__(self, other):
         return Or(self, other)
 
+    def __Xor__(self, other):
+        return Xor(self, other)    
+
     def __and__(self, other):
         return And(self, other)
 
-    def __inverse__(self, other):
-        return Not(self, other)    
+    def __invert__(self):
+        return Not(self)
 
 class And:
     def __init__(self, l, r):
@@ -127,7 +136,7 @@ class And:
         self.R = r
 
     def __str__(self):
-        return '{} | {}'.format(self.L, self.R)
+        return '''({} & {})'''.format(self.L, self.R)
 
     def traverse(self):
         return z3.And(self.L.traverse(), self.R.traverse())
@@ -140,12 +149,44 @@ class And:
     def __or__(self, other):
         return Or(self, other)
 
+    def __xor__(self, other):
+        return Xor(self, other)    
+
     def __and__(self, other):
         return And(self, other)    
 
-    def __inverse__(self, other):
-        return Not(self, other)    
+    def __invert__(self):
+        return Not(self)
 
+
+class Xor:
+    def __init__(self, l, r):
+        self.L = l
+        self.R = r
+
+    def walk(self, fn):
+        fn(self)
+        self.L.walk(fn)
+        self.R.walk(fn)
+
+    def __str__(self):
+        return '''({} ^ {})'''.format(self.L, self.R)
+
+    def traverse(self):
+        return z3.Xor(self.L.traverse(), self.R.traverse())
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+    
 
 def collect_symbols(s, expr):
     if type(expr) == String:
@@ -159,7 +200,6 @@ class Predicate:
         self.symbols = set()
         self.expr = expr
         self.expr.walk(partial(collect_symbols, self.symbols))
-        print("expr %s %s " % (expr, self.symbols,))
 
     def __str__(self):
         return self.expr.__str__()
@@ -255,7 +295,7 @@ class User:
     # name is username
     name = String("user.name")
 
-
+'''
 p = Predicate(
     User.team == "stage"
 )
@@ -328,6 +368,46 @@ ret, _ = p.check(
     Predicate((Server.env == "prod") & (User.team == "stage") & (User.name == "bob") & (Server.login == "bob"))
 )
 print(ret)
+'''
+
+## No user except alice can get prod servers as root,
+## For security invariant to hold, it has to be & with other rules
+prod = (Server.env == "prod") & (Server.login == "root")
+root = ((User.name == "alice") & prod)
+general = ((User.team == Server.env) & (Server.login == User.name) & ~ prod)
+violation = ((User.name == "jim") & (Server.env == "prod") & (Server.login == "root")  & ~prod)
+p = Predicate(
+    root | general
+)
+
+# Alice can access prod as root
+ret, _ = p.check(
+    Predicate((Server.env == "prod") & (User.name == "alice") & (Server.login == "root") & (User.team == "noop") )
+)
+print("Alice can access prod as root:", ret)
+
+# Bob can access stage as his name
+ret, _ = p.check(
+    Predicate((Server.env == "stage") & (User.name == "bob") & (Server.login == "bob") & (User.team == "stage") )
+)
+print("Bob can access stage with his name:", ret)
+
+# Bob can't access prod as root
+ret, _ = p.check(
+    Predicate((Server.env == "prod") & (User.name == "bob") & (Server.login == "root") & (User.team == "prod") )
+)
+print("Bob can access prod as root:", ret)
+
+p = Predicate(
+    # Security invariant:
+    root | violation
+)
+
+# Jim can access prod as root
+ret, _ = p.check(
+    Predicate((Server.env == "prod") & (User.name == "jim") & (Server.login == "root") & (User.team == "noop") )
+)
+print("Jim can access prod as root:", ret)
 
 # TODO: how to build an oracle?
 # TODO: sets, regexps, arrays?
