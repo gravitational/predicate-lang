@@ -398,6 +398,17 @@ ret, _ = p.check(
 )
 print("Bob can access prod as root:", ret)
 
+# Query, is it possible for some user to access prod as root?
+ret, _ = p.query(
+    Predicate((Server.env == "prod") & (Server.login == "root")))
+print("Is it possible to access prod as root?", ret)
+
+# Is it possible for bob to access prod as root?
+ret, _ = p.query(
+    Predicate((Server.env == "prod") & (Server.login == "root") & (User.name == "bob")))
+print("Can bob access prod as root?", ret)
+
+
 p = Predicate(
     # Security invariant:
     root | violation
@@ -409,5 +420,9 @@ ret, _ = p.check(
 )
 print("Jim can access prod as root:", ret)
 
-# TODO: how to build an oracle?
+#
+# TODO: should be easy to define iron-clad invariant that is hard to violate
+# (e.g. write once, instead of repeating yourself all the time like above with ~prod
+#
 # TODO: sets, regexps, arrays?
+#
