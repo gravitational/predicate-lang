@@ -1,6 +1,7 @@
 import z3
 from functools import partial
 import operator
+from .errors import ParameterError
 
 # reference
 # https://z3prover.github.io/api/html/namespacez3py.html
@@ -278,9 +279,6 @@ class MapIndex:
 def collect_symbols(s, expr):
     if type(expr) == String:
         s.add(expr.name)
-
-class ParameterError(Exception):
-    pass
 
 class Predicate:
     def __init__(self, expr):

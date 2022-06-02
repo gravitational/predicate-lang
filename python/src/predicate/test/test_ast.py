@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, Map, ParameterError
+from predicate import ast, Predicate, String, Map, ParameterError, regex
 
 # User-defined models here
 class Server:
@@ -29,10 +29,9 @@ class TestAst:
         )
 
         # This predicate is unsolvable, contradicts our main prediccate
-
         ret, msg = p.check(Predicate(User.team != "stage"))
         assert ret == False
-        assert "unsolvable" in msg 
+        assert "unsolvable" in msg
 
         # Two predicates are equivalent, if they return the same results,
         # equivalency is not equality, it's more broad.
@@ -175,27 +174,42 @@ class TestAst:
         )
         assert ret == False, "Jim can't access prod as root"
 
-        def test_maps(self):
-            '''
-            Maps are a experiment to model map-like behavior.
-            Behind the scenes we are using recursive functions,
-            so maps are not exactly fast.
+    def test_regex(self):
+        p = Predicate(
+            regex.parse("stage-.*").matches(User.team)
+        )
+        
+        ret, _ = p.check(Predicate(User.team == "stage-test"))
+        assert ret == True, "prefix patterns match"
 
-            They are useful for some cases where roles define
-            mapping behavior (e.g. map SSO attributes to roles, like in Teleport)
-            '''
-            m = Map('mymap', {'key': 'val'})
+        ret, _ = p.check(Predicate(User.team == "stage-other"))
+        assert ret == True, "prefix patterns match"
+
+        ret, _ = p.check(Predicate(User.team == "prod-test"))
+        assert ret == False, "prefix pattern mismatch"
+
+    def test_maps(self):
+        '''
+        Maps are a experiment to model map-like behavior.
+        Behind the scenes we are using recursive functions,
+        so maps are not exactly fast.
+
+        They are useful for some cases where roles define
+        mapping behavior (e.g. map SSO attributes to roles, like in Teleport)
+        '''
+        m = Map('mymap', {'key': 'val'})
             
-            # maps can work like usual maps, with calls to get values if key
-            # matches.
-            assert m.get('key') == 'val'
+        # maps can work like usual maps, with calls to get values if key
+        # matches.
+        assert m.get('key') == 'val'
 
-            # maps could be part of the predicate
-            p = Predicate(
-                m["key"] == "val"
-            )
-            ret, _ = p.query(Predicate(m["key"] == "val"))
-            assert ret == True
+        # maps could be part of the predicate
+        p = Predicate(
+            m["key"] == "val"
+        )
+        ret, _ = p.query(Predicate(m["key"] == "val"))
+        assert ret == True
+        
 
 #
 # TODO: sets, regexps, arrays?
