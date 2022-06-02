@@ -28,8 +28,9 @@ z3.RecAddDefinition(
   ))
 
 s = z3.Solver()
-s.add(z3.And(mapfn(x) != z3.StringVal(""), x == z3.StringVal("in")))
+s.add(z3.And(mapfn(x) == z3.StringVal("out2"), x == z3.StringVal("in2")))
 print(s.check())
+print(s.model())
 
 s = z3.Solver()
 s.add(z3.And(mapfn(x) != z3.StringVal("")))

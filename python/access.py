@@ -195,7 +195,7 @@ class Xor:
         return Not(self)
 
 
-def define_mapfn(fn_map, fn_param, kv: dict[String, String]):
+def define_mapfn(fn_map, fn_key, kv: dict[String, String]):
     """
     Define mapfn defines a key value map using recursive Z3 function,
     essentially converting {'a': 'b'} into if x == 'a' then 'b' else ...
@@ -207,13 +207,13 @@ def define_mapfn(fn_map, fn_param, kv: dict[String, String]):
             return z3.StringVal("")
         else:
             return z3.If(
-                fn_param == z3.StringVal(key),
+                fn_key == z3.StringVal(key),
                 z3.StringVal(val),
                 iff(iterator)
             )
     z3.RecAddDefinition(
         fn_map,
-        fn_param,
+        fn_key,
         iff(iter(kv.items()))
        )
 
@@ -222,8 +222,8 @@ class Map:
         self.kv = kv
         self.name = name
         self.fn_map = z3.RecFunction(self.name, z3.StringSort(), z3.StringSort())
-        self.fn_x = z3.String(self.name + "_x")
-        define_mapfn(self.fn_map, self.fn_x, self.kv)
+        self.fn_key = z3.String(self.name + "_key")
+        define_mapfn(self.fn_map, self.fn_key, self.kv)
 
     def get(self, key: String):
         '''
@@ -232,7 +232,7 @@ class Map:
         and then we can eval model with an argument
         '''
         s = z3.Solver()
-        s.add(self.fn_map(self.fn_x) != z3.StringVal(""))
+        s.add(self.fn_map(self.fn_key) != z3.StringVal(""))
         if s.check() == z3.unsat:
             raise KeyError("map is empty")
         return s.model().eval(self.fn_map(z3.StringVal(key)))
@@ -266,10 +266,10 @@ class MapIndex:
         return '{}[{}]'.format(self.m.name, self.key)
 
     def compare(self, op, val):
-        return z3.And(op(self.m.fn_x, self.key), self.m.fn_map(self.m.fn_x) == val)
+        return z3.And(op(self.m.fn_key, self.key), self.m.fn_map(self.m.fn_key) == val)
 
     def traverse(self):
-        return self.m.fn_map(self.m.fn_x) != z3.StringVal("")
+        return self.m.fn_map(self.m.fn_key) != z3.StringVal("")
 
     def walk(self, fn):
         fn(self)
@@ -528,6 +528,5 @@ print(ret)
 
 #
 # TODO: sets, regexps, arrays?
-# TODO: map from one set to another set (regexps? functions?)
 # TODO: Transpile to teleport roles, IWS IAM roles
 # 
