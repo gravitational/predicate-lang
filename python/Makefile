@@ -16,3 +16,7 @@ rbac:
 access:
 	python3.9 access.py
 
+.PHONY: map
+map:
+	python3.9 map.py
+

@@ -1,5 +1,6 @@
 import z3
 from functools import partial
+import operator
 
 # reference
 # https://z3prover.github.io/api/html/namespacez3py.html
@@ -88,7 +89,13 @@ class Eq:
         return '''({} == {})'''.format(self.L, self.R)
 
     def traverse(self):
-        return self.L.traverse() == self.R.traverse()
+        # some object's compare is not trivial,
+        # they might define their own compare
+        compare = getattr(self.L, "compare", None)
+        if compare:
+            return compare(operator.eq, self.R.traverse())
+        else:
+            return self.L.traverse() == self.R.traverse()
 
     def __or__(self, other):
         return Or(self, other)
@@ -186,7 +193,87 @@ class Xor:
 
     def __invert__(self):
         return Not(self)
-    
+
+
+def define_mapfn(fn_map, fn_param, kv: dict[String, String]):
+    """
+    Define mapfn defines a key value map using recursive Z3 function,
+    essentially converting {'a': 'b'} into if x == 'a' then 'b' else ...
+    """
+    def iff(iterator):
+        try:
+            key, val = next(iterator)
+        except StopIteration:
+            return z3.StringVal("")
+        else:
+            return z3.If(
+                fn_param == z3.StringVal(key),
+                z3.StringVal(val),
+                iff(iterator)
+            )
+    z3.RecAddDefinition(
+        fn_map,
+        fn_param,
+        iff(iter(kv.items()))
+       )
+
+class Map:
+    def __init__(self, name, kv: dict[String, String]):
+        self.kv = kv
+        self.name = name
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), z3.StringSort())
+        self.fn_x = z3.String(self.name + "_x")
+        define_mapfn(self.fn_map, self.fn_x, self.kv)
+
+    def get(self, key: String):
+        '''
+        get works like a classic map.get or a function call:
+        we have to build model by giving it a condition that works
+        and then we can eval model with an argument
+        '''
+        s = z3.Solver()
+        s.add(self.fn_map(self.fn_x) != z3.StringVal(""))
+        if s.check() == z3.unsat:
+            raise KeyError("map is empty")
+        return s.model().eval(self.fn_map(z3.StringVal(key)))
+
+    def __getitem__(self, key: String):
+        '''
+        getitem used to build an expression, for example m[key] == "val"
+        '''
+        return MapIndex(self, key)
+
+class MapIndex:
+    def __init__(self, m: Map, key: String):
+        self.m = m
+        self.key = key
+
+    def __eq__(self, val):
+        if isinstance(val, str):
+            return Eq(self, StringLiteral(val))
+        if isinstance(val, String):
+            return Eq(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __ne__(self, val):
+        if isinstance(val, str):
+            return Not(Eq(self, StringLiteral(val)))
+        if isinstance(val, String):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))    
+
+    def __str__(self):
+        return '{}[{}]'.format(self.m.name, self.key)
+
+    def compare(self, op, val):
+        return z3.And(op(self.m.fn_x, self.key), self.m.fn_map(self.m.fn_x) == val)
+
+    def traverse(self):
+        return self.m.fn_map(self.m.fn_x) != z3.StringVal("")
+
+    def walk(self, fn):
+        fn(self)
+        
 
 def collect_symbols(s, expr):
     if type(expr) == String:
@@ -295,7 +382,7 @@ class User:
     # name is username
     name = String("user.name")
 
-'''
+
 p = Predicate(
     User.team == "stage"
 )
@@ -368,7 +455,6 @@ ret, _ = p.check(
     Predicate((Server.env == "prod") & (User.team == "stage") & (User.name == "bob") & (Server.login == "bob"))
 )
 print(ret)
-'''
 
 ## No user except alice can get prod servers as root,
 ## For security invariant to hold, it has to be & with other rules
@@ -428,9 +514,20 @@ ret, _ = p.check(
 )
 print("Jim can access prod as root:", ret)
 
-#
-# TODO: should be easy to define iron-clad invariant that is hard to violate
-# (e.g. write once, instead of repeating yourself all the time like above with ~prod
+# This is experiment with maps
+m = Map('mymap', {'key': 'val'})
+# maps can work like usual maps, with get working (but being slow)
+print("mymap[key]==", m.get('key'))
+
+# maps could be part of the predicate
+p = Predicate(
+    m["key"] == "val"
+)
+ret = p.query(Predicate(m["key"] == "val"))
+print(ret)
+
 #
 # TODO: sets, regexps, arrays?
-#
+# TODO: map from one set to another set (regexps? functions?)
+# TODO: Transpile to teleport roles, IWS IAM roles
+# 
