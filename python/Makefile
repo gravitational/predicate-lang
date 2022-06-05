@@ -24,3 +24,7 @@ access:
 map:
 	python3.9 experiments/map.py
 
+.PHONY: regexp
+regexp:
+	python3.9 experiments/regexp.py
+

@@ -2,6 +2,8 @@ import z3
 from functools import partial
 import operator
 from .errors import ParameterError
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 # reference
 # https://z3prover.github.io/api/html/namespacez3py.html
@@ -49,6 +51,55 @@ class String:
     def walk(self, fn):
         fn(self)
 
+
+class IterableContains:
+    def __init__(self, expr: Iterable, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}.contains({}))'''.format(self.E, self.V)
+
+    def traverse(self):
+        return z3.Or(*[
+            StringLiteral(v).traverse() == self.V.traverse()
+            for v in self.E.vals
+        ])
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
+@dataclass
+class StringTuple:
+    vals: Iterable[str]
+
+    def contains(self, val):
+        if isinstance(val, str):
+            return IterableContains(self, StringLiteral(val))
+        if isinstance(val, String):
+            return IterableContains(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.vals)
+
+    def __str__(self):
+        return '[{}]'.format(['`{}`'.format(v) for v in self.vals].join(", "))
 
 class Not:
     def __init__(self, v):

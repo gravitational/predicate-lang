@@ -21,6 +21,7 @@ import sre_parse
 from .errors import ParameterError
 from . import ast
 from dataclasses import dataclass
+from collections.abc import Iterable
 
 class Matches:
     def __init__(self, expr, val):
@@ -67,6 +68,56 @@ class RegexConstraint:
     def __str__(self):
         return 'regex(`{}`)'.format(self.regex)
 
+
+class IterableMatches:
+    def __init__(self, expr: Iterable, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}.contains({}))'''.format(self.E, self.V)
+
+    def traverse(self):
+        return z3.Or(*[
+            Matches(e, self.V).traverse()
+            for e in self.E.vals
+        ])
+
+    def __or__(self, other):
+        return ast.Or(self, other)
+
+    def __xor__(self, other):
+        return ast.Xor(self, other)    
+
+    def __and__(self, other):
+        return ast.And(self, other)
+
+    def __invert__(self):
+        return ast.Not(self)
+
+@dataclass
+class RegexTuple:
+    vals: Iterable[RegexConstraint]
+
+    def matches(self, val):
+        if isinstance(val, str):
+            return IterableMatches(self, ast.StringLiteral(val))
+        if isinstance(val, ast.String):
+            return IterableMatches(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.vals)
+
+    def __str__(self):
+        return '[{}]'.format(['`{}`'.format(v) for v in self.vals].join(", "))
+
 def parse(value: str):
     """
     Attempts to parse the given value as a regex.
@@ -78,6 +129,12 @@ def parse(value: str):
     if is_regex is None:
         raise ParameterError("{} is not a valid regex")
     return RegexConstraint(parsed_regex)
+
+def tuple(values: Iterable[str]):
+    """
+    Attempts to parse the given iterable as iterable of regular expression.
+    """
+    return RegexTuple([parse(v) for v in values])
 
 def regex_to_z3_expr(regex: sre_parse.SubPattern) -> z3.ReRef:
     """

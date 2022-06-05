@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, Map, ParameterError, regex
+from predicate import ast, Predicate, String, Map, ParameterError, regex, StringTuple
 
 # User-defined models here
 class Server:
@@ -209,9 +209,30 @@ class TestAst:
         )
         ret, _ = p.query(Predicate(m["key"] == "val"))
         assert ret == True
-        
+
+    def test_string_tuple(self):
+        """
+        Tests string tuples
+        """
+        t = StringTuple(["banana", "potato", "apple"])
+        p = Predicate(
+            t.contains("banana")
+        )
+        ret, _ = p.query(Predicate(t.contains("apple")))
+        assert ret == True
+
+    def test_regex_tuple(self):
+        """
+        Tests regexp tuples
+        """
+        t = regex.tuple(["banana-.*", "potato-.*", "apple-.*"])
+        p = Predicate(
+            t.matches("banana-smoothie")
+        )
+        ret, _ = p.query(Predicate(t.matches("apple-smoothie")))
+        assert ret == True                
 
 #
-# TODO: sets, regexps, arrays?
+# TODO: sets, arrays?
 # TODO: Transpile to teleport roles, IWS IAM roles
 # 
