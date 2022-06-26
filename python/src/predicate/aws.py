@@ -22,8 +22,10 @@ from .errors import ParameterError
 from . import ast, regex
 from dataclasses import dataclass
 from collections.abc import Iterable
+from typing import Final
+import functools
+import operator
 
-## NOTE
 ## Convert AWS policies to predictate expression.
 # It's not that the policy that should be modeled,
 # it's the action against resource that should be modeled,
@@ -31,13 +33,40 @@ from collections.abc import Iterable
 # Because it's not AWS policy that should be introspected, but action.
 # AWS policy is meta?
 
+# AWS Docs
+#
+# * Policies - https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html#access_policy-types
+# * Eval Logic - https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html
+# * Policy elements - https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
+# * Boundaries - https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html
+# * Delegation - https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html
+#
+
+ALLOW: Final[str] = "Allow"
+DENY: Final[str] = "Deny"
+EFFECT: Final[str] = "Effect"
+STATEMENT: Final[str] = "Statement"
+
 class Action:
     resource = ast.String('action.resource')
     action = ast.String('action.action')
 
 
+def policy(p: dict):
+    statements = p[STATEMENT]
+    # convert a single statement into a list
+    if isinstance(statements, dict):
+        statements = [statements]
+
+    allow_statements = [statement(s) for s in statements if s[EFFECT] == ALLOW]
+    deny_statements = [statement(s) for s in statements if s[EFFECT] == DENY]
+
+    # any allow statement could match and no deny statements should match
+    return functools.reduce(operator.or_, allow_statements) & ast.Not(functools.reduce(operator.or_, deny_statements))
+
+
 def statement(p: dict):
-    ## TODO: convert this policy to Predicate expression
+    ## statement converts a policy to predicate expression
     allow = False
     if p["Effect"] == "Allow":
         allow = True
@@ -59,16 +88,9 @@ def statement(p: dict):
     if not allow:
         expr = ast.Not(expr)
 
-    return ast.Predicate(expr)
+    return expr
 
 
 def _to_regex(v: str):
-    if v.endswith("*"):
-        v = v.rstrip("*")
-        if "*" in v:
-            raise ast.ParameterError("can only end with wildcard")
-        return v + ".*"
-    if "*" in v:
-        raise ast.ParameterError("can only end with wildcard")
-    return v
+    return v.replace("*", ".*")
     

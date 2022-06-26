@@ -217,7 +217,6 @@ class And:
     def __invert__(self):
         return Not(self)
 
-
 class Xor:
     def __init__(self, l, r):
         self.L = l

@@ -2,21 +2,69 @@ import pytest
 from predicate import ast, Predicate, String, Map, ParameterError, regex, StringTuple
 from predicate import aws
 
+
 class TestAst:
-    def test_aws_allow(self):
-        p = aws.statement({
-            "Effect": "Allow",
-            "Action": [
-                "s3:*",
-                "cloudwatch:*",
-                "ec2:*"
-            ],
-            "Resource": [
-                "arn:aws:s3:::example_bucket"
-            ]
-        })
+    def test_aws_allow_statement(self, mixed_statement):
+        p = Predicate(aws.statement(mixed_statement))
 
         ret, _ = p.check(Predicate(
             (aws.Action.resource == "arn:aws:s3:::example_bucket") & (aws.Action.action == "s3:ListBucket")))
         assert ret == True
 
+    def test_aws_policy(self, s3_policy):
+        p = Predicate(aws.policy(s3_policy))
+        ret, d = p.check(Predicate(
+            (aws.Action.resource == "arn:aws:s3:::example_bucket") & (aws.Action.action == "s3:GetBucketLocation")))
+        print(d)
+        assert d is None
+        assert ret == True
+
+
+
+@pytest.fixture
+def mixed_statement():
+    return {
+        "Effect": "Allow",
+        "Action": [
+            "s3:*",
+            "cloudwatch:*",
+            "ec2:*"
+        ],
+        "Resource": [
+            "arn:aws:s3:::example_bucket"
+        ]
+    }
+
+@pytest.fixture
+def s3_policy():
+    return {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowS3ListRead",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetBucketLocation",
+                "s3:GetAccountPublicAccessBlock",
+                "s3:ListAccessPoints",
+                "s3:ListAllMyBuckets"
+            ],
+            "Resource": "arn:aws:s3:::*"
+        },
+        {
+            "Sid": "AllowS3Self",
+            "Effect": "Allow",
+            "Action": "s3:*",
+            "Resource": [
+                "arn:aws:s3:::carlossalazar/*",
+                "arn:aws:s3:::carlossalazar"
+            ]
+        },
+        {
+            "Sid": "DenyS3Logs",
+            "Effect": "Deny",
+            "Action": "s3:*",
+            "Resource": "arn:aws:s3:::*log*"
+        }
+    ]
+}
