@@ -46,11 +46,12 @@ ALLOW: Final[str] = "Allow"
 DENY: Final[str] = "Deny"
 EFFECT: Final[str] = "Effect"
 STATEMENT: Final[str] = "Statement"
+RESOURCE: Final[str] = "Resource"
+ACTION: Final[str] = "Action"
 
 class Action:
     resource = ast.String('action.resource')
     action = ast.String('action.action')
-
 
 def policy(p: dict):
     statements = p[STATEMENT]
@@ -60,28 +61,35 @@ def policy(p: dict):
 
     allow_statements = [statement(s) for s in statements if s[EFFECT] == ALLOW]
     deny_statements = [statement(s) for s in statements if s[EFFECT] == DENY]
+    if not allow_statements and not deny_statements:
+        raise ParameterError("fix the empty policy by adding some statements")
+    if not deny_statements:
+        return functools.reduce(operator.or_, allow_statements)
+    if not allow_statements:
+        return functools.reduce(operator.and_, deny_statements)
 
     # any allow statement could match and no deny statements should match
-    return functools.reduce(operator.or_, allow_statements) & ast.Not(functools.reduce(operator.or_, deny_statements))
+    return functools.reduce(operator.or_, allow_statements) & functools.reduce(operator.and_, deny_statements)
 
 
 def statement(p: dict):
     ## statement converts a policy to predicate expression
     allow = False
-    if p["Effect"] == "Allow":
+    if p[EFFECT] == ALLOW:
         allow = True
-    elif p["Effect"] == "Deny":
+    elif p[EFFECT] == DENY:
         allow = False
     else:
-        raise ParameterError("unsupported effect", p["Effect"])
+        raise ParameterError("unsupported effect", p[EFFECT])
     
-    resources = p["Resource"]
+    resources = p[RESOURCE]
     if isinstance(resources, str):
         resources = [resources]
-    actions = p["Action"]
+    actions = p[ACTION]
     if isinstance(actions, str):
         actions = [actions]
 
+    # TODO: optimize regex vs string match
     expr = (regex.tuple(_to_regex(r) for r in resources).matches(Action.resource)
         &
         regex.tuple(_to_regex(a) for a in actions).matches(Action.action))
@@ -90,7 +98,13 @@ def statement(p: dict):
 
     return expr
 
+def _is_regex(v: str):
+    # tests if it's AWS specific regexp that only has wildcards so far
+    return "*" in v
+
+def _parse_regex(v: str):
+    return regex.parse(_to_regex(v))
 
 def _to_regex(v: str):
     return v.replace("*", ".*")
-    
+

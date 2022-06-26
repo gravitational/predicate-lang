@@ -4,35 +4,48 @@ from predicate import aws
 
 
 class TestAst:
-    def test_aws_allow_statement(self, mixed_statement):
-        p = Predicate(aws.statement(mixed_statement))
+    def test_aws_allow_policy(self, mixed_statement_policy):
+        return
+        p = Predicate(aws.policy(mixed_statement_policy))
 
         ret, _ = p.check(Predicate(
             (aws.Action.resource == "arn:aws:s3:::example_bucket") & (aws.Action.action == "s3:ListBucket")))
-        assert ret == True
+        assert ret == True        
 
     def test_aws_policy(self, s3_policy):
         p = Predicate(aws.policy(s3_policy))
+
+        # get bucket location on any bucket works
         ret, d = p.check(Predicate(
             (aws.Action.resource == "arn:aws:s3:::example_bucket") & (aws.Action.action == "s3:GetBucketLocation")))
-        print(d)
-        assert d is None
+        assert ret == True
+
+        # listing bucket logs is not allowed
+        ret, d = p.check(Predicate(
+            (aws.Action.resource == "arn:aws:s3:::example_bucket/logs") & (aws.Action.action == "s3:GetObject")))
+        assert ret == False
+
+        # can get a random doc from a bucket
+        ret, d = p.check(Predicate(
+            (aws.Action.resource == "arn:aws:s3:::carlossalazar/document") & (aws.Action.action == "s3:GetObject")))
         assert ret == True
 
 
 
 @pytest.fixture
-def mixed_statement():
+def mixed_statement_policy():
     return {
-        "Effect": "Allow",
-        "Action": [
-            "s3:*",
-            "cloudwatch:*",
-            "ec2:*"
-        ],
-        "Resource": [
-            "arn:aws:s3:::example_bucket"
-        ]
+        "Statement":{
+            "Effect": "Allow",
+            "Action": [
+                "s3:*",
+                "cloudwatch:*",
+                "ec2:*"
+            ],
+            "Resource": [
+                "arn:aws:s3:::example_bucket"
+            ]
+        }
     }
 
 @pytest.fixture

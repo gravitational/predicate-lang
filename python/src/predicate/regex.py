@@ -51,9 +51,17 @@ class Matches:
     def __invert__(self):
         return ast.Not(self)
 
-@dataclass
 class RegexConstraint:
-    regex: sre_parse.SubPattern
+
+    def __init__(self, expr: str):
+        parsed_regex = sre_parse.parse(expr)
+        is_regex = any(
+            [sre_constants.LITERAL != node_type for node_type, _ in parsed_regex.data]
+        )
+        if is_regex is None:
+            raise ParameterError("{} is not a valid regex")
+        self.regex = parsed_regex
+        self.expr = expr
 
     def matches(self, other):
         return Matches(self, other)
@@ -66,7 +74,7 @@ class RegexConstraint:
         fn(self.regex)
 
     def __str__(self):
-        return 'regex(`{}`)'.format(self.regex)
+        return 'regex(`{}`)'.format(self.expr)
 
 
 class IterableMatches:
@@ -80,7 +88,7 @@ class IterableMatches:
         self.V.walk(fn)
 
     def __str__(self):
-        return '''({}.contains({}))'''.format(self.E, self.V)
+        return '''({}.matches({}))'''.format(self.E, self.V)
 
     def traverse(self):
         return z3.Or(*[
@@ -116,19 +124,13 @@ class RegexTuple:
         fn(self.vals)
 
     def __str__(self):
-        return '[{}]'.format(['`{}`'.format(v) for v in self.vals].join(", "))
+        return '[{}]'.format(", ".join(['`{}`'.format(v) for v in self.vals]))
 
 def parse(value: str):
     """
     Attempts to parse the given value as a regex.
     """
-    parsed_regex = sre_parse.parse(value)
-    is_regex = any(
-        [sre_constants.LITERAL != node_type for node_type, _ in parsed_regex.data]
-    )
-    if is_regex is None:
-        raise ParameterError("{} is not a valid regex")
-    return RegexConstraint(parsed_regex)
+    return RegexConstraint(value)
 
 def tuple(values: Iterable[str]):
     """
