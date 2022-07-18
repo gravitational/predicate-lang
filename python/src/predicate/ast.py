@@ -1,9 +1,13 @@
 import z3
-from functools import partial
 import operator
-from .errors import ParameterError
+import typing
+
+from functools import partial
 from collections.abc import Iterable
 from dataclasses import dataclass
+
+from .errors import ParameterError
+
 
 # reference
 # https://z3prover.github.io/api/html/namespacez3py.html
@@ -245,57 +249,41 @@ class Xor:
     def __invert__(self):
         return Not(self)
 
-
-def define_mapfn(fn_map, fn_key, kv: dict[String, String]):
-    """
-    Define mapfn defines a key value map using recursive Z3 function,
-    essentially converting {'a': 'b'} into if x == 'a' then 'b' else ...
-    """
-    def iff(iterator):
-        try:
-            key, val = next(iterator)
-        except StopIteration:
-            return z3.StringVal("")
-        else:
-            return z3.If(
-                fn_key == z3.StringVal(key),
-                z3.StringVal(val),
-                iff(iterator)
-            )
-    z3.RecAddDefinition(
-        fn_map,
-        fn_key,
-        iff(iter(kv.items()))
-       )
-
-class Map:
-    def __init__(self, name, kv: dict[String, String]):
-        self.kv = kv
+class StringMap:
+    def __init__(self, name, keys: list[String]):
         self.name = name
-        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), z3.StringSort())
-        self.fn_key = z3.String(self.name + "_key")
-        define_mapfn(self.fn_map, self.fn_key, self.kv)
+        self.fn_map = z3.Function(self.name, z3.StringSort(), z3.StringSort())
+        self.fn_key = z3.RecFunction(self.name + "_keys", z3.StringSort(), z3.BoolSort())
 
-    def get(self, key: String):
-        '''
-        get works like a classic map.get or a function call:
-        we have to build model by giving it a condition that works
-        and then we can eval model with an argument
-        '''
-        s = z3.Solver()
-        s.add(self.fn_map(self.fn_key) != z3.StringVal(""))
-        if s.check() == z3.unsat:
-            raise KeyError("map is empty")
-        return s.model().eval(self.fn_map(z3.StringVal(key)))
+        required_key = z3.String(self.name+"_required_key")
+        z3.RecAddDefinition(
+            self.fn_key,
+            [required_key],
+            z3.BoolVal(False)
+            if len(keys) == 0
+            else z3.Or(
+                    [required_key == z3.StringVal(key) for key in keys]
+            ),
+        )        
+        
+        self.keys = {key: True for key in keys}
 
     def __getitem__(self, key: String):
         '''
         getitem used to build an expression, for example m[key] == "val"
         '''
+        # Map Index should impact function definition, aggregate it
         return MapIndex(self, key)
 
+    def __str__(self):
+        return '''({} ^ {})'''.format(self.L, self.R)
+
+    def walk(self, fn):
+        fn(self)    
+
+
 class MapIndex:
-    def __init__(self, m: Map, key: String):
+    def __init__(self, m: StringMap, key: String):
         self.m = m
         self.key = key
 
@@ -311,16 +299,25 @@ class MapIndex:
             return Not(Eq(self, StringLiteral(val)))
         if isinstance(val, String):
             return Not(Eq(self, val))
-        raise TypeError("unsupported type {}, supported strings only".format(type(val)))    
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
 
     def __str__(self):
         return '{}[{}]'.format(self.m.name, self.key)
 
-    def compare(self, op, val):
-        return z3.And(op(self.m.fn_key, self.key), self.m.fn_map(self.m.fn_key) == val)
-
     def traverse(self):
-        return self.m.fn_map(self.m.fn_key) != z3.StringVal("")
+        return self.m.fn_map(z3.StringVal(self.key))
 
     def walk(self, fn):
         fn(self)
@@ -329,6 +326,8 @@ class MapIndex:
 def collect_symbols(s, expr):
     if type(expr) == String:
         s.add(expr.name)
+    if type(expr) == MapIndex:
+        s.add(expr.m.name + "." + expr.key)
 
 class Predicate:
     def __init__(self, expr):
@@ -368,6 +367,7 @@ class Predicate:
         '''
         solver = z3.Solver()
         solver.add(self.expr.traverse())
+        print("traverse: ", self.expr.traverse())
         if solver.check() == z3.unsat:
             raise ParameterError('our own predicate is unsolvable')
 

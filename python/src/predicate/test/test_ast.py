@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, Map, ParameterError, regex, StringTuple
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap
 
 # User-defined models here
 class Server:
@@ -188,20 +188,13 @@ class TestAst:
         ret, _ = p.check(Predicate(User.team == "prod-test"))
         assert ret == False, "prefix pattern mismatch"
 
-    def test_maps(self):
-        '''
-        Maps are a experiment to model map-like behavior.
-        Behind the scenes we are using recursive functions,
-        so maps are not exactly fast.
 
-        They are useful for some cases where roles define
-        mapping behavior (e.g. map SSO attributes to roles, like in Teleport)
+    def test_string_map(self):
         '''
-        m = Map('mymap', {'key': 'val'})
-            
-        # maps can work like usual maps, with calls to get values if key
-        # matches.
-        assert m.get('key') == 'val'
+        StringMaps are string key value pairs that support
+        all string operations.
+        '''
+        m = StringMap('mymap')
 
         # maps could be part of the predicate
         p = Predicate(
@@ -209,6 +202,34 @@ class TestAst:
         )
         ret, _ = p.query(Predicate(m["key"] == "val"))
         assert ret == True
+
+        ret, _ = p.query(Predicate(m["missing"] == "potato"))
+        assert ret == False
+
+        # multiple key-value checks
+        m = StringMap('mymap', ["key", "key-2"])        
+        p = Predicate(
+            (m["key"] == "val") & (m["key-2"] == "val-2")
+        )
+        ret, _ = p.query(Predicate(m["key"] == "val"))
+        assert ret == True
+
+
+    def test_string_map_regex(self):
+        '''
+        StringMaps support regex matching as well
+        '''
+        # a bit clumsy, but very simple - declare keys in advance
+        # to make sure undeclared keys can't be used
+        m = StringMap('mymap', ["key"])
+
+        # maps could be part of the predicate
+        p = Predicate(
+            regex.parse("env-.*").matches(m["key"])
+        )
+        ret, _ = p.query(Predicate(m["key"] == "env-prod"))
+        assert ret == True
+
 
     def test_string_tuple(self):
         """

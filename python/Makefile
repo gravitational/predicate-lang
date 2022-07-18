@@ -4,6 +4,15 @@ all: hello
 test:
 	pytest --pyargs src/predicate
 
+
+.PHONY: test-teleport
+test-teleport:
+	pytest --pyargs src/predicate/test/test_teleport.py
+
+.PHONY: test-ast
+test-ast:
+	pytest --pyargs src/predicate/test/test_ast.py
+
 .PHONY: hello
 hello:
 	python3.9 experminents/hello.py
@@ -23,6 +32,10 @@ access:
 .PHONY: map
 map:
 	python3.9 experiments/map.py
+
+.PHONY: map-simple
+map-simple:
+	python3.9 experiments/map_simple.py
 
 .PHONY: regexp
 regexp:

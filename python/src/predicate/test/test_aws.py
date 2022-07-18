@@ -3,7 +3,7 @@ from predicate import ast, Predicate, String, Map, ParameterError, regex, String
 from predicate import aws
 
 
-class TestAst:
+class TestAWS:
     def test_aws_allow_policy(self, mixed_statement_policy):
         return
         p = Predicate(aws.policy(mixed_statement_policy))
