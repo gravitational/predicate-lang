@@ -11,7 +11,6 @@ from .errors import ParameterError
 
 # reference
 # https://z3prover.github.io/api/html/namespacez3py.html
-
 class StringLiteral:
     def __init__(self, val):
         self.V = val
@@ -250,23 +249,9 @@ class Xor:
         return Not(self)
 
 class StringMap:
-    def __init__(self, name, keys: list[String]):
+    def __init__(self, name):
         self.name = name
         self.fn_map = z3.Function(self.name, z3.StringSort(), z3.StringSort())
-        self.fn_key = z3.RecFunction(self.name + "_keys", z3.StringSort(), z3.BoolSort())
-
-        required_key = z3.String(self.name+"_required_key")
-        z3.RecAddDefinition(
-            self.fn_key,
-            [required_key],
-            z3.BoolVal(False)
-            if len(keys) == 0
-            else z3.Or(
-                    [required_key == z3.StringVal(key) for key in keys]
-            ),
-        )        
-        
-        self.keys = {key: True for key in keys}
 
     def __getitem__(self, key: String):
         '''
@@ -349,29 +334,49 @@ class Predicate:
 
     def check(self, other):
         '''
-        Check checks the predicate against another predicate
+        check checks the predicate against conditions specified in
+        another predicate. Both predicates should define 
         '''
         # sanity check - to check two predicates, they should
         # define the same sets of symbols
-        diff = self.symbols.difference(other.symbols)
-        if len(diff) != 0:
+        if not self.symbols.issubset(other.symbols):
+            diff = self.symbols.difference(other.symbols)            
             raise ParameterError(
                 '''check can not resolve ambiguity, predicates use different symbols %s and %s, diff: %s,
-                add missing symbols in both predicates to proceed with check''' % (self.symbols, other.symbols, diff))
+                add missing symbols in the predicate checked against to proceed with check''' % (self.symbols, other.symbols, diff))
 
-        return self.query(other)
+        return self.solves_with(other)
 
     def query(self, other):
         '''
-        Query checks if the predicate could satisfy with the other predicate that holds true.
+        Query can only succeed if symbols in the query are a strict subset
+        of all symbols used in the predicate being queried
+        Query behaves like SQL, e.g. select * from users where name like 'a%';
+        '''
+        if not other.symbols.issubset(self.symbols):
+            diff = self.symbols.difference(other.symbols)
+            return (False,
+                '''check can not resolve ambiguity, query uses symbols %s that are not present in predicate %s, diff: %s,
+                query must be a subset of symbols of the predicate''' % (self.symbols, other.symbols, diff))
+        return self.solves_with(other)
+
+    def solves_with(self, other):
+        '''
+        solves_with returns true if the predicate can be true with another
+        predicate being true at the same time.
         '''
         solver = z3.Solver()
         solver.add(self.expr.traverse())
+        
         print("traverse: ", self.expr.traverse())
         if solver.check() == z3.unsat:
             raise ParameterError('our own predicate is unsolvable')
-
         solver.add(other.expr.traverse())
+
+        # TODO do a second pass to build a key checking function
+        # for both predicates!
+        self.expr.walk(partial(collect_symbols, self.symbols))
+                
         if solver.check() == z3.unsat:
             return (False, "predicate is unsolvable against %s" % (other.expr, ))
         return (True, solver.model())    

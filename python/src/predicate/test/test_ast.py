@@ -57,7 +57,6 @@ class TestAst:
         with pytest.raises(ParameterError):
             p.check(Predicate(Server.env == "stage"))
         
-        
         ## Try to simplify redundant obvious expression
         p = Predicate(
             (User.team == "stage") | (User.team == "stage")
@@ -201,18 +200,46 @@ class TestAst:
             m["key"] == "val"
         )
         ret, _ = p.query(Predicate(m["key"] == "val"))
-        assert ret == True
+        assert ret == True, "values match"
+
+        ret, _ = p.query(Predicate(m["key"] != "val"))
+        assert ret == False, "values don't match"
+
+        # check raises parameter error because key 'key' is missing
+        with pytest.raises(ParameterError):
+            ret, _ = p.check(Predicate(m["missing"] == "potato"))
 
         ret, _ = p.query(Predicate(m["missing"] == "potato"))
-        assert ret == False
+        assert ret == False, "query that does not have matching keys should fail, otherwise you would get query match both predicates with keys missing and exact matches"
+
+        ret, _ = p.solves_with(Predicate(m["missing"] == "potato"))
+        assert ret == True, "contrary to query statement above, this predicate does not contradict the statement m['key'] == 'val', both can be true at the same time"
 
         # multiple key-value checks
-        m = StringMap('mymap', ["key", "key-2"])        
+        m = StringMap('mymap')
         p = Predicate(
             (m["key"] == "val") & (m["key-2"] == "val-2")
         )
+        
         ret, _ = p.query(Predicate(m["key"] == "val"))
-        assert ret == True
+        assert ret == True, "query on subset of keys is successfull"
+
+        # check will raise error when there is ambiguity because
+        # not all keys have been specified
+        with pytest.raises(ParameterError):        
+            ret, _ = p.check(Predicate(m["key"] == "val"))
+
+        ret, _ = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "val-2")))
+        assert ret == True, "check, all keys and values, match"
+
+        ret, _ = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "val-2") & (m["key-3"] == "val")))
+        assert ret == True, "check is OK when the right side has superset of keys"
+
+        ret, _ = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "wrong")))
+        assert ret == False, "check fails when some values don't match"
+
+        ret, _ = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "wrong") & (m["key-3"] == "val")))
+        assert ret == False, "check fails when the right side has superset of keys, but values don't match"
 
 
     def test_string_map_regex(self):
@@ -221,7 +248,7 @@ class TestAst:
         '''
         # a bit clumsy, but very simple - declare keys in advance
         # to make sure undeclared keys can't be used
-        m = StringMap('mymap', ["key"])
+        m = StringMap('mymap')
 
         # maps could be part of the predicate
         p = Predicate(
