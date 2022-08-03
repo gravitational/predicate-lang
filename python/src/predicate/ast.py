@@ -36,6 +36,8 @@ class String:
             return Eq(self, StringLiteral(val))
         if isinstance(val, String):
             return Eq(self, val)
+        if isinstance(val, Concat):
+            return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __ne__(self, val):
@@ -43,7 +45,27 @@ class String:
             return Not(Eq(self, StringLiteral(val)))
         if isinstance(val, String):
             return Not(Eq(self, val))
-        raise TypeError("unsupported type {}, supported strings only".format(type(val)))    
+        if isinstance(val, Concat):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __add__(self, val):
+        if isinstance(val, str):
+            return Concat(self, StringLiteral(val))
+        if isinstance(val, String):
+            return Concat(self, val)
+        if isinstance(val, Concat):
+            return Concat(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __radd__(self, val):
+        if isinstance(val, str):
+            return Concat(StringLiteral(val), self)
+        if isinstance(val, String):
+            return Concat(val, self)
+        if isinstance(val, Concat):
+            return Concat(val, self)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __str__(self):
         return 'string({})'.format(self.name)
@@ -53,6 +75,7 @@ class String:
 
     def walk(self, fn):
         fn(self)
+
 
 
 class IterableContains:
@@ -248,6 +271,53 @@ class Xor:
     def __invert__(self):
         return Not(self)
 
+class Concat:
+    def __init__(self, l, r):
+        self.L = l
+        self.R = r
+
+    def walk(self, fn):
+        fn(self)
+        self.L.walk(fn)
+        self.R.walk(fn)
+
+    def __str__(self):
+        return '''({} + {})'''.format(self.L, self.R)
+
+    def traverse(self):
+        return z3.Concat(self.L.traverse(), self.R.traverse())
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
+    def __add__(self, val):
+        if isinstance(val, str):
+            return Concat(self, StringLiteral(val))
+        if isinstance(val, String):
+            return Concat(self, val)
+        if isinstance(val, Concat):
+            return Concat(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __radd__(self, val):
+        if isinstance(val, str):
+            return Concat(StringLiteral(val), self)
+        if isinstance(val, String):
+            return Concat(val, self)
+        if isinstance(val, Concat):
+            return Concat(val, self)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+
 class StringMap:
     def __init__(self, name):
         self.name = name
@@ -277,12 +347,16 @@ class MapIndex:
             return Eq(self, StringLiteral(val))
         if isinstance(val, String):
             return Eq(self, val)
+        if isinstance(val, Concat):
+            return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __ne__(self, val):
         if isinstance(val, str):
             return Not(Eq(self, StringLiteral(val)))
         if isinstance(val, String):
+            return Not(Eq(self, val))
+        if isinstance(val, Concat):
             return Not(Eq(self, val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 

@@ -177,7 +177,7 @@ class TestAst:
         p = Predicate(
             regex.parse("stage-.*").matches(User.team)
         )
-        
+
         ret, _ = p.check(Predicate(User.team == "stage-test"))
         assert ret == True, "prefix patterns match"
 
@@ -186,6 +186,32 @@ class TestAst:
 
         ret, _ = p.check(Predicate(User.team == "prod-test"))
         assert ret == False, "prefix pattern mismatch"
+
+
+    def test_concat(self):
+        p = Predicate(
+            Server.login == User.name  + "-login"
+        )
+        ret, _ = p.check(Predicate((Server.login == "alice-login") & (User.name == "alice")))
+        assert ret == True, "pattern matches suffix"
+
+        p = Predicate(
+            Server.login == "login-" + User.name
+        )
+        ret, _ = p.check(Predicate((Server.login == "login-alice") & (User.name == "alice")))
+        assert ret == True, "pattern matches prefix"
+
+        p = Predicate(
+            Server.login == "login-" + User.name + "-user"
+        )
+        ret, _ = p.check(Predicate((Server.login == "login-alice-user") & (User.name == "alice")))
+        assert ret == True, "pattern matches suffix and prefix"
+
+        # TODOs:
+        # Z3_OP_SEQ_REPLACE_RE opcode exists, but not used?
+        # https://github.com/Z3Prover/z3/blob/9f9543ef698adc77252ed366e6d85cc71e4b8c89/src/ast/rewriter/seq_axioms.cpp#L1044
+        # not implemented yet
+        assert False, "Finish email.local, see rbac-linter"
 
 
     def test_string_map(self):
