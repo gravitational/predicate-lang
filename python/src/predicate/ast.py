@@ -34,38 +34,45 @@ class String:
     def __eq__(self, val):
         if isinstance(val, str):
             return Eq(self, StringLiteral(val))
-        if isinstance(val, String):
-            return Eq(self, val)
-        if isinstance(val, Concat):
+        if isinstance(val, (String, Concat, Split, Replace)):
             return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __ne__(self, val):
         if isinstance(val, str):
             return Not(Eq(self, StringLiteral(val)))
-        if isinstance(val, String):
-            return Not(Eq(self, val))
-        if isinstance(val, Concat):
+        if isinstance(val, (String, Concat, Split, Replace)):
             return Not(Eq(self, val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __add__(self, val):
         if isinstance(val, str):
             return Concat(self, StringLiteral(val))
-        if isinstance(val, String):
-            return Concat(self, val)
-        if isinstance(val, Concat):
+        if isinstance(val, (String, Concat, Split, Replace)):
             return Concat(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __radd__(self, val):
         if isinstance(val, str):
             return Concat(StringLiteral(val), self)
-        if isinstance(val, String):
-            return Concat(val, self)
-        if isinstance(val, Concat):
+        if isinstance(val, (String, Concat, Split, Replace)):
             return Concat(val, self)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def before_delimiter(self, sep:str):
+        '''
+        '''
+        return Split(self, StringLiteral(sep), before=True)
+
+    def after_delimiter(self, sep:str):
+        '''
+        '''
+        return Split(self, StringLiteral(sep), before=False)
+
+    def replace(self, src: str, dst:str):
+        '''
+        '''
+        return Replace(self, StringLiteral(src), StringLiteral(dst))
 
     def __str__(self):
         return 'string({})'.format(self.name)
@@ -75,7 +82,6 @@ class String:
 
     def walk(self, fn):
         fn(self)
-
 
 
 class IterableContains:
@@ -317,6 +323,80 @@ class Concat:
             return Concat(val, self)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
+class Split:
+    def __init__(self, val, sep, before: bool):
+        self.val = val
+        self.sep = sep
+        self.before = before
+
+    def walk(self, fn):
+        fn(self)
+        self.val.walk(fn)
+        self.sep.walk(fn)
+
+    def __str__(self):
+        return '''({}.split({})'''.format(self.val, self.sep)
+
+    def traverse(self):
+        v = self.val.traverse()
+        index_end = z3.IndexOf(v, self.sep.traverse())
+        if self.before:
+            return z3.SubString(
+                v, z3.IntVal(0), index_end
+            )
+        else:
+            return z3.If(index_end > 0,
+                  z3.SubString(
+                      v, index_end + 1, z3.Length(self.val.traverse())
+                  ),
+                  z3.StringVal(""))
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
+class Replace:
+    def __init__(self, val, src, dst):
+        self.val = val
+        self.src = src
+        self.dst = dst
+
+    def walk(self, fn):
+        fn(self)
+        self.val.walk(fn)
+        self.src.walk(fn)
+        self.dst.walk(fn)
+
+    def __str__(self):
+        return '''({}.replace({}, {})'''.format(self.val, self.src, self.dst)
+
+    def traverse(self):
+        return z3.Replace(
+            self.val.traverse(),
+            self.src.traverse(),
+            self.dst.traverse()
+        )
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
 
 class StringMap:
     def __init__(self, name):
@@ -345,18 +425,14 @@ class MapIndex:
     def __eq__(self, val):
         if isinstance(val, str):
             return Eq(self, StringLiteral(val))
-        if isinstance(val, String):
-            return Eq(self, val)
-        if isinstance(val, Concat):
+        if isinstance(val, (String, Concat, Split, Replace)):
             return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __ne__(self, val):
         if isinstance(val, str):
             return Not(Eq(self, StringLiteral(val)))
-        if isinstance(val, String):
-            return Not(Eq(self, val))
-        if isinstance(val, Concat):
+        if isinstance(val, (String, Concat, Split, Replace)):
             return Not(Eq(self, val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 

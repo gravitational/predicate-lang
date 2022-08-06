@@ -208,10 +208,43 @@ class TestAst:
         assert ret == True, "pattern matches suffix and prefix"
 
         # TODOs:
-        # Z3_OP_SEQ_REPLACE_RE opcode exists, but not used?
         # https://github.com/Z3Prover/z3/blob/9f9543ef698adc77252ed366e6d85cc71e4b8c89/src/ast/rewriter/seq_axioms.cpp#L1044
         # not implemented yet
-        assert False, "Finish email.local, see rbac-linter"
+
+    def test_delimiter(self):
+        '''
+        Test splitting at delimiter.
+        '''
+        p = Predicate(
+            Server.login == User.name.before_delimiter("@")
+        )
+        ret, _ = p.check(Predicate((Server.login == "alice") & (User.name == "alice@example.com")))
+        assert ret == True, "splitting before delimiter works"
+
+        ret, _ = p.check(Predicate((Server.login == "") & (User.name == "alice-example.com")))
+        assert ret == True, "delimiter not present, string renders to empty"
+
+        p = Predicate(
+            Server.login == User.name.after_delimiter("@")
+        )
+        ret, _ = p.check(Predicate((Server.login == "example.com") & (User.name == "alice@example.com")))
+        assert ret == True, "splitting after delimiter works"
+
+        ret, _ = p.check(Predicate((Server.login == "") & (User.name == "alice-example.com")))
+        assert ret == True, "delimiter not present, string renders to empty"
+
+    def test_replace(self):
+        '''
+        Test replace string characters.
+        '''
+        p = Predicate(
+            Server.login == User.name.replace("@", "-")
+        )
+        ret, z = p.check(Predicate((Server.login == "alice-example.com") & (User.name == "alice@example.com")))
+        assert ret == True, "replacing works"
+
+        ret, _ = p.check(Predicate((Server.login == "alice+example.com") & (User.name == "alice+example.com")))
+        assert ret == True, "character not present, no effect"
 
 
     def test_string_map(self):
