@@ -22,7 +22,6 @@ from .errors import ParameterError
 from . import ast, regex
 from dataclasses import dataclass
 from collections.abc import Iterable
-from typing import Final
 import functools
 import operator
 from collections.abc import Iterable
@@ -36,6 +35,7 @@ class Node(ast.Predicate):
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
+        # TODO check that the predicate is complete, has listed logins
 
 class User:
     '''
@@ -77,6 +77,13 @@ class Policy:
         self.deny = deny or Rules()
 
     def build_predicate(self, other: ast.Predicate):
+        def predicate(allow, deny):
+            if allow is not None and deny is not None:
+                return ast.Predicate(allow.expr & ast.Not(deny.expr))
+            if allow is not None:
+                return ast.Predicate(allow.expr)
+            if deny is not None:
+                return ast.Predicate(ast.Not(deny.expr))
         # TODO: route the request to the appropriate policy based
         # on the predicate type
         if isinstance(other, Node):
@@ -93,18 +100,55 @@ class Policy:
     def query(self, other: ast.Predicate):
         return self.build_predicate(other).query(other)
 
-class PolicySet:
+class PolicySet(Policy):
     """
-    PolicySet is a set of policies
+    PolicySet is a set of policies, it merges all allow and all deny rules
+    from all other policies.
     """
     def __init__(self, policies: Iterable[Policy]):
         self.policies = policies
 
 
-def predicate(allow, deny):
-    if allow is not None and deny is not None:
-        return ast.Predicate(allow.expr & ast.Not(deny.expr))
-    if allow is not None:
-        return ast.Predicate(allow.expr)
-    if deny is not None:
-        return ast.Predicate(ast.Not(deny.expr))
+    def build_predicate(self, other: ast.Predicate):
+        # TODO: route the request to the appropriate policy based
+        # on the predicate type
+        def collect_predicates(policies, get_allow, get_deny):
+            allow = []
+            deny = []
+            for p in policies:
+                pr = get_allow(p)
+                if pr:
+                    allow.append(pr.expr)
+                pr = get_deny(p)
+                if pr:
+                    deny.append(ast.Not(pr.expr))
+            return allow, deny
+
+        if isinstance(other, Node):
+            allow, deny = collect_predicates(self.policies,
+                                             lambda rule: rule.allow.node,
+                                             lambda rule: rule.deny.node)
+        elif isinstance(other, Request):
+            allow, deny = collect_expressions(self.policies,
+                                              lambda rule: rule.allow.request,
+                                              lambda rule: rule.deny.request)
+        elif isinstance(other, Review):
+            allow, deny = collect_expressions(self.policies,
+                                              lambda rule: rule.allow.review,
+                                              lambda rule: rule.deny.review)
+        else:
+            raise ast.ParameterError("can't decide how to route query based on the predicate type {}")
+        if not allow and not deny:
+            raise ast.ParameterError("policy set is empty {}")
+        if not deny:
+            return ast.Predicate(functools.reduce(operator.or_, allow))
+        if not allow:
+            return ast.Predicate(functools.reduce(operator.and_, deny))
+        return ast.Predicate(functools.reduce(operator.or_, allow) & functools.reduce(operator.and_, deny))
+
+    def check(self, other: ast.Predicate):
+        return self.build_predicate(other).check(other)
+
+    def query(self, other: ast.Predicate):
+        return self.build_predicate(other).query(other)        
+
