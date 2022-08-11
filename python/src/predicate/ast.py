@@ -8,11 +8,10 @@ from dataclasses import dataclass
 
 from .errors import ParameterError
 
-
 # reference
 # https://z3prover.github.io/api/html/namespacez3py.html
 class StringLiteral:
-    def __init__(self, val):
+    def __init__(self, val:str):
         self.V = val
 
     def traverse(self):
@@ -24,6 +23,60 @@ class StringLiteral:
 
     def __str__(self):
         return '`{}`'.format(self.V)
+
+
+class IntLiteral:
+    def __init__(self, val: int):
+        self.V = val
+
+    def traverse(self):
+        return z3.IntVal(self.V)
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.V)
+
+    def __str__(self):
+        return '`{}`'.format(self.V)
+
+class Int:
+    def __init__(self, name):
+        self.name = name
+        self.fn = z3.Function(self.name, z3.StringSort(), z3.IntSort())
+
+    def __eq__(self, val):
+        if isinstance(val, int):
+            return Eq(self, IntLiteral(val))
+        if isinstance(val, (Int,)):
+            return Eq(self, val)
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def __ne__(self, val):
+        if isinstance(val, int):
+            return Not(Eq(self, IntLiteral(val)))
+        if isinstance(val, (Int,)):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def __lt__(self, val):
+        if isinstance(val, int):
+            return Lt(self, IntLiteral(val))
+        if isinstance(val, (Int)):
+            return Lt(self, val)
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def __gt__(self, val):
+        if isinstance(val, int):
+            return Gt(self, IntLiteral(val))
+        if isinstance(val, (Int)):
+            return Gt(self, val)
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def traverse(self):
+        return self.fn(z3.StringVal(self.name))
+
+    def walk(self, fn):
+        fn(self)
 
 class String:
         
@@ -131,7 +184,7 @@ class StringTuple:
         fn(self.vals)
 
     def __str__(self):
-        return '[{}]'.format(['`{}`'.format(v) for v in self.vals].join(", "))
+        return '[{}]'.format(",".join(['`{}`'.format(v) for v in self.vals]))
 
 class Not:
     def __init__(self, v):
@@ -398,6 +451,63 @@ class Replace:
         return Not(self)
 
 
+class Lt:
+    def __init__(self, l, r):
+        self.L = l
+        self.R = r
+
+    def walk(self, fn):
+        fn(self)
+        self.L.walk(fn)
+        self.R.walk(fn)
+
+    def __str__(self):
+        return '''({} < {})'''.format(self.L, self.R)
+
+    def traverse(self):
+        return self.L.traverse() < self.R.traverse()
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
+class Gt:
+    def __init__(self, l, r):
+        self.L = l
+        self.R = r
+
+    def walk(self, fn):
+        fn(self)
+        self.L.walk(fn)
+        self.R.walk(fn)
+
+    def __str__(self):
+        return '''({} < {})'''.format(self.L, self.R)
+
+    def traverse(self):
+        return self.L.traverse() > self.R.traverse()
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
+
 class StringMap:
     def __init__(self, name):
         self.name = name
@@ -461,6 +571,8 @@ class MapIndex:
 def collect_symbols(s, expr):
     if type(expr) == String:
         s.add(expr.name)
+    if type(expr) == Int:
+        s.add(expr.name)
     if type(expr) == MapIndex:
         s.add(expr.m.name + "." + expr.key)
 
@@ -518,7 +630,6 @@ class Predicate:
         solver = z3.Solver()
         solver.add(self.expr.traverse())
         
-        print("traverse: ", self.expr.traverse())
         if solver.check() == z3.unsat:
             raise ParameterError('our own predicate is unsolvable')
         solver.add(other.expr.traverse())

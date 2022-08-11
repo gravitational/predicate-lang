@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int
 
 # User-defined models here
 class Server:
@@ -17,6 +17,14 @@ class User:
     team = String("user.team")
     # name is username
     name = String("user.name")
+
+
+class Request:
+    '''
+    Request is a domain specific model, e.g. (Teleport approval thesholds)
+    '''
+    approve = Int("request.approve")
+    deny = Int("request.deny")
 
 class TestAst:
     def test_check_equiv(self):
@@ -246,7 +254,6 @@ class TestAst:
         ret, _ = p.check(Predicate((Server.login == "alice+example.com") & (User.name == "alice+example.com")))
         assert ret == True, "character not present, no effect"
 
-
     def test_string_map(self):
         '''
         StringMaps are string key value pairs that support
@@ -339,7 +346,24 @@ class TestAst:
         ret, _ = p.query(Predicate(t.matches("apple-smoothie")))
         assert ret == True                
 
-#
-# TODO: sets, arrays?
-# TODO: Transpile to teleport roles, IWS IAM roles
-# 
+
+    def test_int(self):
+        """
+        Test int tests integer operations
+        """
+        p = Predicate(
+            Request.approve == 1
+        )
+
+        ret, _ = p.check(Predicate(Request.approve == 1))
+        assert ret == True, "solves with simple equality check"
+
+        p = Predicate(
+            (Request.approve > 1) & (Request.approve < 3)
+        )
+
+        ret, _ = p.check(Predicate(Request.approve == 2))
+        assert ret == True, "solves with simple boundary check"
+
+        ret, _ = p.check(Predicate(Request.approve == 5))
+        assert ret == False, "solves with simple boundary check"
