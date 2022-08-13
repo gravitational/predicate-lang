@@ -1,6 +1,7 @@
 import z3
 import operator
 import typing
+import re
 
 from functools import partial
 from collections.abc import Iterable
@@ -24,10 +25,36 @@ class StringLiteral:
     def __str__(self):
         return '`{}`'.format(self.V)
 
-
+    
 class IntLiteral:
     def __init__(self, val: int):
         self.V = val
+
+    def traverse(self):
+        return z3.IntVal(self.V)
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.V)
+
+    def __str__(self):
+        return '`{}`'.format(self.V)
+
+NANOSECOND = 1
+MICROSECOND = 1000 * NANOSECOND
+MILLISECOND = 1000 * MICROSECOND
+SECOND = 1000 * MILLISECOND
+MINUTE = 60 * SECOND
+HOUR= 60 * MINUTE
+
+
+class DurationLiteral:
+    '''
+    Duration literal measures time in nanoseconds
+    '''
+    def __init__(self, val: int):
+        self.V = val
+
 
     def traverse(self):
         return z3.IntVal(self.V)
@@ -61,14 +88,14 @@ class Int:
     def __lt__(self, val):
         if isinstance(val, int):
             return Lt(self, IntLiteral(val))
-        if isinstance(val, (Int)):
+        if isinstance(val, (Int,)):
             return Lt(self, val)
         raise TypeError("unsupported type {}, supported integers only".format(type(val)))
 
     def __gt__(self, val):
         if isinstance(val, int):
             return Gt(self, IntLiteral(val))
-        if isinstance(val, (Int)):
+        if isinstance(val, (Int,)):
             return Gt(self, val)
         raise TypeError("unsupported type {}, supported integers only".format(type(val)))
 
@@ -77,6 +104,47 @@ class Int:
 
     def walk(self, fn):
         fn(self)
+
+
+class Duration:
+    def __init__(self, name):
+        self.name = name
+        self.fn = z3.Function(self.name, z3.StringSort(), z3.IntSort())
+
+    def traverse(self):
+        return self.fn(z3.StringVal(self.name))
+        
+    def walk(self, fn):
+        fn(self)
+
+    @staticmethod
+    def new(hours=0, minutes=0, seconds=0, milliseconds=0, microseconds=0, nanoseconds=0):
+        return DurationLiteral(hours * HOUR +
+                               minutes * MINUTE +
+                               seconds * SECOND +
+                               milliseconds * MILLISECOND +
+                               microseconds * MICROSECOND +
+                               nanoseconds * NANOSECOND)
+
+    def __eq__(self, val):
+        if isinstance(val, (Duration, DurationLiteral)):
+            return Eq(self, val)
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def __ne__(self, val):
+        if isinstance(val, (Duration, DurationLiteral)):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def __lt__(self, val):
+        if isinstance(val, (Duration, DurationLiteral)):
+            return Lt(self, val)
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def __gt__(self, val):
+        if isinstance(val, (Duration, DurationLiteral)):
+            return Gt(self, val)
+        raise TypeError("unsupported type {}, supported duration and duration literals only".format(type(val)))        
 
 class String:
         

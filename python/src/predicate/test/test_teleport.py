@@ -102,3 +102,22 @@ class TestTeleport:
         )
         assert ret == False, "can't approve role that is not listed in the policy"
 
+
+    def test_options(self):
+        p = Policy(
+            options = Options(
+                Session.TTL <= DurationLiteral(hours=10),
+            ),
+            allow=Rules(
+                node = Node(
+                    (Node.login == "root") & (Node.labels["env"] == "prod")),
+            )
+        )
+
+        ret, _ = p.check(
+            Options(Session.TTL == DurationLiteral(hours=3))
+            &
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux")))
+
+        assert False, "figure out options syntax"
+

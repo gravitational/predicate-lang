@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration
 
 # User-defined models here
 class Server:
@@ -25,6 +25,12 @@ class Request:
     '''
     approve = Int("request.approve")
     deny = Int("request.deny")
+
+class Options:
+    '''
+    Options is a class with mixed parameters
+    '''
+    ttl = Duration("options.ttl")
 
 class TestAst:
     def test_check_equiv(self):
@@ -366,4 +372,26 @@ class TestAst:
         assert ret == True, "solves with simple boundary check"
 
         ret, _ = p.check(Predicate(Request.approve == 5))
+        assert ret == False, "solves with simple boundary check"
+
+        
+    def test_duration(self):
+        """
+        Test int tests integer operations
+        """
+        p = Predicate(
+            Options.ttl == Duration.new(hours=5),
+        )
+
+        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=5)))
+        assert ret == True, "solves with simple equality check"
+
+        p = Predicate(
+            (Options.ttl > Duration.new(seconds=10)) & (Options.ttl < Duration.new(hours=5))
+        )
+
+        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=3)))
+        assert ret == True, "solves with simple boundary check"
+
+        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=6)))
         assert ret == False, "solves with simple boundary check"

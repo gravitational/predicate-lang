@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, Map, ParameterError, regex, StringTuple
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple
 from predicate import aws
 
 

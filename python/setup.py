@@ -25,9 +25,9 @@ setuptools.setup(
     python_requires=">=3.9",
     tests_require = [
         "pytest>=7.1.2",
-        "pluggy>=1.0.0"
+        "pluggy>=1.0.0",
     ],
     install_requires=[
-        "z3-solver>=4.8.12.0"
+        "z3-solver>=4.8.12.0",
     ]
 )
