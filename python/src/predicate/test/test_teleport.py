@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, StringMap, ParameterError, regex, StringTuple
+from predicate import ast, Predicate, String, StringMap, ParameterError, regex, StringTuple, Duration
 from predicate.teleport import *
 
 class TestTeleport:
@@ -106,7 +106,8 @@ class TestTeleport:
     def test_options(self):
         p = Policy(
             options = Options(
-                Session.TTL <= DurationLiteral(hours=10),
+                (Options.max_session_ttl < Duration.new(hours=10)) &
+                (Options.max_session_ttl > Duration.new(seconds=10)),
             ),
             allow=Rules(
                 node = Node(
@@ -115,9 +116,96 @@ class TestTeleport:
         )
 
         ret, _ = p.check(
-            Options(Session.TTL == DurationLiteral(hours=3))
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
             &
-            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux")))
+            Options(Options.max_session_ttl == Duration.new(hours=3))
+        )
 
-        assert False, "figure out options syntax"
+        assert ret == True, "options and core predicate matches"
+
+        ret, _ = p.check(
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
+            &
+            Options(Options.max_session_ttl == Duration.new(hours = 50))
+        )
+
+        assert ret == False, "options expression fails the entire predicate"
+
+
+    def test_options_extra(self):
+        '''
+        Tests that predicate works when options expression is superset
+        '''
+        p = Policy(
+            options = Options(
+                (Options.max_session_ttl < Duration.new(hours=10)) &
+                (Options.max_session_ttl > Duration.new(seconds=10)) &
+                (Options.pin_source_ip == True),
+            ),
+            allow=Rules(
+                node = Node(
+                    (Node.login == "root") & (Node.labels["env"] == "prod")),
+            )
+        )
+
+        ret, _ = p.check(
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
+            &
+            Options((Options.max_session_ttl == Duration.new(hours=3))
+            )
+        )
+
+        assert ret == True, "options and core predicate matches"
+
+        ret, _ = p.check(
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
+            &
+            Options((Options.max_session_ttl == Duration.new(hours=3)) & (Options.pin_source_ip == False)
+            )
+        )
+
+        assert ret == True, "options fails restriction"
+
+
+    def test_options_policy_set(self):
+        a = Policy(
+            options = Options(
+                (Options.max_session_ttl < Duration.new(hours=10)) &
+                (Options.max_session_ttl > Duration.new(seconds=10)) &
+                (Options.pin_source_ip == True),
+            ),
+            allow=Rules(
+                node = Node(
+                    (Node.login == "ubuntu") & (Node.labels["env"] == "stage")),
+            )            
+        )
+
+        b = Policy(
+            allow=Rules(
+                node = Node(
+                    (Node.login == "root") & (Node.labels["env"] == "prod")),
+            )
+        )
+
+        p = PolicySet([a, b])
+
+        ret, _ = p.check(
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
+            &
+            Options((Options.max_session_ttl == Duration.new(hours=3))
+                    # here, the option does not necessarily apply to this check,
+                    # but our check function is strict
+            )
+        )
+
+        assert ret == True, "options and core predicate matches"
+
+        ret, _ = p.check(
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
+            &
+            Options((Options.max_session_ttl == Duration.new(hours=3)) & (Options.pin_source_ip == False)
+            )
+        )
+
+        assert ret == True, "options fails restriction"
 

@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration, Bool
 
 # User-defined models here
 class Server:
@@ -31,6 +31,8 @@ class Options:
     Options is a class with mixed parameters
     '''
     ttl = Duration("options.ttl")
+
+    pin_source_ip = Bool("options.pin_source_ip")
 
 class TestAst:
     def test_check_equiv(self):
@@ -395,3 +397,18 @@ class TestAst:
 
         ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=6)))
         assert ret == False, "solves with simple boundary check"
+
+    def test_bool(self):
+        """
+        Test int tests integer operations
+        """
+        p = Predicate(
+            Options.pin_source_ip == True,
+        )
+
+        ret, _ = p.check(Predicate(Options.pin_source_ip == True))
+        assert ret == True, "solves with simple equality check"
+
+        ret, _ = p.check(Predicate(Options.pin_source_ip == False))
+        assert ret == False, "solves with simple boundary check"
+

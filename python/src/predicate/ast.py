@@ -66,6 +66,25 @@ class DurationLiteral:
     def __str__(self):
         return '`{}`'.format(self.V)
 
+
+class BoolLiteral:
+    '''
+    Boolean literal is true or false
+    '''
+    def __init__(self, val: bool):
+        self.V = val
+
+    def traverse(self):
+        return z3.BoolVal(self.V)
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.V)
+
+    def __str__(self):
+        return '`{}`'.format(self.V)
+
+
 class Int:
     def __init__(self, name):
         self.name = name
@@ -105,6 +124,8 @@ class Int:
     def walk(self, fn):
         fn(self)
 
+    def __str__(self):
+        return 'int({})'.format(self.name)
 
 class Duration:
     def __init__(self, name):
@@ -116,6 +137,9 @@ class Duration:
         
     def walk(self, fn):
         fn(self)
+
+    def __str__(self):
+        return 'duration({})'.format(self.name)
 
     @staticmethod
     def new(hours=0, minutes=0, seconds=0, milliseconds=0, microseconds=0, nanoseconds=0):
@@ -145,6 +169,34 @@ class Duration:
         if isinstance(val, (Duration, DurationLiteral)):
             return Gt(self, val)
         raise TypeError("unsupported type {}, supported duration and duration literals only".format(type(val)))        
+
+class Bool:
+    def __init__(self, name):
+        self.name = name
+        self.fn = z3.Function(self.name, z3.StringSort(), z3.BoolSort())
+
+    def __eq__(self, val):
+        if isinstance(val, bool):
+            return Eq(self, BoolLiteral(val))
+        if isinstance(val, (Bool,)):
+            return Eq(self, val)
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def __ne__(self, val):
+        if isinstance(val, bool):
+            return Not(Eq(self, BoolLiteral(val)))
+        if isinstance(val, (Bool,)):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported integers only".format(type(val)))
+
+    def traverse(self):
+        return self.fn(z3.StringVal(self.name))
+
+    def walk(self, fn):
+        fn(self)
+
+    def __str__(self):
+        return 'bool({})'.format(self.name)
 
 class String:
         
@@ -637,12 +689,16 @@ class MapIndex:
         
 
 def collect_symbols(s, expr):
-    if type(expr) == String:
+    if isinstance(expr, (String, Int, Duration, Bool)):
         s.add(expr.name)
-    if type(expr) == Int:
-        s.add(expr.name)
-    if type(expr) == MapIndex:
+    if isinstance(expr, MapIndex):
         s.add(expr.m.name + "." + expr.key)
+
+def collect_names(s, expr):
+    if isinstance(expr, (String, Int, Duration, Bool)):
+        s.add(expr.name)
+    if isinstance(expr, MapIndex):
+        s.add(expr.m.name)
 
 class Predicate:
     def __init__(self, expr):

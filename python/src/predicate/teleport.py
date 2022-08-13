@@ -26,6 +26,18 @@ import functools
 import operator
 from collections.abc import Iterable
 
+class Options(ast.Predicate):
+    '''
+    Options apply to some allow rules if they match
+    '''
+    max_session_ttl = ast.Duration("options.max_session_ttl")
+
+    pin_source_ip = ast.Bool("options.pin_source_ip")
+
+    def __init__(self, expr):
+        ast.Predicate.__init__(self, expr)
+
+
 class Node(ast.Predicate):
     '''
     Node is SSH node
@@ -36,6 +48,14 @@ class Node(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
         # TODO check that the predicate is complete, has listed logins
+
+    def __and__(self, options: Options):
+        '''
+        This is a somewhat special case, options define max session TTL,
+        so this operator constructs a node predicate that contains options
+        that are relevant to node.
+        '''
+        return Node(self.expr & options.expr)
 
 class User:
     '''
@@ -50,7 +70,6 @@ class User:
 class Role:
     name = ast.String("role.name")
 
-
 class Thresholds:
     approve = ast.Int("request.approve")
     deny = ast.Int("request.deny")
@@ -63,31 +82,41 @@ class Review(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
+
 class Rules:
-    def __init__(self, node=None, request: Request = None, review: Review = None):
+    '''
+    Rules are allow or deny rules
+    '''
+    def __init__(self, node: Node=None, request: Request = None, review: Review = None):
         self.node = node
         self.request = request
         self.review = review
 
 class Policy:
-    def __init__(self, allow: Rules = None, deny: Rules = None):
+    def __init__(self, options: Options = None, allow: Rules = None, deny: Rules = None):
         if allow is None and deny is None:
             raise ast.ParameterError("provide either allow or deny")
         self.allow = allow or Rules()
         self.deny = deny or Rules()
+        self.options = options
 
     def build_predicate(self, other: ast.Predicate):
-        def predicate(allow, deny):
+        def predicate(allow, deny, options = None):
+            expr = None
             if allow is not None and deny is not None:
+                if options is not None:
+                    return ast.Predicate(options.expr & allow.expr & ast.Not(deny.expr))
                 return ast.Predicate(allow.expr & ast.Not(deny.expr))
             if allow is not None:
+                if options is not None:                
+                    return ast.Predicate(options.expr & allow.expr)
                 return ast.Predicate(allow.expr)
             if deny is not None:
                 return ast.Predicate(ast.Not(deny.expr))
         # TODO: route the request to the appropriate policy based
         # on the predicate type
         if isinstance(other, Node):
-            return predicate(self.allow.node, self.deny.node)
+            return predicate(self.allow.node, self.deny.node, self.options)
         elif isinstance(other, Request):
             return predicate(self.allow.request, self.deny.request)
         elif isinstance(other, Review):
