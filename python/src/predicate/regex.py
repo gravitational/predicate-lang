@@ -152,7 +152,25 @@ def regex_to_z3_expr(regex: sre_parse.SubPattern) -> z3.ReRef:
             [regex_construct_to_z3_expr(construct) for construct in regex.data]
         )
 
-
+def category_regex(category: sre_constants._NamedIntConstant) -> z3.ReRef:
+    """
+    Defines regex categories in Z3.
+    """
+    if sre_constants.CATEGORY_DIGIT == category:
+        return z3.Range("0", "9")
+    elif sre_constants.CATEGORY_SPACE == category:
+        return z3.Union(
+            z3.Re(" "), z3.Re("\t"), z3.Re("\n"), z3.Re("\r"), z3.Re("\f"), z3.Re("\v")
+        )
+    elif sre_constants.CATEGORY_WORD == category:
+        return z3.Union(
+            z3.Range("a", "z"), z3.Range("A", "Z"), z3.Range("0", "9"), z3.Re("_")
+        )
+    else:
+        raise NotImplementedError(
+            f"ERROR: regex category {category} not yet implemented"
+        )
+    
 def regex_construct_to_z3_expr(regex_construct) -> z3.ReRef:
     """
     Translates a specific regex construct into its Z3 equivalent.

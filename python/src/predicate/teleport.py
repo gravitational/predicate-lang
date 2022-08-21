@@ -127,7 +127,7 @@ class PolicySet:
     def __init__(self, policies: Iterable[Policy]):
         self.policies = policies
 
-    def build_predicate(self, other: ast.Predicate):
+    def build_predicate(self, other: ast.Predicate) -> ast.Predicate:
         allow = []
         deny = []
         options = []
@@ -152,13 +152,14 @@ class PolicySet:
         
         if not allow and not deny:
             raise ast.ParameterError("policy set is empty {}")
+        pr = None
         if not deny:
-            p = ast.Predicate(allow_expr)
-        elif not allow:
-            p = ast.Predicate(deny_expr)
+            pr = ast.Predicate(allow_expr)
+        elif not allow_expr:
+            pr = ast.Predicate(deny_expr)
         else:
-            p = ast.Predicate(allow_expr & deny_expr)
-        return p
+            pr = ast.Predicate(allow_expr & deny_expr)
+        return pr
 
     def check(self, other: ast.Predicate):
         return self.build_predicate(other).check(other)
