@@ -26,6 +26,7 @@ import functools
 import operator
 from collections.abc import Iterable
 
+
 class Options(ast.Predicate):
     '''
     Options apply to some allow rules if they match
@@ -36,6 +37,17 @@ class Options(ast.Predicate):
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
+
+
+class OptionsSet:
+    '''
+    OptionsSet is a set of option expressions
+    '''
+    def __init__(self, *options: Options):
+        self.options = options
+
+    def collect_like(self, other: ast.Predicate):
+        return [o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0]
 
 
 class Node(ast.Predicate):
@@ -87,49 +99,27 @@ class Rules:
     '''
     Rules are allow or deny rules
     '''
-    def __init__(self, node: Node=None, request: Request = None, review: Review = None):
-        self.node = node
-        self.request = request
-        self.review = review
+    def __init__(self, *rules):
+        self.rules = rules or []
+
+    def collect_like(self, other: ast.Predicate):
+        return [r for r in self.rules if r.__class__ == other.__class__]
 
 class Policy:
-    def __init__(self, options: Options = None, allow: Rules = None, deny: Rules = None):
+    def __init__(self, options: OptionsSet = None, allow: Rules = None, deny: Rules = None):
         if allow is None and deny is None:
             raise ast.ParameterError("provide either allow or deny")
         self.allow = allow or Rules()
         self.deny = deny or Rules()
-        self.options = options
-
-    def build_predicate(self, other: ast.Predicate):
-        def predicate(allow, deny, options = None):
-            expr = None
-            if allow is not None and deny is not None:
-                if options is not None:
-                    return ast.Predicate(options.expr & allow.expr & ast.Not(deny.expr))
-                return ast.Predicate(allow.expr & ast.Not(deny.expr))
-            if allow is not None:
-                if options is not None:                
-                    return ast.Predicate(options.expr & allow.expr)
-                return ast.Predicate(allow.expr)
-            if deny is not None:
-                return ast.Predicate(ast.Not(deny.expr))
-        # TODO: route the request to the appropriate policy based
-        # on the predicate type
-        if isinstance(other, Node):
-            return predicate(self.allow.node, self.deny.node, self.options)
-        elif isinstance(other, Request):
-            return predicate(self.allow.request, self.deny.request)
-        elif isinstance(other, Review):
-            return predicate(self.allow.review, self.deny.review)
-        raise ast.ParameterError("can't decide how to route query based on the predicate type {}")
+        self.options = options or OptionsSet()
 
     def check(self, other: ast.Predicate):
-        return self.build_predicate(other).check(other)
+        return PolicySet([self]).check(other)
 
     def query(self, other: ast.Predicate):
-        return self.build_predicate(other).query(other)
+        return PolicySet([self]).query(other)
 
-class PolicySet(Policy):
+class PolicySet:
     """
     PolicySet is a set of policies, it merges all allow and all deny rules
     from all other policies.
@@ -137,47 +127,42 @@ class PolicySet(Policy):
     def __init__(self, policies: Iterable[Policy]):
         self.policies = policies
 
-
     def build_predicate(self, other: ast.Predicate):
-        # TODO: route the request to the appropriate policy based
-        # on the predicate type
-        def collect_predicates(policies, get_allow, get_deny):
-            allow = []
-            deny = []
-            for p in policies:
-                pr = get_allow(p)
-                if pr:
-                    allow.append(pr.expr)
-                pr = get_deny(p)
-                if pr:
-                    deny.append(ast.Not(pr.expr))
-            return allow, deny
+        allow = []
+        deny = []
+        options = []
+        for p in self.policies:
+            allow.extend([e.expr for e in p.allow.collect_like(other)])
+            options.extend([o.expr for o in p.options.collect_like(other)])
+            deny.extend([ast.Not(e.expr) for e in p.deny.collect_like(other)])
 
-        if isinstance(other, Node):
-            allow, deny = collect_predicates(self.policies,
-                                             lambda rule: rule.allow.node,
-                                             lambda rule: rule.deny.node)
-        elif isinstance(other, Request):
-            allow, deny = collect_expressions(self.policies,
-                                              lambda rule: rule.allow.request,
-                                              lambda rule: rule.deny.request)
-        elif isinstance(other, Review):
-            allow, deny = collect_expressions(self.policies,
-                                              lambda rule: rule.allow.review,
-                                              lambda rule: rule.deny.review)
-        else:
-            raise ast.ParameterError("can't decide how to route query based on the predicate type {}")
+        # all options should match
+        # TODO: how to deal with Teleport options logic that returns min out of two?
+        # probably < equation will solve this problem
+        allow_expr = None
+        options_expr = None
+        if options:
+            options_expr = functools.reduce(operator.and_, options)
+        if allow:
+            allow_expr = functools.reduce(operator.or_, allow)
+            if options:
+                allow_expr = allow_expr & options_expr
+        if deny:
+            deny_expr = functools.reduce(operator.and_, deny)
+        
         if not allow and not deny:
             raise ast.ParameterError("policy set is empty {}")
         if not deny:
-            return ast.Predicate(functools.reduce(operator.or_, allow))
-        if not allow:
-            return ast.Predicate(functools.reduce(operator.and_, deny))
-        return ast.Predicate(functools.reduce(operator.or_, allow) & functools.reduce(operator.and_, deny))
+            p = ast.Predicate(allow_expr)
+        elif not allow:
+            p = ast.Predicate(deny_expr)
+        else:
+            p = ast.Predicate(allow_expr & deny_expr)
+        return p
 
     def check(self, other: ast.Predicate):
         return self.build_predicate(other).check(other)
 
     def query(self, other: ast.Predicate):
-        return self.build_predicate(other).query(other)        
+        return self.build_predicate(other).query(other) 
 

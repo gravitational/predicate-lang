@@ -686,7 +686,9 @@ class MapIndex:
 
     def walk(self, fn):
         fn(self)
-        
+
+
+
 
 def collect_symbols(s, expr):
     if isinstance(expr, (String, Int, Duration, Bool)):

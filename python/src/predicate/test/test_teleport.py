@@ -6,7 +6,7 @@ class TestTeleport:
     def test_node(self):
         p = Policy(
             allow=Rules(
-                node = Node(
+                Node(
                     (Node.login == "root") & (Node.labels["env"] == "prod")),
             )
         )
@@ -18,14 +18,14 @@ class TestTeleport:
     def test_allow_policy_set(self):
         a = Policy(
             allow=Rules(
-                node = Node(
+                Node(
                     (Node.login == "ubuntu") & (Node.labels["env"] == "prod")),
             )
         )
 
         b = Policy(
             allow=Rules(
-                node = Node(
+                Node(
                     (Node.login == "root") & (Node.labels["env"] == "stage")),
             )
         )        
@@ -46,13 +46,13 @@ class TestTeleport:
     def test_deny_policy_set(self):
         a = Policy(
             allow=Rules(
-                node = Node(
+                Node(
                     ((Node.login == "root") & (Node.labels["env"] == "prod")) |
                     ((Node.login == "ubuntu") & (Node.labels["env"] == "prod")))))
 
         b = Policy(
             deny=Rules(
-                node = Node(
+                Node(
                     (Node.login == "root") & (Node.labels["env"] == "prod")),
             )
         )        
@@ -74,11 +74,10 @@ class TestTeleport:
         # p.allow.review = (Role.name == "access-prod")
         p = Policy(
             allow=Rules(
-                # Let's make those predicates too!
-                request = Request(
+                Request(
                     (Role.name == "access-prod") & (Thresholds.approve == 1) & (Thresholds.deny == 2)
                 ),
-                review = Review(Role.name == "access-prod"),
+                Review(Role.name == "access-prod"),
             )
         )
 
@@ -105,12 +104,12 @@ class TestTeleport:
 
     def test_options(self):
         p = Policy(
-            options = Options(
+            options = OptionsSet(Options(
                 (Options.max_session_ttl < Duration.new(hours=10)) &
                 (Options.max_session_ttl > Duration.new(seconds=10)),
-            ),
+            )),
             allow=Rules(
-                node = Node(
+                Node(
                     (Node.login == "root") & (Node.labels["env"] == "prod")),
             )
         )
@@ -137,14 +136,13 @@ class TestTeleport:
         Tests that predicate works when options expression is superset
         '''
         p = Policy(
-            options = Options(
-                (Options.max_session_ttl < Duration.new(hours=10)) &
-                (Options.max_session_ttl > Duration.new(seconds=10)) &
-                (Options.pin_source_ip == True),
+            options = OptionsSet(
+                Options((Options.max_session_ttl < Duration.new(hours=10)) & (Options.max_session_ttl > Duration.new(seconds=10))),
+                Options(Options.pin_source_ip == True),
             ),
             allow=Rules(
-                node = Node(
-                    (Node.login == "root") & (Node.labels["env"] == "prod")),
+                # unrelated rules are with comma, related rules are part of the predicate
+                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
             )
         )
 
@@ -164,25 +162,26 @@ class TestTeleport:
             )
         )
 
-        assert ret == True, "options fails restriction"
+        assert ret == False, "options fails restriction when contradiction is specified"
 
 
     def test_options_policy_set(self):
         a = Policy(
-            options = Options(
-                (Options.max_session_ttl < Duration.new(hours=10)) &
-                (Options.max_session_ttl > Duration.new(seconds=10)) &
-                (Options.pin_source_ip == True),
+            options = OptionsSet(
+                Options(
+                    (Options.max_session_ttl < Duration.new(hours=10)) &
+                    (Options.max_session_ttl > Duration.new(seconds=10))),
+                Options(Options.pin_source_ip == True),
             ),
             allow=Rules(
-                node = Node(
+                Node(
                     (Node.login == "ubuntu") & (Node.labels["env"] == "stage")),
             )            
         )
 
         b = Policy(
             allow=Rules(
-                node = Node(
+                Node(
                     (Node.login == "root") & (Node.labels["env"] == "prod")),
             )
         )
@@ -207,5 +206,5 @@ class TestTeleport:
             )
         )
 
-        assert ret == True, "options fails restriction"
+        assert ret == False, "options fails restriction"
 
