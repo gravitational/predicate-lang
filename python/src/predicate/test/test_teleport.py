@@ -192,8 +192,6 @@ class TestTeleport:
             Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
             &
             Options((Options.max_session_ttl == Duration.new(hours=3))
-                    # here, the option does not necessarily apply to this check,
-                    # but our check function is strict
             )
         )
 

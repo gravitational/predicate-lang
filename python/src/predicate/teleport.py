@@ -133,6 +133,8 @@ class PolicySet:
         options = []
         for p in self.policies:
             allow.extend([e.expr for e in p.allow.collect_like(other)])
+            # here we collect options from our policies that are mentioned in the predicate
+            # we are checking against, so our options are "sticky"
             options.extend([o.expr for o in p.options.collect_like(other)])
             deny.extend([ast.Not(e.expr) for e in p.deny.collect_like(other)])
 
@@ -141,6 +143,9 @@ class PolicySet:
         # probably < equation will solve this problem
         allow_expr = None
         options_expr = None
+        # if option predicgae are present, apply them as mandatory
+        # to the allow expression, so allow is matching only if options
+        # match as well.
         if options:
             options_expr = functools.reduce(operator.and_, options)
         if allow:
@@ -149,7 +154,7 @@ class PolicySet:
                 allow_expr = allow_expr & options_expr
         if deny:
             deny_expr = functools.reduce(operator.and_, deny)
-        
+
         if not allow and not deny:
             raise ast.ParameterError("policy set is empty {}")
         pr = None

@@ -8,7 +8,7 @@ test:
 
 .PHONY: test-teleport
 test-teleport:
-	mypy src/predicate/test/test_ast.py
+	mypy src/predicate/test/test_teleport.py
 	pytest --pyargs src/predicate/test/test_teleport.py
 
 .PHONY: test-ast
