@@ -2,8 +2,8 @@ import z3
 import operator
 import typing
 import re
+import functools
 
-from functools import partial
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -252,6 +252,104 @@ class String:
 
     def traverse(self):
         return self.fn(z3.StringVal(self.name))
+
+    def walk(self, fn):
+        fn(self)
+
+
+def define_mapfn(fn_map, fn_key, kv: typing.Dict[String, String]):
+    """
+    Define mapfn defines a key value map using recursive Z3 function,
+    essentially converting {'a': 'b'} into if x == 'a' then 'b' else ...
+    """
+    def iff(iterator):
+        try:
+            key, val = next(iterator)
+        except StopIteration:
+            return z3.StringVal("")
+        else:
+            return z3.If(
+                fn_key == z3.StringVal(key),
+                z3.StringVal(val),
+                iff(iterator)
+            )
+    z3.RecAddDefinition(
+        fn_map,
+        [fn_key],
+        iff(iter(kv.items()))
+       )
+
+class StringEnum:
+
+    def __init__(self, name, values: typing.Set[String]):
+        self.name = name
+        self.fn = z3.RecFunction(self.name, z3.StringSort(), z3.StringSort())
+        self.fn_key = z3.RecFunction(self.name + "_keys", z3.StringSort(), z3.BoolSort())
+
+        required_key = z3.String(self.name+"_required_key")
+        z3.RecAddDefinition(
+            self.fn_key,
+            [required_key],
+            z3.BoolVal(False)
+            if len(values) == 0
+            else z3.Or(
+                    [required_key == z3.StringVal(key) for key in values]
+            ),
+        )        
+        self.values = values
+        define_mapfn(self.fn, z3.String(self.name + "_arg"), {key:key for key in values})
+
+    def one_of(self):
+        return functools.reduce(operator.or_, [self == key for key in self.values])
+
+    def __eq__(self, val):
+        if isinstance(val, str):
+            return Eq(self, StringLiteral(val))
+        if isinstance(val, (String, Concat, Split, Replace)):
+            return Eq(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __ne__(self, val):
+        if isinstance(val, str):
+            return Not(Eq(self, StringLiteral(val)))
+        if isinstance(val, (String, Concat, Split, Replace)):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __add__(self, val):
+        if isinstance(val, str):
+            return Concat(self, StringLiteral(val))
+        if isinstance(val, (String, Concat, Split, Replace)):
+            return Concat(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __radd__(self, val):
+        if isinstance(val, str):
+            return Concat(StringLiteral(val), self)
+        if isinstance(val, (String, Concat, Split, Replace)):
+            return Concat(val, self)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def before_delimiter(self, sep:str):
+        '''
+        '''
+        return Split(self, StringLiteral(sep), before=True)
+
+    def after_delimiter(self, sep:str):
+        '''
+        '''
+        return Split(self, StringLiteral(sep), before=False)
+
+    def replace(self, src: str, dst:str):
+        '''
+        '''
+        return Replace(self, StringLiteral(src), StringLiteral(dst))
+
+    def __str__(self):
+        return 'string({})'.format(self.name)
+
+    def compare(self, op, other):
+        return z3.And(op(self.fn(other), other), self.fn_key(other) == z3.BoolVal(True))
 
     def walk(self, fn):
         fn(self)
@@ -706,7 +804,7 @@ class Predicate:
     def __init__(self, expr):
         self.symbols = set()
         self.expr = expr
-        self.expr.walk(partial(collect_symbols, self.symbols))
+        self.expr.walk(functools.partial(collect_symbols, self.symbols))
 
     def __str__(self):
         return self.expr.__str__()
@@ -762,7 +860,7 @@ class Predicate:
 
         # TODO do a second pass to build a key checking function
         # for both predicates!
-        self.expr.walk(partial(collect_symbols, self.symbols))
+        self.expr.walk(functools.partial(collect_symbols, self.symbols))
                 
         if solver.check() == z3.unsat:
             return (False, "predicate is unsolvable against %s" % (other.expr, ))
@@ -794,7 +892,7 @@ class Predicate:
         expr = self.expr
         while True:
             v = []
-            expr.walk(partial(split, v))
+            expr.walk(functools.partial(split, v))
             if len(v) == 0:
                 return Predicate(expr)
             left, right = Predicate(v[0]), Predicate(v[1])

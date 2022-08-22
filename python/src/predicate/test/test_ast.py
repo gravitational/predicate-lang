@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration, Bool
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration, Bool, StringEnum
 
 # User-defined models here
 class Server:
@@ -315,6 +315,33 @@ class TestAst:
         ret, _ = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "wrong") & (m["key-3"] == "val")))
         assert ret == False, "check fails when the right side has superset of keys, but values don't match"
 
+    def test_string_enum(self):
+        '''
+        StringEnum are predefined values
+        '''
+        e = StringEnum('fruits', set(['banana', 'apple', 'strawberry']))
+
+        # enums could be part of the predicate
+        p = Predicate(
+            e.one_of() # equivalent of  (e == 'apple') | (e == 'banana') | (e == 'strawberry')
+        )
+        ret, _ = p.query(Predicate(e == "banana"))
+        assert ret == True, "values match"
+
+        ret, _ = p.query(Predicate(e == "potato"))
+        assert ret == False, "values don't match"
+
+        ret, _ = p.query(Predicate(e == ""))
+        assert ret == False, "values don't match"
+
+        # this predicate is unsolvable, so all tests against it will raise error
+        p = Predicate(
+            e == "potato"
+        )
+        with pytest.raises(ParameterError):
+            ret, _ = p.query(Predicate(e == "banana"))
+            assert ret == True, "values match"        
+    
 
     def test_string_map_regex(self):
         '''
