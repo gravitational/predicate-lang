@@ -89,7 +89,6 @@ def statement(p: dict):
     if isinstance(actions, str):
         actions = [actions]
 
-    # TODO: optimize regex vs string match
     expr = (regex.tuple(_to_regex(r) for r in resources).matches(Action.resource)
         &
         regex.tuple(_to_regex(a) for a in actions).matches(Action.action))
