@@ -5,16 +5,10 @@ test:
 	mypy src/predicate/
 	pytest --pyargs src/predicate
 
-
-.PHONY: test-teleport
-test-teleport:
-	mypy src/predicate/test/test_teleport.py
-	pytest --pyargs src/predicate/test/test_teleport.py
-
-.PHONY: test-ast
-test-ast:
-	mypy src/predicate/test/test_ast.py
-	pytest --pyargs src/predicate/test/test_ast.py
+.PHONY: test-%
+test-%:
+	mypy src/predicate/test/test_$*.py
+	pytest --pyargs src/predicate/test/test_$*.py
 
 .PHONY: hello
 hello:

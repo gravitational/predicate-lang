@@ -5,7 +5,6 @@ from predicate import aws
 
 class TestAWS:
     def test_aws_allow_policy(self, mixed_statement_policy):
-        return
         p = Predicate(aws.policy(mixed_statement_policy))
 
         ret, _ = p.check(Predicate(

@@ -68,10 +68,6 @@ class TestTeleport:
 
         
     def test_requests(self):
-        # TODO: support builder pattern?
-        # p.allow.request.roles = (Role.name == "access-prod")
-        # p.allow.request.thresholds = (Thresholds.approve > 1) & (Thresholds.deny < 2)
-        # p.allow.review = (Role.name == "access-prod")
         p = Policy(
             allow=Rules(
                 Request(
