@@ -3,8 +3,8 @@
 Predicate is access control runtime and expression language.
 
 Developers can write and test policies in python
-using test driven developmen and advanced formal logic verification
-to check if policies are weak, equivalent or faulty.
+using test driven development and advanced formal logic verification
+to check if policies are weak, equivalent to insecure ones or fail certain conditions.
 
 ```python
 # Define your policy using domain-specific language:
@@ -23,7 +23,7 @@ class TestPolicy:
             User.team == "stage"
         )
 
-        # This predicate is unsolvable, contradicts our main prediccate
+        # This predicate is unsolvable, contradicts our main predicate
         ret, msg = p.check(Predicate(User.team != "stage"))
         assert ret == False
         assert "unsolvable" in msg
