@@ -340,7 +340,30 @@ class TestAst:
         )
         with pytest.raises(ParameterError):
             ret, _ = p.query(Predicate(e == "banana"))
-            assert ret == True, "values match"        
+            assert ret == True, "values match"
+
+    def test_string_enum_comparison(self):
+        '''
+        StringEnum are predefined values
+        '''
+        # fruits by size
+        e = StringEnum('fruits', set([(0, 'strawberry'), (1, 'apple'), (2, 'watermelon')]))
+
+        # enums could be part of the predicate and can provide constraints
+        p = Predicate(
+            (e > 'apple') | (e == 'apple')
+        )
+        ret, _ = p.query(Predicate(e == 'apple'))
+        assert ret == True, "values match"
+
+        ret, _ = p.query(Predicate(e == 'watermelon'))
+        assert ret == True, "passes equation"
+
+        ret, _ = p.query(Predicate(e == "strawberry"))
+        assert ret == False, "values don't match the equation"
+
+        ret, _ = p.query(Predicate(e == "strawberr"))
+        assert ret == False, "unsupported value fails"
     
 
     def test_string_map_regex(self):

@@ -257,20 +257,20 @@ class String:
         fn(self)
 
 
-def define_mapfn(fn_map, fn_key, kv: typing.Dict[String, String]):
+def define_enum_fn(fn_map, fn_key, kv: typing.Dict[String, Int]):
     """
     Define mapfn defines a key value map using recursive Z3 function,
-    essentially converting {'a': 'b'} into if x == 'a' then 'b' else ...
+    essentially converting {'a': 1} into if x == 'a' then 1 else ...
     """
     def iff(iterator):
         try:
             key, val = next(iterator)
         except StopIteration:
-            return z3.StringVal("")
+            return z3.IntVal(-1)
         else:
             return z3.If(
                 fn_key == z3.StringVal(key),
-                z3.StringVal(val),
+                z3.IntVal(val),
                 iff(iterator)
             )
     z3.RecAddDefinition(
@@ -279,12 +279,25 @@ def define_mapfn(fn_map, fn_key, kv: typing.Dict[String, String]):
         iff(iter(kv.items()))
        )
 
+
 class StringEnum:
 
-    def __init__(self, name, values: typing.Set[String]):
+    def __init__(self, name, values: typing.Union[typing.Set[String], typing.Set[typing.Tuple[int, String]]]):
+        def transform_values():
+            out = {}
+            for (i, v) in enumerate(values):
+                if isinstance(v, str):
+                    out[v] = i
+                elif isinstance(v, tuple) and list(map(type, v)) == [int, str]:
+                    out[v[1]] = v[0]
+                else:
+                    raise ParameterError("unsupported enum value: {}".format(v))
+            return out
+        self.values: typing.Dict[String, Int] = transform_values()
         self.name = name
-        self.fn = z3.RecFunction(self.name, z3.StringSort(), z3.StringSort())
+        self.fn = z3.RecFunction(self.name, z3.StringSort(), z3.IntSort())
         self.fn_key = z3.RecFunction(self.name + "_keys", z3.StringSort(), z3.BoolSort())
+        self.fn_key_arg = z3.String(self.name+"_key_arg")
 
         required_key = z3.String(self.name+"_required_key")
         z3.RecAddDefinition(
@@ -293,11 +306,10 @@ class StringEnum:
             z3.BoolVal(False)
             if len(values) == 0
             else z3.Or(
-                    [required_key == z3.StringVal(key) for key in values]
+                    [required_key == z3.StringVal(key) for key in self.values]
             ),
-        )        
-        self.values = values
-        define_mapfn(self.fn, z3.String(self.name + "_arg"), {key:key for key in values})
+        )
+        define_enum_fn(self.fn, z3.String(self.name + "_arg"), self.values)
 
     def one_of(self):
         return functools.reduce(operator.or_, [self == key for key in self.values])
@@ -305,51 +317,44 @@ class StringEnum:
     def __eq__(self, val):
         if isinstance(val, str):
             return Eq(self, StringLiteral(val))
-        if isinstance(val, (String, Concat, Split, Replace)):
-            return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __ne__(self, val):
         if isinstance(val, str):
             return Not(Eq(self, StringLiteral(val)))
-        if isinstance(val, (String, Concat, Split, Replace)):
-            return Not(Eq(self, val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
-    def __add__(self, val):
+    def __lt__(self, val):
         if isinstance(val, str):
-            return Concat(self, StringLiteral(val))
-        if isinstance(val, (String, Concat, Split, Replace)):
-            return Concat(self, val)
+            if val not in self.values:
+                raise ParameterError("value {} is not a valid enum, valid are: {}".format(val, [v for v in self.values]))
+            return Lt(self, StringLiteral(val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
-    def __radd__(self, val):
+    def __gt__(self, val):
         if isinstance(val, str):
-            return Concat(StringLiteral(val), self)
-        if isinstance(val, (String, Concat, Split, Replace)):
-            return Concat(val, self)
+            return Gt(self, StringLiteral(val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
-
-    def before_delimiter(self, sep:str):
-        '''
-        '''
-        return Split(self, StringLiteral(sep), before=True)
-
-    def after_delimiter(self, sep:str):
-        '''
-        '''
-        return Split(self, StringLiteral(sep), before=False)
-
-    def replace(self, src: str, dst:str):
-        '''
-        '''
-        return Replace(self, StringLiteral(src), StringLiteral(dst))
 
     def __str__(self):
-        return 'string({})'.format(self.name)
+        return 'enum({})'.format(self.name)
 
     def compare(self, op, other):
-        return z3.And(op(self.fn(other), other), self.fn_key(other) == z3.BoolVal(True))
+        # we always convert enum to the following function call spec:
+        #
+        # enum("apple") = 1
+        # enum("banana") = 2
+        #
+        # This converts expression
+        # enum > "apple"
+        #
+        # to
+        #
+        # enum(x) > enum("apple") & enum_key["apple"] == True
+        #
+        # where x is just a free variable associated with the function
+        #
+        return z3.And(op(self.fn(self.fn_key_arg), self.fn(other)), self.fn_key(other) == z3.BoolVal(True))
 
     def walk(self, fn):
         fn(self)
@@ -683,7 +688,13 @@ class Lt:
         return '''({} < {})'''.format(self.L, self.R)
 
     def traverse(self):
-        return self.L.traverse() < self.R.traverse()
+        # some object's compare is not trivial,
+        # they might define their own compare
+        compare = getattr(self.L, "compare", None)
+        if compare:
+            return compare(operator.lt, self.R.traverse())
+        else:
+            return self.L.traverse() < self.R.traverse()
 
     def __or__(self, other):
         return Or(self, other)
@@ -708,10 +719,16 @@ class Gt:
         self.R.walk(fn)
 
     def __str__(self):
-        return '''({} < {})'''.format(self.L, self.R)
+        return '''({} > {})'''.format(self.L, self.R)
 
     def traverse(self):
-        return self.L.traverse() > self.R.traverse()
+        # some object's compare is not trivial,
+        # they might define their own compare
+        compare = getattr(self.L, "compare", None)
+        if compare:
+            return compare(operator.gt, self.R.traverse())
+        else:
+            return self.L.traverse() > self.R.traverse()
 
     def __or__(self, other):
         return Or(self, other)
