@@ -347,7 +347,7 @@ class TestAst:
         StringEnum are predefined values
         '''
         # fruits by size
-        e = StringEnum('fruits', set([(0, 'strawberry'), (1, 'apple'), (2, 'watermelon')]))
+        e = StringEnum('fruits', [(0, 'strawberry'), (1, 'apple'), (2, 'watermelon')])
 
         # enums could be part of the predicate and can provide constraints
         p = Predicate(

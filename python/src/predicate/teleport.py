@@ -35,6 +35,8 @@ class Options(ast.Predicate):
 
     pin_source_ip = ast.Bool("options.pin_source_ip")
 
+    recording_mode = ast.StringEnum("options.recording_mode", set([(0, 'best_effort'), (1, 'strict')]))
+
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 

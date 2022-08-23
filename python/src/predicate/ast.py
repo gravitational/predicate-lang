@@ -282,7 +282,7 @@ def define_enum_fn(fn_map, fn_key, kv: typing.Dict[String, Int]):
 
 class StringEnum:
 
-    def __init__(self, name, values: typing.Union[typing.Set[String], typing.Set[typing.Tuple[int, String]]]):
+    def __init__(self, name, values):
         def transform_values():
             out = {}
             for (i, v) in enumerate(values):
@@ -806,13 +806,13 @@ class MapIndex:
 
 
 def collect_symbols(s, expr):
-    if isinstance(expr, (String, Int, Duration, Bool)):
+    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
         s.add(expr.name)
     if isinstance(expr, MapIndex):
         s.add(expr.m.name + "." + expr.key)
 
 def collect_names(s, expr):
-    if isinstance(expr, (String, Int, Duration, Bool)):
+    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
         s.add(expr.name)
     if isinstance(expr, MapIndex):
         s.add(expr.m.name)

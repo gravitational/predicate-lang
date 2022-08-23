@@ -202,3 +202,62 @@ class TestTeleport:
 
         assert ret == False, "options fails restriction"
 
+
+    def test_options_policy_set_enum(self):
+        # policy a requires best effort
+        a = Policy(
+            options = OptionsSet(
+                Options((Options.recording_mode > 'best_effort') | (Options.recording_mode == 'best_effort')),
+            ),
+            allow=Rules(
+                Node(
+                    (Node.login == "ubuntu") & (Node.labels["env"] == "stage")),
+            )
+        )
+
+        # policy b requires strict recording mode
+        b = Policy(
+            options = OptionsSet(
+                Options(Options.recording_mode == 'strict'),
+            ),
+            allow=Rules(
+                Node(
+                    (Node.login == "root") & (Node.labels["env"] == "prod")),
+            )
+        )
+
+        p = PolicySet([a, b])
+
+        ret, _ = p.check(
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
+            &
+            Options(Options.recording_mode == 'strict')
+            )
+
+        assert ret == True, "options and core predicate matches"
+
+        ret, _ = p.check(
+            Node((Node.login == "root") & (Node.labels["env"] == "prod") & (Node.labels["os"] == "Linux"))
+            &
+            Options(Options.recording_mode == 'best_effort')
+        )
+
+        assert ret == False, "options fails recodring mode restriction from the policy b"
+
+        ret, _ = p.check(
+            Node((Node.login == "ubuntu") & (Node.labels["env"] == "stage") & (Node.labels["os"] == "Linux"))
+            &
+            Options(Options.recording_mode == 'strict')
+            )
+
+        assert ret == True, "options and core predicate matches"
+
+        ret, _ = p.check(
+            Node((Node.login == "ubuntu") & (Node.labels["env"] == "stage") & (Node.labels["os"] == "Linux"))
+            &
+            Options(Options.recording_mode == 'best_effort')
+            )
+
+        assert ret == False, "strict is enforced for all modes of access across all policies in the set"
+
+
