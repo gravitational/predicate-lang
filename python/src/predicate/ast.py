@@ -815,7 +815,8 @@ StringList.declare('nil')
 # Create the datatype
 StringList = StringList.create()
 
-fn_string_list_contains = z3.RecFunction('contains', StringList, z3.StringSort(), z3.BoolSort())
+fn_string_list_contains = z3.RecFunction('string_list_contains', StringList, z3.StringSort(), z3.BoolSort())
+fn_string_list_add_if_not_exists = z3.RecFunction('string_list_add_if_not_exists', StringList, z3.StringSort(), StringList)
 
 def string_list(vals: Iterable[String]):
     def iff(iterator):
@@ -828,8 +829,8 @@ def string_list(vals: Iterable[String]):
     return iff(iter(vals))
 
 def define_string_list_contains():
-    vals = z3.Const('vals', StringList)
-    element = z3.StringVal('search')
+    vals = z3.Const('string_list_contains_vals', StringList)
+    element = z3.StringVal('string_list_contains_search')
     z3.RecAddDefinition(fn_string_list_contains, [vals, element],
                     z3.If(StringList.nil == vals,
                           z3.BoolVal(False),
@@ -837,15 +838,24 @@ def define_string_list_contains():
                                 z3.BoolVal(True),
                                 fn_string_list_contains(StringList.cdr(vals), element))))
 
+def define_string_list_add_if_not_exists():
+    vals = z3.Const('string_list_add_ifne_vals', StringList)
+    element = z3.StringVal('string_add_ifne_contains_search')
+    z3.RecAddDefinition(fn_string_list_add_if_not_exists, [vals, element],
+                    z3.If(fn_string_list_contains(vals, element) == z3.BoolVal(True),
+                          vals,
+                          StringList.cons(element, vals)))
+
 define_string_list_contains()
-        
+define_string_list_add_if_not_exists()
+
 class StringSetMap:
     '''
     Map of string sets:
 
     'key': set("a", "b", "c")
     '''
-    def __init__(self, name):
+    def __init__(self, name: String):
         self.name = name
         self.fn_map = z3.Function(self.name, z3.StringSort(), StringList)
 
@@ -854,7 +864,10 @@ class StringSetMap:
         getitem used to build an expression, for example m[key].contains("val")
         '''
         # Map Index should impact function definition, aggregate it
-        return SetMapIndex(self, key)
+        return StringSetMapIndex(self, key)
+
+    def add(self, key: String, val: String):
+        return StringSetMapAdd(self, key, val)
 
     def __str__(self):
         return '''({} ^ {})'''.format(self.L, self.R)
@@ -862,16 +875,70 @@ class StringSetMap:
     def walk(self, fn):
         fn(self)
 
-class SetMapIndex:
+class StringSetMapAdd(StringSetMap):
+    def __init__(self, m: StringSetMap, key, val):
+        self.m = m
+        self.name = m.name
+        self.K = key
+        self.V = val
+
+        # wrap the original map function to always add a key if it exists
+        arg_key = z3.StringVal('string_set_map_add_key')        
+        self.fn_map = z3.RecFunction(self.m.name, z3.StringSort(), StringList)
+        z3.RecAddDefinition(self.fn_map, [arg_key],
+                            z3.If(
+                                arg_key == z3.StringVal(key),
+                                z3.If(
+                                    fn_string_list_contains(self.m.fn_map(arg_key), z3.StringVal(val)),
+                                    self.m.fn_map(arg_key),
+                                    StringList.cons(z3.StringVal(val), self.m.fn_map(arg_key))),
+                                self.m.fn_map(arg_key)))
+
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.K.walk(fn)        
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}.add({}, {}))'''.format(self.m.name, self.K, self.V)
+
+    def traverse(self):
+        return self.fn_map
+
+    def __getitem__(self, key: String):
+        '''
+        getitem used to build an expression, for example m[key].contains("val")
+        '''
+        # Map Index should impact function definition, aggregate it
+        return StringSetMapIndex(self, key)
+
+    def add(self, key: String, val: String):
+        return StringSetMapAdd(self, key, val)    
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)      
+
+class StringSetMapIndex:
     def __init__(self, m: StringSetMap, key: String):
         self.m = m
         self.key = key
 
     def contains(self, val):
         if isinstance(val, str):
-            return SetMapIndexContains(self, StringLiteral(val))
+            return StringSetMapIndexContains(self, StringLiteral(val))
         if isinstance(val, String):
-            return SetMapIndexContains(self, val)
+            return StringSetMapIndexContains(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def walk(self, fn):
@@ -879,11 +946,11 @@ class SetMapIndex:
 
     def __eq__(self, val):
         if isinstance(val, tuple):
-            return SetMapIndexEquals(self, StringTuple(val))
+            return StringSetMapIndexEquals(self, StringTuple(val))
         raise TypeError("unsupported type {}, supported string tuples only".format(type(val)))
 
-class SetMapIndexContains:
-    def __init__(self, expr: SetMapIndex, val):
+class StringSetMapIndexContains:
+    def __init__(self, expr: StringSetMapIndex, val):
         self.E = expr
         self.V = val
 
@@ -911,8 +978,8 @@ class SetMapIndexContains:
     def __invert__(self):
         return Not(self)
 
-class SetMapIndexEquals:
-    def __init__(self, expr: SetMapIndex, val):
+class StringSetMapIndexEquals:
+    def __init__(self, expr: StringSetMapIndex, val):
         self.E = expr
         self.V = val
 

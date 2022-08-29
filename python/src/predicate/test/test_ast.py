@@ -276,14 +276,17 @@ class TestAst:
         assert ret == False, "values don't match"
 
     def test_string_set_map_add(self):
-        return
         traits = StringSetMap('mymap')
         p = Predicate(
-            # this predicate is always true
-            traits.add("key", "val")["key"].contains("val")
+            # this predicate is always true, we always add strawberry
+            traits.add("fruits", "strawberry")["fruits"].contains("strawberry")
         )
-        ret, _ = p.check(Predicate(traits["key"] == ("apple", "potato", "banana")))
-        assert ret == True, "values match"        
+        ret, _ = p.check(Predicate(traits["fruits"] == ("strawberry", "apple", "banana")))
+        assert ret == True, "values match with strawberry"
+
+        ret, _ = p.check(Predicate(traits["fruits"] == ("apple", "banana")))
+        assert ret == True, "values match even if strawberry is missing"        
+
 
     def test_string_map(self):
         '''
