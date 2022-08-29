@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration, Bool, StringEnum
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration, Bool, StringEnum, StringSetMap
 
 # User-defined models here
 class Server:
@@ -261,6 +261,29 @@ class TestAst:
 
         ret, _ = p.check(Predicate((Server.login == "alice+example.com") & (User.name == "alice+example.com")))
         assert ret == True, "character not present, no effect"
+
+    def test_string_set_map_contains(self):
+        traits = StringSetMap('mymap')
+        p = Predicate(
+            traits["key"].contains("potato")
+        )
+        ret, _ = p.check(Predicate((
+            traits["key"] == ("apple", "potato", "banana")) | (traits["key"] == ("strawberry",))
+        ))
+        assert ret == True, "values match"
+
+        ret, _ = p.check(Predicate(traits["key"] == ("apple", "banana")))
+        assert ret == False, "values don't match"
+
+    def test_string_set_map_add(self):
+        return
+        traits = StringSetMap('mymap')
+        p = Predicate(
+            # this predicate is always true
+            traits.add("key", "val")["key"].contains("val")
+        )
+        ret, _ = p.check(Predicate(traits["key"] == ("apple", "potato", "banana")))
+        assert ret == True, "values match"        
 
     def test_string_map(self):
         '''

@@ -3,6 +3,7 @@ import operator
 import typing
 import re
 import functools
+import uuid
 
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -743,6 +744,7 @@ class Gt:
         return Not(self)
 
 
+
 class StringMap:
     def __init__(self, name):
         self.name = name
@@ -759,7 +761,7 @@ class StringMap:
         return '''({} ^ {})'''.format(self.L, self.R)
 
     def walk(self, fn):
-        fn(self)    
+        fn(self)
 
 
 class MapIndex:
@@ -802,7 +804,140 @@ class MapIndex:
     def walk(self, fn):
         fn(self)
 
+#
+# See https://ericpony.github.io/z3py-tutorial/advanced-examples.htm
+# for details on the advanced data types
+#
+StringList = z3.Datatype('List')
+StringList.declare('cons', ('car', z3.StringSort()), ('cdr', StringList))
+# nil list
+StringList.declare('nil')
+# Create the datatype
+StringList = StringList.create()
 
+fn_string_list_contains = z3.RecFunction('contains', StringList, z3.StringSort(), z3.BoolSort())
+
+def string_list(vals: Iterable[String]):
+    def iff(iterator):
+        try:
+            val = next(iterator)
+        except StopIteration:
+            return StringList.nil
+        else:
+            return StringList.cons(z3.StringVal(val), iff(iterator))
+    return iff(iter(vals))
+
+def define_string_list_contains():
+    vals = z3.Const('vals', StringList)
+    element = z3.StringVal('search')
+    z3.RecAddDefinition(fn_string_list_contains, [vals, element],
+                    z3.If(StringList.nil == vals,
+                          z3.BoolVal(False),
+                          z3.If(StringList.car(vals) == element,
+                                z3.BoolVal(True),
+                                fn_string_list_contains(StringList.cdr(vals), element))))
+
+define_string_list_contains()
+        
+class StringSetMap:
+    '''
+    Map of string sets:
+
+    'key': set("a", "b", "c")
+    '''
+    def __init__(self, name):
+        self.name = name
+        self.fn_map = z3.Function(self.name, z3.StringSort(), StringList)
+
+    def __getitem__(self, key: String):
+        '''
+        getitem used to build an expression, for example m[key].contains("val")
+        '''
+        # Map Index should impact function definition, aggregate it
+        return SetMapIndex(self, key)
+
+    def __str__(self):
+        return '''({} ^ {})'''.format(self.L, self.R)
+
+    def walk(self, fn):
+        fn(self)
+
+class SetMapIndex:
+    def __init__(self, m: StringSetMap, key: String):
+        self.m = m
+        self.key = key
+
+    def contains(self, val):
+        if isinstance(val, str):
+            return SetMapIndexContains(self, StringLiteral(val))
+        if isinstance(val, String):
+            return SetMapIndexContains(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def walk(self, fn):
+        fn(self)
+
+    def __eq__(self, val):
+        if isinstance(val, tuple):
+            return SetMapIndexEquals(self, StringTuple(val))
+        raise TypeError("unsupported type {}, supported string tuples only".format(type(val)))
+
+class SetMapIndexContains:
+    def __init__(self, expr: SetMapIndex, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}.contains({}))'''.format(self.E, self.V)
+
+    def traverse(self):
+        return fn_string_list_contains(
+            self.E.m.fn_map(z3.StringVal(self.E.key)), self.V.traverse()) == z3.BoolVal(True)
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
+class SetMapIndexEquals:
+    def __init__(self, expr: SetMapIndex, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}[{}] == {})'''.format(self.E.m.name, self.E.key, self.V.vals)
+
+    def traverse(self):
+        return self.E.m.fn_map(z3.StringVal(self.E.key)) == string_list(self.V.vals)
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)    
 
 
 def collect_symbols(s, expr):
@@ -869,10 +1004,14 @@ class Predicate:
         predicate being true at the same time.
         '''
         solver = z3.Solver()
+        e = self.expr.traverse()
+        print("OUR EXPR: {}".format(e))
         solver.add(self.expr.traverse())
         
         if solver.check() == z3.unsat:
             raise ParameterError('our own predicate is unsolvable')
+        o = other.expr.traverse()
+        print("THEIR EXPR: {}".format(o))
         solver.add(other.expr.traverse())
 
         # TODO do a second pass to build a key checking function
