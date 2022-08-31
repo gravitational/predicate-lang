@@ -289,11 +289,11 @@ class TestAst:
         ret, _ = p.check(Predicate(traits["key"] == ("apple", "banana")))
         assert ret == False, "values don't match"
 
-    def test_string_set_map_add(self):
+    def test_string_set_map_add_value(self):
         traits = StringSetMap('mymap')
         p = Predicate(
             # this predicate is always true, we always add strawberry
-            traits.add("fruits", "strawberry")["fruits"].contains("strawberry")
+            traits.add_value("fruits", "strawberry")["fruits"].contains("strawberry")
         )
         ret, _ = p.check(Predicate(traits["fruits"] == ("strawberry", "apple", "banana")))
         assert ret == True, "values match with strawberry"
@@ -320,6 +320,42 @@ class TestAst:
             )
             p.solve()
         assert "unsolvable" in str(exc.value)
+
+    def test_string_set_map_list_init(self):
+        # filter example - we only keep fruits by copying them over
+        traits = StringSetMap('traits', {
+            'fruits': ('apple', 'strawberry', 'banana'),
+            'veggies': ('potato',),
+        })
+        p = Predicate(
+            (traits["fruits"] == ('apple', 'strawberry', 'banana')) & (traits["veggies"] == ('potato',))
+        )
+        ret, _ = p.solve()
+        assert ret == True, "values match with strawberry"        
+
+    def test_string_set_map_remove_keys(self):
+        # filter example - we only keep fruits by copying them over
+        traits = StringSetMap('traits', {
+            'fruits': ('apple', 'strawberry', 'banana'),
+            'veggies': ('potato',),
+        }).remove_keys('veggies')
+        p = Predicate(
+            (traits["fruits"] == ('apple', 'strawberry', 'banana')) & (traits["veggies"] == ())
+        )
+        ret, _ = p.solve()
+        assert ret == True, "veggies is empty"
+
+    def test_string_set_map_overwrite(self):
+        traits = StringSetMap('traits', {
+            'fruits': ('apple', 'strawberry', 'banana'),
+        }).overwrite({
+            'veggies': ('potato',)
+        })
+        p = Predicate(
+            (traits["fruits"] == ('apple', 'strawberry', 'banana')) & (traits["veggies"] == ('potato',))
+        )
+        ret, _ = p.solve()
+        assert ret == True, "overwritten with added potato values"
 
     def test_string_set_map_with_if(self):
         external = StringSetMap('external')

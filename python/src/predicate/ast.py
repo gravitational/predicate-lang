@@ -849,6 +849,13 @@ def define_string_list_add_if_not_exists():
 define_string_list_contains()
 define_string_list_add_if_not_exists()
 
+class StringListWrapper:
+    def __init__(self, vals: Iterable[String]):
+        self.vals = vals
+
+    def traverse(self):
+        return string_list(self.vals)
+
 class If:
     def __init__(self, cond, on_true, on_false):
         self.cond = cond
@@ -879,6 +886,8 @@ class StringSetMap:
             def iff(fn_key, iterator):
                 try:
                     key, val = next(iterator)
+                    if isinstance(val, tuple):
+                        val = StringListWrapper(val)
                 except StopIteration:
                     return StringList.nil
                 else:
@@ -900,8 +909,14 @@ class StringSetMap:
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
-    def add(self, key: String, val: String):
-        return StringSetMapAdd(self, key, val)
+    def add_value(self, key: String, val: String):
+        return StringSetMapAddValue(self, key, val)
+
+    def remove_keys(self, *keys: String):
+        return StringSetMapRemoveKeys(self, keys)
+
+    def overwrite(self, values:typing.Dict):
+        return StringSetMapOverwrite(self, values)
 
     def __str__(self):
         return '''({} ^ {})'''.format(self.L, self.R)
@@ -910,18 +925,79 @@ class StringSetMap:
         fn(self)
 
     def traverse(self):
-        return self.fn_map        
+        return self.fn_map
 
-class StringSetMapAdd(StringSetMap):
+class StringSetMapOverwrite(StringSetMap):
+    def __init__(self, m: StringSetMap, values: typing.Dict):
+        self.m = m
+        self.name = m.name + "_overwrite"
+        self.V = values
+
+        # wrap the original map function to always add a key if it exists
+        arg_key = z3.StringVal(self.name + '_string_set_map_overwrite')
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+        # define the map as a recursive function
+        def iff(fn_key, iterator, wrapped_map_fn):
+            try:
+                key, val = next(iterator)
+                if isinstance(val, tuple):
+                    val = StringListWrapper(val)
+            except StopIteration:
+                return wrapped_map_fn(fn_key)
+            else:
+                return z3.If(
+                    fn_key == z3.StringVal(key),
+                    val.traverse(),
+                    iff(fn_key, iterator, wrapped_map_fn)
+                )
+        # wrap the original map function to always add a key if it exists
+        arg_key = z3.StringVal(self.name + '_string_set_map_extend_arg')
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+        z3.RecAddDefinition(self.fn_map, [arg_key], iff(arg_key, iter(values.items()), self.m.fn_map))
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}.overwrite({}))'''.format(self.name, self.V)
+
+    def traverse(self):
+        return self.fn_map
+
+    def __getitem__(self, key: String):
+        '''
+        getitem used to build an expression, for example m[key].contains("val")
+        '''
+        # Map Index should impact function definition, aggregate it
+        return StringSetMapIndex(self, key)
+
+    def add_value(self, key: String, val: String):
+        return StringSetMapAddValue(self, key, val)    
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)    
+
+class StringSetMapAddValue(StringSetMap):
     def __init__(self, m: StringSetMap, key, val):
         self.m = m
-        self.name = m.name
+        self.name = m.name + "_add_value"
         self.K = key
         self.V = val
 
         # wrap the original map function to always add a key if it exists
         arg_key = z3.StringVal(self.name + 'string_set_map_add_key')        
-        self.fn_map = z3.RecFunction(self.m.name, z3.StringSort(), StringList)
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
         z3.RecAddDefinition(self.fn_map, [arg_key],
                             z3.If(
                                 arg_key == z3.StringVal(key),
@@ -951,8 +1027,8 @@ class StringSetMapAdd(StringSetMap):
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
-    def add(self, key: String, val: String):
-        return StringSetMapAdd(self, key, val)    
+    def add_value(self, key: String, val: String):
+        return StringSetMapAddValue(self, key, val)    
 
     def __or__(self, other):
         return Or(self, other)
@@ -964,7 +1040,58 @@ class StringSetMapAdd(StringSetMap):
         return And(self, other)
 
     def __invert__(self):
-        return Not(self)      
+        return Not(self)
+
+
+class StringSetMapRemoveKeys(StringSetMap):
+    def __init__(self, m: StringSetMap, keys):
+        self.m = m
+        self.name = m.name + "_remove_keys"
+        self.K = keys
+
+        arg_key = z3.StringVal(self.name + 'string_set_map_remove_key')
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+        # wrap the original map function to always return a nil list if key matches,
+        # return original function otherwise
+        z3.RecAddDefinition(self.fn_map, [arg_key],
+                            z3.If(
+                                z3.Or([arg_key == z3.StringVal(key) for key in self.K]),
+                                StringList.nil,
+                                self.m.fn_map(arg_key)))
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.K.walk(fn)        
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}.remove_keys({}))'''.format(self.m.name, self.K)
+
+    def traverse(self):
+        return self.fn_map
+
+    def __getitem__(self, key: String):
+        '''
+        getitem used to build an expression, for example m[key].contains("val")
+        '''
+        # Map Index should impact function definition, aggregate it
+        return StringSetMapIndex(self, key)
+
+    def add_value(self, key: String, val: String):
+        return StringSetMapAddValue(self, key, val)    
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)          
 
 class StringSetMapIndex:
     def __init__(self, m: StringSetMap, key: String):
