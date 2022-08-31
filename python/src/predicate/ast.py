@@ -849,15 +849,49 @@ def define_string_list_add_if_not_exists():
 define_string_list_contains()
 define_string_list_add_if_not_exists()
 
+class If:
+    def __init__(self, cond, on_true, on_false):
+        self.cond = cond
+        self.on_true = on_true
+        self.on_false = on_false
+
+    def traverse(self):
+        return z3.If(
+            self.cond.traverse(),
+            self.on_true.traverse(),
+            self.on_false.traverse()
+        )
+
 class StringSetMap:
     '''
     Map of string sets:
 
     'key': set("a", "b", "c")
     '''
-    def __init__(self, name: String):
+    def __init__(self, name: String, values:typing.Dict=None):
         self.name = name
-        self.fn_map = z3.Function(self.name, z3.StringSort(), StringList)
+
+        if values is None:
+            self.fn_map = z3.Function(self.name, z3.StringSort(), StringList)
+        else:
+            # if string set map is defined, instead of unbound function as above,
+            # define the map as a recursive function
+            def iff(fn_key, iterator):
+                try:
+                    key, val = next(iterator)
+                except StopIteration:
+                    return StringList.nil
+                else:
+                    return z3.If(
+                        fn_key == z3.StringVal(key),
+                        val.traverse(),
+                        iff(fn_key, iterator)
+                    )
+                    return StringList.cons(z3.StringVal(val), iff(iterator))
+            # wrap the original map function to always add a key if it exists
+            arg_key = z3.StringVal(self.name + 'string_set_map_add_key')        
+            self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+            z3.RecAddDefinition(self.fn_map, [arg_key], iff(arg_key, iter(values.items())))
 
     def __getitem__(self, key: String):
         '''
@@ -875,6 +909,9 @@ class StringSetMap:
     def walk(self, fn):
         fn(self)
 
+    def traverse(self):
+        return self.fn_map        
+
 class StringSetMapAdd(StringSetMap):
     def __init__(self, m: StringSetMap, key, val):
         self.m = m
@@ -883,7 +920,7 @@ class StringSetMapAdd(StringSetMap):
         self.V = val
 
         # wrap the original map function to always add a key if it exists
-        arg_key = z3.StringVal('string_set_map_add_key')        
+        arg_key = z3.StringVal(self.name + 'string_set_map_add_key')        
         self.fn_map = z3.RecFunction(self.m.name, z3.StringSort(), StringList)
         z3.RecAddDefinition(self.fn_map, [arg_key],
                             z3.If(
@@ -941,6 +978,13 @@ class StringSetMapIndex:
             return StringSetMapIndexContains(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
+    def add(self, val):
+        if isinstance(val, str):
+            return StringSetMapIndexAdd(self, StringLiteral(val))
+        if isinstance(val, String):
+            return StringSetMapIndexAdd(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+    
     def walk(self, fn):
         fn(self)
 
@@ -948,6 +992,9 @@ class StringSetMapIndex:
         if isinstance(val, tuple):
             return StringSetMapIndexEquals(self, StringTuple(val))
         raise TypeError("unsupported type {}, supported string tuples only".format(type(val)))
+
+    def traverse(self):
+        return self.m.fn_map(z3.StringVal(self.key))
 
 class StringSetMapIndexContains:
     def __init__(self, expr: StringSetMapIndex, val):
@@ -977,6 +1024,34 @@ class StringSetMapIndexContains:
 
     def __invert__(self):
         return Not(self)
+
+class StringSetMapIndexAdd:
+    def __init__(self, expr: StringSetMapIndex, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return '''({}.add({}))'''.format(self.E, self.V)
+
+    def traverse(self):
+        return fn_string_list_add_if_not_exists(self.E.m.fn_map(z3.StringVal(self.E.key)), self.V.traverse())
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)    
 
 class StringSetMapIndexEquals:
     def __init__(self, expr: StringSetMapIndex, val):
@@ -1064,6 +1139,19 @@ class Predicate:
                 '''check can not resolve ambiguity, query uses symbols %s that are not present in predicate %s, diff: %s,
                 query must be a subset of symbols of the predicate''' % (self.symbols, other.symbols, diff))
         return self.solves_with(other)
+
+    def solve(self):
+        '''
+        Solve solves predicate against itself
+        '''
+        solver = z3.Solver()
+        e = self.expr.traverse()
+        print("OUR EXPR: {}".format(e))
+        solver.add(self.expr.traverse())
+        
+        if solver.check() == z3.unsat:
+            raise ParameterError('our own predicate is unsolvable')
+        return (True, solver.model())        
 
     def solves_with(self, other):
         '''

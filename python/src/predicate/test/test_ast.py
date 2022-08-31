@@ -1,5 +1,5 @@
 import pytest
-from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration, Bool, StringEnum, StringSetMap
+from predicate import ast, Predicate, String, ParameterError, regex, StringTuple, StringMap, Int, Duration, Bool, StringEnum, StringSetMap, If
 
 # User-defined models here
 class Server:
@@ -262,23 +262,11 @@ class TestAst:
         ret, _ = p.check(Predicate((Server.login == "alice+example.com") & (User.name == "alice+example.com")))
         assert ret == True, "character not present, no effect"
 
-
     def predicate(self):
         # filter example - we only keep 'groups' and 'username' by copying over
         f = StringSetMap('mymap', {
             'groups': external['groups'],
             'username': external['username']
-        })
-
-        # override example
-        # groups will override the existing groups trait by appending the "dbs"
-        # group if the user's current groups includes "splunk".
-        o = StringSetMap('traits', {
-            'groups': iff(
-                contains(external['groups'], 'splunk'),
-                append(external['groups'], 'dbs'),
-                external['groups']
-            ),
         })
 
         # add new traits to the set
@@ -311,8 +299,49 @@ class TestAst:
         assert ret == True, "values match with strawberry"
 
         ret, _ = p.check(Predicate(traits["fruits"] == ("apple", "banana")))
-        assert ret == True, "values match even if strawberry is missing"        
+        assert ret == True, "values match even if strawberry is missing"
 
+    def test_string_set_map_with_values(self):
+        external = StringSetMap('external')
+        # filter example - we only keep fruits by copying them over
+        traits = StringSetMap('traits', {
+            'our-fruits': external['fruits'],
+        })
+        p = Predicate(
+            (external["fruits"] == ("strawberry", "apple", "banana")) & (traits["our-fruits"].contains("strawberry"))
+        )
+        ret, _ = p.solve()
+        assert ret == True, "values match with strawberry"
+
+        with pytest.raises(ParameterError) as exc:
+            # this predicate is unsolvable
+            p = Predicate(
+                (external["fruits"] == ("apple", "banana")) & (traits["our-fruits"].contains("strawberry"))
+            )
+            p.solve()
+        assert "unsolvable" in str(exc.value)
+
+    def test_string_set_map_with_if(self):
+        external = StringSetMap('external')
+        # filter example - we only keep fruits by copying them over
+        traits = StringSetMap('traits', {
+            'our-fruits': If(
+                external['fruits'].contains('banana'),
+                external['fruits'].add('blueberry'),
+                external['fruits']
+            )
+        })
+        p = Predicate(
+            (external["fruits"] == ("strawberry", "apple", "banana")) & (traits["our-fruits"] == ("blueberry", "strawberry", "apple", "banana"))
+        )
+        ret, _ = p.solve()
+        assert ret == True, "blueberry was added"
+
+        p = Predicate(
+            (external["fruits"] == ("apple", "strawberry")) & (traits["our-fruits"] == ("apple", "strawberry"))
+        )
+        p.solve()
+        assert ret == True, "blueberry was not added"        
 
     def test_string_map(self):
         '''
