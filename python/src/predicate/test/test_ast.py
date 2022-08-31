@@ -262,6 +262,32 @@ class TestAst:
         ret, _ = p.check(Predicate((Server.login == "alice+example.com") & (User.name == "alice+example.com")))
         assert ret == True, "character not present, no effect"
 
+
+    def predicate(self):
+        # filter example - we only keep 'groups' and 'username' by copying over
+        f = StringSetMap('mymap', {
+            'groups': external['groups'],
+            'username': external['username']
+        })
+
+        # override example
+        # groups will override the existing groups trait by appending the "dbs"
+        # group if the user's current groups includes "splunk".
+        o = StringSetMap('traits', {
+            'groups': iff(
+                contains(external['groups'], 'splunk'),
+                append(external['groups'], 'dbs'),
+                external['groups']
+            ),
+        })
+
+        # add new traits to the set
+        # logins will be a new trait added to the cert.
+        # resulting map will be a copy of external traits without groups and with custom logins
+        external.remove('groups').extend({
+            'logins':  ('ubuntu', external.username.replace("-", "_")),
+        })
+    
     def test_string_set_map_contains(self):
         traits = StringSetMap('mymap')
         p = Predicate(
