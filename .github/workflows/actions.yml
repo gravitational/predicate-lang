@@ -1,15 +1,14 @@
 name: Predicate test workflow
 on: [push]
-steps:
-- uses: actions/checkout@v3
-- uses: actions/setup-python@v4
-  with:
-    python-version: '3.9.5'
-    cache: 'pip' # caching pip dependencies
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9.5'
+          cache: 'pip' # caching pip dependencies
       - name: Install dependencies
         working-directory: python
         run: 'pip install'
