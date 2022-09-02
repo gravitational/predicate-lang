@@ -1,3 +1,15 @@
 [build-system]
 requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
+lint-version = "2"
+
+[tool.lint-python]
+lint-version = "2"
+source = "." # Put your source directory
+extra-requirements = "types-requests"  # Provide additional typing requirements if needed
+use-mypy = true  # Turn off any tool you don't want to use
+
+[tool.isort]
+line_length = 180
+
+

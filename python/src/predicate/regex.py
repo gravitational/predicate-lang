@@ -1,4 +1,4 @@
-'''
+"""
 Copyright 2022 Gravitational, Inc, Andrew Helwer
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,16 +12,18 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
-import z3
-import re
 import sre_constants
 import sre_parse
-from .errors import ParameterError
-from . import ast
-from dataclasses import dataclass
 from collections.abc import Iterable
+from dataclasses import dataclass
+
+import z3
+
+from . import ast
+from .errors import ParameterError
+
 
 class Matches:
     def __init__(self, expr, val):
@@ -34,7 +36,7 @@ class Matches:
         self.V.walk(fn)
 
     def __str__(self):
-        return '''({}.matches({}))'''.format(self.E, self.V)
+        return """({}.matches({}))""".format(self.E, self.V)
 
     def traverse(self):
         return z3.InRe(self.V.traverse(), self.E.traverse())
@@ -43,7 +45,7 @@ class Matches:
         return ast.Or(self, other)
 
     def __xor__(self, other):
-        return ast.Xor(self, other)    
+        return ast.Xor(self, other)
 
     def __and__(self, other):
         return ast.And(self, other)
@@ -51,8 +53,8 @@ class Matches:
     def __invert__(self):
         return ast.Not(self)
 
-class RegexConstraint:
 
+class RegexConstraint:
     def __init__(self, expr: str):
         parsed_regex = sre_parse.parse(expr)
         is_regex = any(
@@ -74,7 +76,7 @@ class RegexConstraint:
         fn(self.regex)
 
     def __str__(self):
-        return 'regex(`{}`)'.format(self.expr)
+        return "regex(`{}`)".format(self.expr)
 
 
 class IterableMatches:
@@ -88,25 +90,23 @@ class IterableMatches:
         self.V.walk(fn)
 
     def __str__(self):
-        return '''({}.matches({}))'''.format(self.E, self.V)
+        return """({}.matches({}))""".format(self.E, self.V)
 
     def traverse(self):
-        return z3.Or(*[
-            Matches(e, self.V).traverse()
-            for e in self.E.vals
-        ])
+        return z3.Or(*[Matches(e, self.V).traverse() for e in self.E.vals])
 
     def __or__(self, other):
         return ast.Or(self, other)
 
     def __xor__(self, other):
-        return ast.Xor(self, other)    
+        return ast.Xor(self, other)
 
     def __and__(self, other):
         return ast.And(self, other)
 
     def __invert__(self):
         return ast.Not(self)
+
 
 @dataclass
 class RegexTuple:
@@ -124,7 +124,8 @@ class RegexTuple:
         fn(self.vals)
 
     def __str__(self):
-        return '[{}]'.format(", ".join(['`{}`'.format(v) for v in self.vals]))
+        return "[{}]".format(", ".join(["`{}`".format(v) for v in self.vals]))
+
 
 def parse(value: str):
     """
@@ -132,11 +133,13 @@ def parse(value: str):
     """
     return RegexConstraint(value)
 
+
 def tuple(values: Iterable[str]):
     """
     Attempts to parse the given iterable as iterable of regular expression.
     """
     return RegexTuple([parse(v) for v in values])
+
 
 def regex_to_z3_expr(regex: sre_parse.SubPattern) -> z3.ReRef:
     """
@@ -151,6 +154,7 @@ def regex_to_z3_expr(regex: sre_parse.SubPattern) -> z3.ReRef:
         return z3.Concat(
             [regex_construct_to_z3_expr(construct) for construct in regex.data]
         )
+
 
 def category_regex(category: sre_constants._NamedIntConstant) -> z3.ReRef:
     """
@@ -170,7 +174,8 @@ def category_regex(category: sre_constants._NamedIntConstant) -> z3.ReRef:
         raise NotImplementedError(
             f"ERROR: regex category {category} not yet implemented"
         )
-    
+
+
 def regex_construct_to_z3_expr(regex_construct) -> z3.ReRef:
     """
     Translates a specific regex construct into its Z3 equivalent.
@@ -261,6 +266,7 @@ def regex_construct_to_z3_expr(regex_construct) -> z3.ReRef:
             f"ERROR: regex construct {regex_construct} not implemented"
         )
 
+
 def Minus(re1: z3.ReRef, re2: z3.ReRef) -> z3.ReRef:
     """
     The Z3 regex matching all strings accepted by re1 but not re2.
@@ -274,4 +280,4 @@ def AnyChar() -> z3.ReRef:
     The Z3 regex matching any character (currently only ASCII supported).
     Formatted in camelcase to mimic Z3 regex API.
     """
-    return z3.Range(chr(0), chr(127))    
+    return z3.Range(chr(0), chr(127))
