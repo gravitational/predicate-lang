@@ -8,6 +8,7 @@ steps:
     cache: 'pip' # caching pip dependencies
 jobs:
   test:
+    runs-on: ubuntu-latest
     steps:
       - name: Install dependencies
         working-directory: python
