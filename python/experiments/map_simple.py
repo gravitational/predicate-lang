@@ -1,6 +1,6 @@
 import z3
 
-mapfn = z3.Function('map', z3.StringSort(), z3.StringSort())
+mapfn = z3.Function("map", z3.StringSort(), z3.StringSort())
 x = z3.String("x")
 y = z3.String("y")
 
@@ -11,4 +11,3 @@ print(s.model())
 s.add(mapfn(z3.StringVal("in2")) == z3.StringVal("out2"))
 print(s.check())
 print(s.model())
-

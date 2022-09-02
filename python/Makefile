@@ -2,7 +2,7 @@ all: hello
 
 .PHONY: test
 test:
-	mypy src/predicate/
+	lint-python
 	pytest --pyargs src/predicate
 
 .PHONY: test-%

@@ -1,4 +1,4 @@
-'''
+"""
 Copyright 2022 Gravitational, Inc
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,50 +12,51 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
-import z3
-import re
-import sre_constants
-import sre_parse
-from .errors import ParameterError
-from . import ast, regex
-from dataclasses import dataclass
-from collections.abc import Iterable
 import functools
 import operator
 from collections.abc import Iterable
 
+from . import ast
+
 
 class Options(ast.Predicate):
-    '''
+    """
     Options apply to some allow rules if they match
-    '''
+    """
+
     max_session_ttl = ast.Duration("options.max_session_ttl")
 
     pin_source_ip = ast.Bool("options.pin_source_ip")
 
-    recording_mode = ast.StringEnum("options.recording_mode", set([(0, 'best_effort'), (1, 'strict')]))
+    recording_mode = ast.StringEnum(
+        "options.recording_mode", set([(0, "best_effort"), (1, "strict")])
+    )
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
 
 class OptionsSet:
-    '''
+    """
     OptionsSet is a set of option expressions
-    '''
+    """
+
     def __init__(self, *options: Options):
         self.options = options
 
     def collect_like(self, other: ast.Predicate):
-        return [o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0]
+        return [
+            o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0
+        ]
 
 
 class Node(ast.Predicate):
-    '''
+    """
     Node is SSH node
-    '''
+    """
+
     login = ast.String("node.login")
     labels = ast.StringMap("node.labels")
 
@@ -64,33 +65,39 @@ class Node(ast.Predicate):
         # TODO check that the predicate is complete, has listed logins
 
     def __and__(self, options: Options):
-        '''
+        """
         This is a somewhat special case, options define max session TTL,
         so this operator constructs a node predicate that contains options
         that are relevant to node.
-        '''
+        """
         return Node(self.expr & options.expr)
 
+
 class User:
-    '''
+    """
     User is a Teleport user
-    '''
+    """
+
     # name is username
     name = ast.String("user.name")
 
     # traits is a user trait
     traits = ast.StringMap("user.traits")
 
+
 class Role:
     name = ast.String("role.name")
+
 
 class Thresholds:
     approve = ast.Int("request.approve")
     deny = ast.Int("request.deny")
 
+
 class Request(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
+
 
 class Review(ast.Predicate):
     def __init__(self, expr):
@@ -98,17 +105,21 @@ class Review(ast.Predicate):
 
 
 class Rules:
-    '''
+    """
     Rules are allow or deny rules
-    '''
+    """
+
     def __init__(self, *rules):
         self.rules = rules or []
 
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+
 class Policy:
-    def __init__(self, options: OptionsSet = None, allow: Rules = None, deny: Rules = None):
+    def __init__(
+        self, options: OptionsSet = None, allow: Rules = None, deny: Rules = None
+    ):
         if allow is None and deny is None:
             raise ast.ParameterError("provide either allow or deny")
         self.allow = allow or Rules()
@@ -121,11 +132,13 @@ class Policy:
     def query(self, other: ast.Predicate):
         return PolicySet([self]).query(other)
 
+
 class PolicySet:
     """
     PolicySet is a set of policies, it merges all allow and all deny rules
     from all other policies.
     """
+
     def __init__(self, policies: Iterable[Policy]):
         self.policies = policies
 
@@ -172,5 +185,4 @@ class PolicySet:
         return self.build_predicate(other).check(other)
 
     def query(self, other: ast.Predicate):
-        return self.build_predicate(other).query(other) 
-
+        return self.build_predicate(other).query(other)

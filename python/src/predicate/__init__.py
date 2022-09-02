@@ -1,3 +1,16 @@
-from .ast import Predicate, String, StringMap, StringTuple, Int, Duration, Bool, StringEnum, StringSetMap, string_list, If
-#from .regex import StringTuple
+from .ast import (
+    Bool,
+    Duration,
+    If,
+    Int,
+    Predicate,
+    String,
+    StringEnum,
+    StringMap,
+    StringSetMap,
+    StringTuple,
+    string_list,
+)
+
+# from .regex import StringTuple
 from .errors import ParameterError

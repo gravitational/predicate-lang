@@ -23,11 +23,15 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.9",
-    tests_require = [
+    tests_require=[
         "pytest>=7.1.2",
         "pluggy>=1.0.0",
+        "isort>=5.10.1",
+        "black>=22.6.0",
+        "flake8>=4.0.1",
+        "mypy>=0.971" "lint-python",
     ],
     install_requires=[
         "z3-solver>=4.8.12.0",
-    ]
+    ],
 )
