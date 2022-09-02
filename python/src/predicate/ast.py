@@ -13,6 +13,9 @@ from .errors import ParameterError
 # reference
 # https://z3prover.github.io/api/html/namespacez3py.html
 class StringLiteral:
+    '''
+    StringLiteral represents a string value - e.g. StringLiteral('potato')
+    '''
     def __init__(self, val:str):
         self.V = val
 
@@ -28,6 +31,9 @@ class StringLiteral:
 
     
 class IntLiteral:
+    '''
+    IntLiteral is integer value, e.g. IntLiteral(7)
+    '''
     def __init__(self, val: int):
         self.V = val
 
@@ -87,6 +93,9 @@ class BoolLiteral:
 
 
 class Int:
+    '''
+    Int is integer variable, e.g. count = Int('count')
+    '''
     def __init__(self, name):
         self.name = name
         self.fn = z3.Function(self.name, z3.StringSort(), z3.IntSort())
