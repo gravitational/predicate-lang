@@ -360,8 +360,24 @@ class StringEnum:
     def walk(self, fn):
         fn(self)
 
+class LogicMixin:
+    '''
+    LogicMixin contains usual &, |, ^ and ! operators
+    used in any boolean logic expression
+    '''
+    def __or__(self, other):
+        return Or(self, other)
 
-class IterableContains:
+    def __xor__(self, other):
+        return Xor(self, other)
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)
+
+class IterableContains(LogicMixin):
     def __init__(self, expr: Iterable, val):
         self.E = expr
         self.V = val
@@ -379,18 +395,6 @@ class IterableContains:
             StringLiteral(v).traverse() == self.V.traverse()
             for v in self.E.vals
         ])
-
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
 
 @dataclass
 class StringTuple:
@@ -410,7 +414,7 @@ class StringTuple:
     def __str__(self):
         return '[{}]'.format(",".join(['`{}`'.format(v) for v in self.vals]))
 
-class Not:
+class Not(LogicMixin):
     def __init__(self, v):
         self.V = v
 
@@ -424,19 +428,7 @@ class Not:
     def traverse(self):
         return z3.Not(self.V.traverse())
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-class Eq:
+class Eq(LogicMixin):
     def __init__(self, l, r):
         self.L = l
         self.R = r
@@ -458,19 +450,7 @@ class Eq:
         else:
             return self.L.traverse() == self.R.traverse()
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-class Or:
+class Or(LogicMixin):
     def __init__(self, l, r):
         self.L = l
         self.R = r
@@ -486,19 +466,7 @@ class Or:
     def traverse(self):
         return z3.Or(self.L.traverse(), self.R.traverse())
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __Xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-class And:
+class And(LogicMixin):
     def __init__(self, l, r):
         self.L = l
         self.R = r
@@ -514,19 +482,7 @@ class And:
         self.L.walk(fn)
         self.R.walk(fn)
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)    
-
-    def __invert__(self):
-        return Not(self)
-
-class Xor:
+class Xor(LogicMixin):
     def __init__(self, l, r):
         self.L = l
         self.R = r
@@ -542,19 +498,8 @@ class Xor:
     def traverse(self):
         return z3.Xor(self.L.traverse(), self.R.traverse())
 
-    def __or__(self, other):
-        return Or(self, other)
 
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-class Concat:
+class Concat(LogicMixin):
     def __init__(self, l, r):
         self.L = l
         self.R = r
@@ -569,18 +514,6 @@ class Concat:
 
     def traverse(self):
         return z3.Concat(self.L.traverse(), self.R.traverse())
-
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
 
     def __add__(self, val):
         if isinstance(val, str):
@@ -600,7 +533,7 @@ class Concat:
             return Concat(val, self)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
-class Split:
+class Split(LogicMixin):
     def __init__(self, val, sep, before: bool):
         self.val = val
         self.sep = sep
@@ -628,19 +561,7 @@ class Split:
                   ),
                   z3.StringVal(""))
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-class Replace:
+class Replace(LogicMixin):
     def __init__(self, val, src, dst):
         self.val = val
         self.src = src
@@ -662,20 +583,8 @@ class Replace:
             self.dst.traverse()
         )
 
-    def __or__(self, other):
-        return Or(self, other)
 
-    def __xor__(self, other):
-        return Xor(self, other)
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-
-class Lt:
+class Lt(LogicMixin):
     def __init__(self, l, r):
         self.L = l
         self.R = r
@@ -697,19 +606,7 @@ class Lt:
         else:
             return self.L.traverse() < self.R.traverse()
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-class Gt:
+class Gt(LogicMixin):
     def __init__(self, l, r):
         self.L = l
         self.R = r
@@ -731,19 +628,6 @@ class Gt:
         else:
             return self.L.traverse() > self.R.traverse()
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
-
 
 class StringMap:
     def __init__(self, name):
@@ -764,7 +648,7 @@ class StringMap:
         fn(self)
 
 
-class MapIndex:
+class MapIndex(LogicMixin):
     def __init__(self, m: StringMap, key: String):
         self.m = m
         self.key = key
@@ -782,18 +666,6 @@ class MapIndex:
         if isinstance(val, (String, Concat, Split, Replace)):
             return Not(Eq(self, val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
-
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
 
     def __str__(self):
         return '{}[{}]'.format(self.m.name, self.key)
@@ -989,17 +861,6 @@ class StringSetMapOverwrite(StringSetMap):
     def add_value(self, key: String, val: String):
         return StringSetMapAddValue(self, key, val)    
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)    
 
 class StringSetMapAddValue(StringSetMap):
     def __init__(self, m: StringSetMap, key, val):
@@ -1043,18 +904,6 @@ class StringSetMapAddValue(StringSetMap):
     def add_value(self, key: String, val: String):
         return StringSetMapAddValue(self, key, val)    
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
-
 
 class StringSetMapRemoveKeys(StringSetMap):
     def __init__(self, m: StringSetMap, keys):
@@ -1094,17 +943,6 @@ class StringSetMapRemoveKeys(StringSetMap):
     def add_value(self, key: String, val: String):
         return StringSetMapAddValue(self, key, val)    
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)          
 
 class StringSetMapIndex:
     def __init__(self, m: StringSetMap, key: String):
@@ -1143,7 +981,7 @@ class StringSetMapIndex:
     def traverse(self):
         return self.m.fn_map(z3.StringVal(self.key))
 
-class StringSetMapIndexContains:
+class StringSetMapIndexContains(LogicMixin):
     def __init__(self, expr: StringSetMapIndex, val):
         self.E = expr
         self.V = val
@@ -1159,18 +997,6 @@ class StringSetMapIndexContains:
     def traverse(self):
         return fn_string_list_contains(
             self.E.m.fn_map(z3.StringVal(self.E.key)), self.V.traverse()) == z3.BoolVal(True)
-
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)
 
 class StringSetMapIndexReplace:
     def __init__(self, expr: StringSetMapIndex, src, dst):
@@ -1191,17 +1017,6 @@ class StringSetMapIndexReplace:
         return fn_string_list_replace(
             self.E.m.fn_map(z3.StringVal(self.E.key)), self.S.traverse(), self.D.traverse())
 
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)    
 
 class StringSetMapIndexAdd:
     def __init__(self, expr: StringSetMapIndex, val):
@@ -1219,19 +1034,8 @@ class StringSetMapIndexAdd:
     def traverse(self):
         return fn_string_list_add_if_not_exists(self.E.m.fn_map(z3.StringVal(self.E.key)), self.V.traverse())
 
-    def __or__(self, other):
-        return Or(self, other)
 
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)    
-
-class StringSetMapIndexEquals:
+class StringSetMapIndexEquals(LogicMixin):
     def __init__(self, expr: StringSetMapIndex, val):
         self.E = expr
         self.V = val
@@ -1246,18 +1050,6 @@ class StringSetMapIndexEquals:
 
     def traverse(self):
         return self.E.m.fn_map(z3.StringVal(self.E.key)) == string_list(self.V.vals)
-
-    def __or__(self, other):
-        return Or(self, other)
-
-    def __xor__(self, other):
-        return Xor(self, other)    
-
-    def __and__(self, other):
-        return And(self, other)
-
-    def __invert__(self):
-        return Not(self)    
 
 
 def collect_symbols(s, expr):
