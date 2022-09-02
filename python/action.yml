@@ -1,0 +1,15 @@
+steps:
+- uses: actions/checkout@v3
+- uses: actions/setup-python@v4
+  with:
+    python-version: '3.9.5'
+    cache: 'pip' # caching pip dependencies
+jobs:
+  test:
+    steps:
+      - name: Install dependencies
+        working-directory: python
+        run: 'pip install'
+      - name: Run tests
+        working-directory: python
+        run: 'make test'
