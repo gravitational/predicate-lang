@@ -816,6 +816,7 @@ StringList.declare('nil')
 StringList = StringList.create()
 
 fn_string_list_contains = z3.RecFunction('string_list_contains', StringList, z3.StringSort(), z3.BoolSort())
+fn_string_list_replace = z3.RecFunction('string_list_replace', StringList, z3.StringSort(), z3.StringSort(), StringList)
 fn_string_list_add_if_not_exists = z3.RecFunction('string_list_add_if_not_exists', StringList, z3.StringSort(), StringList)
 
 def string_list(vals: Iterable[String]):
@@ -838,6 +839,17 @@ def define_string_list_contains():
                                 z3.BoolVal(True),
                                 fn_string_list_contains(StringList.cdr(vals), element))))
 
+def define_string_list_replace():
+    vals = z3.Const('string_list_replace_vals', StringList)
+    src = z3.StringVal('string_list_replace_src')
+    dst = z3.StringVal('string_list_replace_dst')
+    z3.RecAddDefinition(fn_string_list_replace, [vals, src, dst],
+                    z3.If(StringList.nil == vals,
+                          StringList.nil,
+                          StringList.cons(
+                              z3.Replace(StringList.car(vals), src, dst),
+                              fn_string_list_replace(StringList.cdr(vals), src, dst))))
+
 def define_string_list_add_if_not_exists():
     vals = z3.Const('string_list_add_ifne_vals', StringList)
     element = z3.StringVal('string_add_ifne_contains_search')
@@ -847,6 +859,7 @@ def define_string_list_add_if_not_exists():
                           StringList.cons(element, vals)))
 
 define_string_list_contains()
+define_string_list_replace()
 define_string_list_add_if_not_exists()
 
 class StringListWrapper:
@@ -1105,6 +1118,13 @@ class StringSetMapIndex:
             return StringSetMapIndexContains(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
+    def replace(self, src, dst):
+        if isinstance(src, str):
+            return StringSetMapIndexReplace(self, StringLiteral(src), StringLiteral(dst))
+        if isinstance(dst, String):
+            return StringSetMapIndexReplace(self, src, dst)
+        raise TypeError("unsupported type {}, supported strings only".format(type(src)))
+
     def add(self, val):
         if isinstance(val, str):
             return StringSetMapIndexAdd(self, StringLiteral(val))
@@ -1151,6 +1171,37 @@ class StringSetMapIndexContains:
 
     def __invert__(self):
         return Not(self)
+
+class StringSetMapIndexReplace:
+    def __init__(self, expr: StringSetMapIndex, src, dst):
+        self.E = expr
+        self.S = src
+        self.D = dst
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.S.walk(fn)
+        self.D.walk(fn)
+
+    def __str__(self):
+        return '''({}.replace({}, {}))'''.format(self.E, self.S, self.D)
+
+    def traverse(self):
+        return fn_string_list_replace(
+            self.E.m.fn_map(z3.StringVal(self.E.key)), self.S.traverse(), self.D.traverse())
+
+    def __or__(self, other):
+        return Or(self, other)
+
+    def __xor__(self, other):
+        return Xor(self, other)    
+
+    def __and__(self, other):
+        return And(self, other)
+
+    def __invert__(self):
+        return Not(self)    
 
 class StringSetMapIndexAdd:
     def __init__(self, expr: StringSetMapIndex, val):

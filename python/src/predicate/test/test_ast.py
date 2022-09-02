@@ -377,7 +377,25 @@ class TestAst:
             (external["fruits"] == ("apple", "strawberry")) & (traits["our-fruits"] == ("apple", "strawberry"))
         )
         p.solve()
-        assert ret == True, "blueberry was not added"        
+        assert ret == True, "blueberry was not added"
+
+    def test_string_set_map_transform_value(self):
+        external = StringSetMap('external')
+        # transform example - we reference another variable and transform
+        traits = StringSetMap('traits', {
+            'login': external['email'].replace("@", "-"),
+        })
+        p = Predicate(
+            (external["email"] == ("alice@wonderland.local",)) & (traits["login"] == ("alice-wonderland.local",))
+        )
+        ret, _ = p.solve()
+        assert ret == True, "transformation has been applied"
+
+        p = Predicate(
+            (external["email"] == ()) & (traits["login"] == ())
+        )
+        ret, _ = p.solve()
+        assert ret == True, "transformation on empty list is empty"        
 
     def test_string_map(self):
         '''
