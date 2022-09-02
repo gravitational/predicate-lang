@@ -2,8 +2,8 @@
 
 Predicate is access control runtime and expression language.
 
-Developers can write and test policies in python
-using test driven development and advanced formal logic verification
+Developers can write and test deckaratuve policies in python.
+Predicate uses advanced formal logic verification
 to check if policies are weak, equivalent to insecure ones or fail certain conditions.
 
 ```python
