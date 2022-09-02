@@ -9,9 +9,9 @@ jobs:
         with:
           python-version: '3.9.5'
           cache: 'pip' # caching pip dependencies
+          cache-dependency-path: '**/requirements.txt'
       - name: Install dependencies
-        working-directory: python
-        run: 'pip install'
+        run: 'pip install -r python/requirements-dev.txt'
       - name: Run tests
         working-directory: python
         run: 'make test'
