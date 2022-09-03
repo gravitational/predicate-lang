@@ -2,11 +2,14 @@ import pytest
 
 from predicate import (
     Bool,
+    Case,
+    Default,
     Duration,
     If,
     Int,
     ParameterError,
     Predicate,
+    Select,
     String,
     StringEnum,
     StringMap,
@@ -683,3 +686,26 @@ class TestAst:
 
         ret, _ = p.check(Predicate(Options.pin_source_ip == False))
         assert ret is False, "solves with simple boundary check"
+
+    def test_select(self):
+        external = StringSetMap("external")
+
+        s = Select(
+            Case(external["groups"].contains("admin"), ("admin",)),
+            # Default is necessary to specify default empty sequence or type
+            Default(())
+            # {Claim: "role", Value: "^admin-(.*)$", Roles: []string{"role-$1", "bob"}},
+            # Case(external['groups'].matches_regexp('test-.*'), (external['groups'].replace('admin-', 'role-').add('bob')))
+        )
+
+        ret, _ = Predicate(
+            (s == ("admin",)) & (external["groups"] == ("admin", "other"))
+        ).solve()
+        assert ret is True, "simple match works"
+
+        ret, _ = Predicate(
+            (s == ()) & (external["groups"] == ("nomatch", "other"))
+        ).solve()
+        assert ret is True, "no match results in default"
+
+        # once you have a select defined, you can specify set of roles and policies
