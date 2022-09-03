@@ -15,7 +15,8 @@ from predicate import (
     StringMap,
     StringSetMap,
     StringTuple,
-    regex,
+    parse_regex,
+    regex_tuple,
 )
 
 
@@ -265,7 +266,7 @@ class TestAst:
         assert ret is False, "Jim can't access prod as root"
 
     def test_regex(self):
-        p = Predicate(regex.parse("stage-.*").matches(User.team))
+        p = Predicate(parse_regex("stage-.*").matches(User.team))
 
         ret, _ = p.check(Predicate(User.team == "stage-test"))
         assert ret is True, "prefix patterns match"
@@ -361,6 +362,28 @@ class TestAst:
 
         ret, _ = p.check(Predicate(traits["key"] == ("apple", "banana")))
         assert ret is False, "values don't match"
+
+    def test_string_set_map_contains_regex(self):
+        traits = StringSetMap(
+            "mymap",
+            {
+                "groups": ("fruit-apple", "veggie-potato", "fruit-banana"),
+            },
+        )
+        p = Predicate(traits["groups"].contains_regex("fruit-.*"))
+        ret, _ = p.solve()
+        assert ret is True, "values match regular expression"
+
+        traits = StringSetMap(
+            "mymap",
+            {
+                "groups": ("apple", "potato", "banana"),
+            },
+        )
+        with pytest.raises(ParameterError) as exc:
+            p = Predicate(traits["groups"].contains_regex("fruit-apple"))
+            ret, _ = p.solve()
+        assert "unsolvable" in str(exc.value)
 
     def test_string_set_map_add_value(self):
         traits = StringSetMap("mymap")
@@ -612,7 +635,7 @@ class TestAst:
         m = StringMap("mymap")
 
         # maps could be part of the predicate
-        p = Predicate(regex.parse("env-.*").matches(m["key"]))
+        p = Predicate(parse_regex("env-.*").matches(m["key"]))
         ret, _ = p.query(Predicate(m["key"] == "env-prod"))
         assert ret is True
 
@@ -629,7 +652,7 @@ class TestAst:
         """
         Tests regexp tuples
         """
-        t = regex.tuple(["banana-.*", "potato-.*", "apple-.*"])
+        t = regex_tuple(["banana-.*", "potato-.*", "apple-.*"])
         p = Predicate(t.matches("banana-smoothie"))
         ret, _ = p.query(Predicate(t.matches("apple-smoothie")))
         assert ret is True
@@ -709,3 +732,46 @@ class TestAst:
         assert ret is True, "no match results in default"
 
         # once you have a select defined, you can specify set of roles and policies
+
+    def test_select_regex(self):
+        external = StringSetMap("external")
+
+        s = Select(
+            Case(external["groups"].contains_regex("admin-.*"), ("admin",)),
+            # Default is necessary to specify default empty sequence or type
+            Default(()),
+        )
+
+        ret, _ = Predicate(
+            (s == ("admin",)) & (external["groups"] == ("admin-test", "other"))
+        ).solve()
+        assert ret is True, "simple match works"
+
+        ret, _ = Predicate(
+            (s == ()) & (external["groups"] == ("nomatch", "other"))
+        ).solve()
+        assert ret is True, "no match results in default"
+
+    def test_select_regex_replace(self):
+        external = StringSetMap("external")
+
+        s = Select(
+            Case(
+                external["groups"].contains_regex("admin-.*"),
+                external["groups"].replace("admin-", "ext-"),
+            ),
+            # Default is necessary to specify default empty sequence or type
+            Default(external["groups"]),
+        )
+
+        ret, _ = Predicate(
+            (s == ("ext-test", "ext-prod"))
+            & (external["groups"] == ("admin-test", "admin-prod"))
+        ).solve()
+        assert ret is True, "match and replace works"
+
+        ret, _ = Predicate(
+            (s == ("dev-test", "dev-prod"))
+            & (external["groups"] == ("dev-test", "dev-prod"))
+        ).solve()
+        assert ret is True, "match and replace works default value"
