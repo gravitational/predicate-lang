@@ -1,3 +1,9 @@
+# Z3 programming
+#
+# * tutorial https://ericpony.github.io/z3py-tutorial/guide-examples.htm
+# * book https://theory.stanford.edu/~nikolaj/programmingz3.html
+# * reference https://z3prover.github.io/api/html/namespacez3py.html
+
 import functools
 import operator
 import typing
@@ -9,8 +15,6 @@ import z3
 from .errors import ParameterError
 
 
-# reference
-# https://z3prover.github.io/api/html/namespacez3py.html
 class StringLiteral:
     """
     StringLiteral represents a string value - e.g. StringLiteral('potato')
@@ -822,8 +826,16 @@ class StringListWrapper:
     def traverse(self):
         return string_list(self.vals)
 
+    def walk(self, fn):
+        fn(self)
+
 
 class If:
+    """
+    If works like a functional style if:
+       if(cond, eval_expression_on_true, eval_expression_on_false)
+    """
+
     def __init__(self, cond, on_true, on_false):
         self.cond = cond
         self.on_true = on_true
@@ -833,6 +845,86 @@ class If:
         return z3.If(
             self.cond.traverse(), self.on_true.traverse(), self.on_false.traverse()
         )
+
+
+class Case:
+    def __init__(self, when, then):
+        self.when = when
+        self.then = convert_literal(then)
+
+
+class Default:
+    def __init__(self, expr):
+        self.expr = convert_literal(expr)
+
+
+def convert_literal(expr):
+    if isinstance(expr, tuple):
+        return StringListWrapper(expr)
+    if isinstance(expr, str):
+        return StringLiteral(expr)
+    if isinstance(expr, int):
+        return IntLiteral(expr)
+    if isinstance(expr, bool):
+        return BoolLiteral(expr)
+    return expr
+
+
+class Select:
+    """
+    Match works like a functional style select statement
+       select(
+           (case_1, eval_1),
+           (case_2, eval_2),
+           default
+          )
+    """
+
+    def __init__(self, *expr):
+        if len(expr) == 0:
+            raise ParameterError("supply at least one case or default")
+        default = 0
+        for e in expr:
+            if isinstance(e, Default):
+                default += 1
+            elif isinstance(e, Case):
+                pass
+            else:
+                raise ParameterError("expected Default or Case, got {}", type(e))
+        if default != 1:
+            raise ParameterError("default statement is required at the end")
+        # make sure it's the last
+        if not isinstance(expr[len(expr) - 1], Default):
+            raise ParameterError("supply at least one case or default")
+        self.cases = expr[:-1]
+        self.default = expr[-1]
+
+    def __eq__(self, val):
+        return Eq(self, convert_literal(val))
+
+    def __ne__(self, val):
+        return Not(Eq(self, convert_literal(val)))
+
+    def walk(self, fn):
+        fn(self)
+        for e in self.cases:
+            fn(e)
+        fn(self.default)
+
+    def traverse(self):
+        def iterate(i):
+            try:
+                case = next(i)
+            except StopIteration:
+                return self.default.expr.traverse()
+            else:
+                return z3.If(
+                    case.when.traverse(),
+                    case.then.traverse(),
+                    iterate(i),
+                )
+
+        return iterate(iter(self.cases))
 
 
 class StringSetMap:
