@@ -18,7 +18,7 @@ import functools
 import operator
 from typing import Final
 
-from . import ast, regex
+from . import ast
 from .errors import ParameterError
 
 # Convert AWS policies to predictate expression.
@@ -88,9 +88,9 @@ def statement(p: dict):
     if isinstance(actions, str):
         actions = [actions]
 
-    expr = regex.tuple(_to_regex(r) for r in resources).matches(
+    expr = ast.regex_tuple(_to_regex(r) for r in resources).matches(
         Action.resource
-    ) & regex.tuple(_to_regex(a) for a in actions).matches(Action.action)
+    ) & ast.regex_tuple(_to_regex(a) for a in actions).matches(Action.action)
     if not allow:
         expr = ast.Not(expr)
 
@@ -103,7 +103,7 @@ def _is_regex(v: str):
 
 
 def _parse_regex(v: str):
-    return regex.parse(_to_regex(v))
+    return ast.parse_regex(_to_regex(v))
 
 
 def _to_regex(v: str):

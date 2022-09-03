@@ -12,8 +12,8 @@ from .ast import (
     StringMap,
     StringSetMap,
     StringTuple,
+    parse_regex,
+    regex_tuple,
     string_list,
 )
-
-# from .regex import StringTuple
 from .errors import ParameterError
