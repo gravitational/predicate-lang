@@ -73,6 +73,52 @@ class Node(ast.Predicate):
         return Node(self.expr & options.expr)
 
 
+class LoginRule(ast.StringSetMap):
+    """
+    Login rule maps SSO identities to Teleport's traits
+    """
+
+    pass
+
+
+def PolicyMap(expr):
+    """
+    PolicyMap is expression that evaluates to a list of
+    policy names.
+    """
+    # TODO: evaluate that policy map always evals to string list?
+    return expr
+
+
+def try_login(policy_map_expr, traits_expr, policies):
+    policies = {p.name: p for p in policies}
+    p = ast.Predicate(policy_map_expr != ast.StringListWrapper(()))
+    ret, model = p.check(ast.Predicate(traits_expr))
+    if not ret:
+        return ()
+    out = []
+
+    def first(depth):
+        vals = policy_map_expr.traverse()
+        for i in range(depth):
+            vals = ast.StringList.cdr(vals)
+        expr = ast.fn_string_list_first(vals)
+        return model.eval(expr).as_string()
+
+    depth = 0
+    while True:
+        el = first(depth)
+        if el == "":
+            break
+        out.append(el)
+        depth += 1
+
+    mapped_policies = []
+    for policy_name in out:
+        mapped_policies.append(policies[policy_name])
+    return PolicySet(mapped_policies)
+
+
 class User:
     """
     User is a Teleport user
@@ -118,8 +164,15 @@ class Rules:
 
 class Policy:
     def __init__(
-        self, options: OptionsSet = None, allow: Rules = None, deny: Rules = None
+        self,
+        name: str,
+        options: OptionsSet = None,
+        allow: Rules = None,
+        deny: Rules = None,
     ):
+        self.name = name
+        if name == "":
+            raise ast.ParameterError("supply a valid name")
         if allow is None and deny is None:
             raise ast.ParameterError("provide either allow or deny")
         self.allow = allow or Rules()
@@ -186,3 +239,12 @@ class PolicySet:
 
     def query(self, other: ast.Predicate):
         return self.build_predicate(other).query(other)
+
+    def names(self):
+        """
+        Names returns names in the policy set
+        """
+        s = set()
+        for p in self.policies:
+            s.add(p.name)
+        return s

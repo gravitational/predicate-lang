@@ -529,28 +529,28 @@ class String:
     def __eq__(self, val):
         if isinstance(val, str):
             return Eq(self, StringLiteral(val))
-        if isinstance(val, (String, Concat, Split, Replace)):
+        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
             return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __ne__(self, val):
         if isinstance(val, str):
             return Not(Eq(self, StringLiteral(val)))
-        if isinstance(val, (String, Concat, Split, Replace)):
+        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
             return Not(Eq(self, val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __add__(self, val):
         if isinstance(val, str):
             return Concat(self, StringLiteral(val))
-        if isinstance(val, (String, Concat, Split, Replace)):
+        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
             return Concat(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __radd__(self, val):
         if isinstance(val, str):
             return Concat(StringLiteral(val), self)
-        if isinstance(val, (String, Concat, Split, Replace)):
+        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
             return Concat(val, self)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
@@ -996,6 +996,7 @@ StringList = StringList.create()
 fn_string_list_contains = z3.RecFunction(
     "string_list_contains", StringList, z3.StringSort(), z3.BoolSort()
 )
+fn_string_list_first = z3.RecFunction("string_list_first", StringList, z3.StringSort())
 fn_string_list_contains_regex = z3.RecFunction(
     "string_list_contains_regex",
     StringList,
@@ -1035,6 +1036,23 @@ def define_string_list_contains():
                 StringList.car(vals) == element,
                 z3.BoolVal(True),
                 fn_string_list_contains(StringList.cdr(vals), element),
+            ),
+        ),
+    )
+
+
+def define_string_list_first():
+    vals = z3.Const("string_list_first_vals", StringList)
+    z3.RecAddDefinition(
+        fn_string_list_first,
+        [vals],
+        z3.If(
+            StringList.nil == vals,
+            z3.StringVal(""),
+            z3.If(
+                StringList.car(vals) != z3.StringVal(""),
+                StringList.car(vals),
+                fn_string_list_first(StringList.cdr(vals)),
             ),
         ),
     )
@@ -1096,6 +1114,7 @@ define_string_list_contains()
 define_string_list_contains_regex()
 define_string_list_replace()
 define_string_list_add_if_not_exists()
+define_string_list_first()
 
 
 class StringListWrapper:
@@ -1131,10 +1150,19 @@ class Case:
         self.when = when
         self.then = convert_literal(then)
 
+    def walk(self, fn):
+        fn(self)
+        fn(self.when)
+        fn(self.then)
+
 
 class Default:
     def __init__(self, expr):
         self.expr = convert_literal(expr)
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.expr)
 
 
 def convert_literal(expr):
@@ -1187,8 +1215,8 @@ class Select:
     def walk(self, fn):
         fn(self)
         for e in self.cases:
-            fn(e)
-        fn(self.default)
+            e.walk(fn)
+        self.default.walk(fn)
 
     def traverse(self):
         def iterate(i):
@@ -1418,6 +1446,12 @@ class StringSetMapIndex:
         self.m = m
         self.key = key
 
+    def first(self):
+        """
+        First returns first non-empty value
+        """
+        return StringSetMapIndexFirst(self)
+
     def contains(self, val):
         if isinstance(val, str):
             return StringSetMapIndexContains(self, StringLiteral(val))
@@ -1479,6 +1513,35 @@ class StringSetMapIndexContains(LogicMixin):
         return fn_string_list_contains(
             self.E.m.fn_map(z3.StringVal(self.E.key)), self.V.traverse()
         ) == z3.BoolVal(True)
+
+
+class StringSetMapIndexFirst:
+    def __init__(self, expr: StringSetMapIndex):
+        self.E = expr
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+
+    def __str__(self):
+        return """({}.first())""".format(self.E)
+
+    def traverse(self):
+        return fn_string_list_first(self.E.m.fn_map(z3.StringVal(self.E.key)))
+
+    def __eq__(self, val):
+        if isinstance(val, str):
+            return Eq(self, StringLiteral(val))
+        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
+            return Eq(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __ne__(self, val):
+        if isinstance(val, str):
+            return Not(Eq(self, StringLiteral(val)))
+        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
 
 class StringSetMapIndexContainsRegex(LogicMixin):
