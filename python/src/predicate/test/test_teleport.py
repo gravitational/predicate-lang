@@ -436,13 +436,13 @@ class TestTeleport:
         ret, _ = p.check(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
         assert ret is False
 
-        pset = try_login(
+        p = try_login(
             s,
             (external["email"] == ("alice@wonderland.local",))
             & (external["groups"] == ("ext-stage",)),
             (dev, ext),
         )
-        assert pset.names() == set(("ext-stage",))
+        assert p.names() == set(("ext-stage",))
 
         # policy set will allow Alice to connect to prod if her
         # emial is alice@wonderland.local
