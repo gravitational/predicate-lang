@@ -18,7 +18,10 @@ import functools
 import operator
 from collections.abc import Iterable
 
+import z3
+
 from . import ast
+from .errors import ParameterError
 
 
 class Options(ast.Predicate):
@@ -86,12 +89,22 @@ def PolicyMap(expr):
     PolicyMap is expression that evaluates to a list of
     policy names.
     """
-    # TODO: evaluate that policy map always evals to string list?
+    try:
+        sort = expr.traverse().sort()
+    except z3.Z3Exception as exc:
+        if str(exc) == "sort mismatch":
+            raise ParameterError(
+                "policy map should eval to string list, got expression returning different sort types"
+            )
+        raise
+    if sort != ast.StringList:
+        raise ParameterError(
+            "policy map should eval to string list, got: {}".format(sort)
+        )
     return expr
 
 
-def try_login(policy_map_expr, traits_expr, policies):
-    policies = {p.name: p for p in policies}
+def try_login(policy_map_expr, traits_expr):
     p = ast.Predicate(policy_map_expr != ast.StringListWrapper(()))
     ret, model = p.check(ast.Predicate(traits_expr))
     if not ret:
@@ -112,9 +125,13 @@ def try_login(policy_map_expr, traits_expr, policies):
             break
         out.append(el)
         depth += 1
+    return set(out)
 
+
+def map_policies(policy_names, policies):
+    policies = {p.name: p for p in policies}
     mapped_policies = []
-    for policy_name in out:
+    for policy_name in policy_names:
         mapped_policies.append(policies[policy_name])
     return PolicySet(mapped_policies)
 

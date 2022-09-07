@@ -1,4 +1,15 @@
-from predicate import Case, Default, Duration, Predicate, Select, StringSetMap
+import pytest
+
+from predicate import (
+    Case,
+    Default,
+    Duration,
+    ParameterError,
+    Predicate,
+    Select,
+    StringLiteral,
+    StringSetMap,
+)
 from predicate.teleport import (
     LoginRule,
     Node,
@@ -12,6 +23,7 @@ from predicate.teleport import (
     Role,
     Rules,
     Thresholds,
+    map_policies,
     try_login,
 )
 
@@ -336,6 +348,32 @@ class TestTeleport:
         ret, _ = p.solve()
         assert ret is True, "transformation has been applied"
 
+    def test_policy_wrong_expr(self):
+        """
+        Test that policy mapping always returns the right value
+        """
+        with pytest.raises(ParameterError) as exc:
+            PolicyMap(
+                Select(
+                    # Default is necessary to specify default empty sequence or type
+                    Default(StringLiteral("test")),
+                )
+            )
+        assert "should eval to string list" in str(exc.value)
+
+        with pytest.raises(ParameterError) as exc:
+            external = StringSetMap("external")
+            PolicyMap(
+                Select(
+                    Case(
+                        external["groups"].contains_regex("admin-.*"),
+                        external["groups"],
+                    ),
+                    # Default is necessary to specify default empty sequence or type
+                    Default(StringLiteral("test")),
+                )
+            )
+
     def test_policy_mapping(self):
         """
         Test policy mapping
@@ -436,13 +474,13 @@ class TestTeleport:
         ret, _ = p.check(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
         assert ret is False
 
-        p = try_login(
+        policy_names = try_login(
             s,
             (external["email"] == ("alice@wonderland.local",))
             & (external["groups"] == ("ext-stage",)),
-            (dev, ext),
         )
-        assert p.names() == set(("ext-stage",))
+        assert policy_names == set(("ext-stage",))
+        p = map_policies(policy_names, (dev, ext))
 
         # policy set will allow Alice to connect to prod if her
         # emial is alice@wonderland.local
