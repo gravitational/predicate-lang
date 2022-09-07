@@ -385,6 +385,39 @@ class TestAst:
             ret, _ = p.solve()
         assert "unsolvable" in str(exc.value)
 
+    def test_string_set_map_first(self):
+        traits = StringSetMap(
+            "mymap",
+            {
+                "groups": ("fruit-apple", "veggie-potato", "fruit-banana"),
+            },
+        )
+        p = Predicate(traits["groups"].first() == "fruit-apple")
+        ret, _ = p.solve()
+        assert ret is True, "gets first value"
+
+        traits = StringSetMap(
+            "mymap",
+            {
+                "groups": ("", "potato", "banana"),
+            },
+        )
+
+        p = Predicate(traits["groups"].first() == "potato")
+        ret, _ = p.solve()
+        assert ret is True, "gets first non-empty value"
+
+        traits = StringSetMap(
+            "mymap",
+            {
+                "groups": (),
+            },
+        )
+
+        p = Predicate(traits["groups"].first() == "")
+        ret, _ = p.solve()
+        assert ret is True, "returns empty string if no value"
+
     def test_string_set_map_add_value(self):
         traits = StringSetMap("mymap")
         p = Predicate(

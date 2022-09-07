@@ -1,24 +1,28 @@
-from predicate import Duration
+from predicate import Case, Default, Duration, Predicate, Select, StringSetMap
 from predicate.teleport import (
+    LoginRule,
     Node,
     Options,
     OptionsSet,
     Policy,
+    PolicyMap,
     PolicySet,
     Request,
     Review,
     Role,
     Rules,
     Thresholds,
+    try_login,
 )
 
 
 class TestTeleport:
     def test_node(self):
         p = Policy(
+            name="test",
             allow=Rules(
                 Node((Node.login == "root") & (Node.labels["env"] == "prod")),
-            )
+            ),
         )
 
         ret, _ = p.check(
@@ -32,15 +36,17 @@ class TestTeleport:
 
     def test_allow_policy_set(self):
         a = Policy(
+            name="a",
             allow=Rules(
                 Node((Node.login == "ubuntu") & (Node.labels["env"] == "prod")),
-            )
+            ),
         )
 
         b = Policy(
+            name="b",
             allow=Rules(
                 Node((Node.login == "root") & (Node.labels["env"] == "stage")),
-            )
+            ),
         )
 
         s = PolicySet([a, b])
@@ -57,18 +63,20 @@ class TestTeleport:
 
     def test_deny_policy_set(self):
         a = Policy(
+            name="a",
             allow=Rules(
                 Node(
                     ((Node.login == "root") & (Node.labels["env"] == "prod"))
                     | ((Node.login == "ubuntu") & (Node.labels["env"] == "prod"))
                 )
-            )
+            ),
         )
 
         b = Policy(
+            name="b",
             deny=Rules(
                 Node((Node.login == "root") & (Node.labels["env"] == "prod")),
-            )
+            ),
         )
 
         s = PolicySet([a, b])
@@ -82,6 +90,7 @@ class TestTeleport:
 
     def test_requests(self):
         p = Policy(
+            name="a",
             allow=Rules(
                 Request(
                     (Role.name == "access-prod")
@@ -89,7 +98,7 @@ class TestTeleport:
                     & (Thresholds.deny == 2)
                 ),
                 Review(Role.name == "access-prod"),
-            )
+            ),
         )
 
         # Can user request a role?
@@ -106,6 +115,7 @@ class TestTeleport:
 
     def test_options(self):
         p = Policy(
+            name="b",
             options=OptionsSet(
                 Options(
                     (Options.max_session_ttl < Duration.new(hours=10))
@@ -144,6 +154,7 @@ class TestTeleport:
         Tests that predicate works when options expression is superset
         """
         p = Policy(
+            name="p",
             options=OptionsSet(
                 Options(
                     (Options.max_session_ttl < Duration.new(hours=10))
@@ -184,6 +195,7 @@ class TestTeleport:
 
     def test_options_policy_set(self):
         a = Policy(
+            name="a",
             options=OptionsSet(
                 Options(
                     (Options.max_session_ttl < Duration.new(hours=10))
@@ -197,9 +209,10 @@ class TestTeleport:
         )
 
         b = Policy(
+            name="b",
             allow=Rules(
                 Node((Node.login == "root") & (Node.labels["env"] == "prod")),
-            )
+            ),
         )
 
         p = PolicySet([a, b])
@@ -232,6 +245,7 @@ class TestTeleport:
     def test_options_policy_set_enum(self):
         # policy a requires best effort
         a = Policy(
+            name="a",
             options=OptionsSet(
                 Options(
                     (Options.recording_mode > "best_effort")
@@ -245,6 +259,7 @@ class TestTeleport:
 
         # policy b requires strict recording mode
         b = Policy(
+            name="b",
             options=OptionsSet(
                 Options(Options.recording_mode == "strict"),
             ),
@@ -302,3 +317,142 @@ class TestTeleport:
         assert (
             ret is False
         ), "strict is enforced for all modes of access across all policies in the set"
+
+    def test_login_rules(self):
+        """
+        Test login rules test simple login rule
+        """
+        external = StringSetMap("external")
+        traits = LoginRule(
+            "traits",
+            {
+                "login": external["email"].replace("@", "-"),
+            },
+        )
+        p = Predicate(
+            (external["email"] == ("alice@wonderland.local",))
+            & (traits["login"] == ("alice-wonderland.local",))
+        )
+        ret, _ = p.solve()
+        assert ret is True, "transformation has been applied"
+
+    def test_policy_mapping(self):
+        """
+        Test policy mapping
+        """
+        external = StringSetMap("external")
+
+        s = PolicyMap(
+            Select(
+                Case(
+                    external["groups"].contains_regex("admin-.*"),
+                    external["groups"].replace("admin-", "ext-"),
+                ),
+                # Default is necessary to specify default empty sequence or type
+                Default(external["groups"]),
+            )
+        )
+
+        ret, _ = Predicate(
+            (s == ("ext-test", "ext-prod"))
+            & (external["groups"] == ("admin-test", "admin-prod"))
+        ).solve()
+        assert ret is True, "match and replace works"
+
+        ret, _ = Predicate(
+            (s == ("dev-test", "dev-prod"))
+            & (external["groups"] == ("dev-test", "dev-prod"))
+        ).solve()
+        assert ret is True, "match and replace works default value"
+
+    def test_full_cycle(self):
+        external = StringSetMap("external")
+        traits = LoginRule(
+            "traits",
+            {
+                "login": external["email"].replace("@", "-"),
+                # copy over external groups
+                "groups": external["groups"],
+            },
+        )
+        p = Predicate(
+            (external["email"] == ("alice@wonderland.local",))
+            & (traits["login"] == ("alice-wonderland.local",))
+        )
+        ret, _ = p.solve()
+
+        s = PolicyMap(
+            Select(
+                Case(
+                    external["groups"].contains_regex("admin-.*"),
+                    external["groups"].replace("admin-", "ext-"),
+                ),
+                # Default is necessary to specify default empty sequence or type
+                Default(external["groups"]),
+            )
+        )
+
+        ret, _ = Predicate(
+            (s == ("ext-test", "ext-prod"))
+            & (external["groups"] == ("admin-test", "admin-prod"))
+        ).solve()
+        assert ret is True, "match and replace works"
+
+        ret, _ = Predicate(
+            (s == ("dev-test", "dev-prod"))
+            & (external["groups"] == ("dev-test", "dev-prod"))
+        ).solve()
+        assert ret is True, "match and replace works default value"
+
+        # dev policy allows access to stage, and denies access to root
+        dev = Policy(
+            name="dev-stage",
+            allow=Rules(
+                Node((Node.login == "ubuntu") & (Node.labels["env"] == "stage")),
+            ),
+            deny=Rules(
+                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+            ),
+        )
+
+        # ext policy allows access to prod as ubuntu,
+        # but requires strict recording mode
+        ext = Policy(
+            name="ext-stage",
+            options=OptionsSet(
+                Options(Options.recording_mode == "strict"),
+            ),
+            allow=Rules(
+                Node(
+                    (Node.login == traits["login"].first())
+                    & (Node.labels["env"] == "prod")
+                ),
+            ),
+        )
+
+        p = PolicySet([dev, ext])
+
+        # make sure that policy set will never allow access to prod
+        ret, _ = p.check(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
+        assert ret is False
+
+        pset = try_login(
+            s,
+            (external["email"] == ("alice@wonderland.local",))
+            & (external["groups"] == ("ext-stage",)),
+            (dev, ext),
+        )
+        assert pset.names() == set(("ext-stage",))
+
+        # policy set will allow Alice to connect to prod if her
+        # emial is alice@wonderland.local
+        ret, _ = p.check(
+            Node(
+                (Node.login == "alice-wonderland.local")
+                & (Node.labels["env"] == "prod")
+            )
+        )
+        assert ret is True
+
+        # TODO: How to simplify testing and make it shorter?
+        # TODO: How to connect policy mappings and
