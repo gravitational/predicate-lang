@@ -349,6 +349,18 @@ class TestAst:
         )
         assert ret is True, "character not present, no effect"
 
+    def test_upper_lower(self):
+        """
+        Test upper lower case.
+        """
+        p = Predicate(Server.login == User.name.upper())
+        ret, z = p.check(Predicate((Server.login == "ALICE") & (User.name == "AlicE")))
+        assert ret is True, "uppercase works"
+
+        p = Predicate(Server.login == User.name.lower())
+        ret, z = p.check(Predicate((Server.login == "alice") & (User.name == "AlicE")))
+        assert ret is True, "lowercase works"
+
     def test_string_set_map_contains(self):
         traits = StringSetMap("mymap")
         p = Predicate(traits["key"].contains("potato"))

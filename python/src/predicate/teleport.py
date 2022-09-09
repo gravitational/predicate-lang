@@ -144,8 +144,8 @@ class User:
     # name is username
     name = ast.String("user.name")
 
-    # traits is a user trait
-    traits = ast.StringMap("user.traits")
+    # traits is a map of user traits
+    traits = ast.StringSetMap("user.traits")
 
 
 class Role:
