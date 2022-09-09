@@ -529,30 +529,44 @@ class String:
     def __eq__(self, val):
         if isinstance(val, str):
             return Eq(self, StringLiteral(val))
-        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
+        if isinstance(
+            val, (String, Concat, Split, Replace, StringSetMapIndexFirst, Upper, Lower)
+        ):
             return Eq(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __ne__(self, val):
         if isinstance(val, str):
             return Not(Eq(self, StringLiteral(val)))
-        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
+        if isinstance(
+            val, (String, Concat, Split, Replace, StringSetMapIndexFirst, Upper, Lower)
+        ):
             return Not(Eq(self, val))
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __add__(self, val):
         if isinstance(val, str):
             return Concat(self, StringLiteral(val))
-        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
+        if isinstance(
+            val, (String, Concat, Split, Replace, StringSetMapIndexFirst, Upper, Lower)
+        ):
             return Concat(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
     def __radd__(self, val):
         if isinstance(val, str):
             return Concat(StringLiteral(val), self)
-        if isinstance(val, (String, Concat, Split, Replace, StringSetMapIndexFirst)):
+        if isinstance(
+            val, (String, Concat, Split, Replace, StringSetMapIndexFirst, Upper, Lower)
+        ):
             return Concat(val, self)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def upper(self):
+        return Upper(self)
+
+    def lower(self):
+        return Lower(self)
 
     def before_delimiter(self, sep: str):
         """ """
@@ -869,6 +883,36 @@ class Split(LogicMixin):
             )
 
 
+class Upper:
+    def __init__(self, val):
+        self.val = val
+
+    def walk(self, fn):
+        fn(self)
+        self.val.walk(fn)
+
+    def __str__(self):
+        return """({}.upper()""".format(self.val)
+
+    def traverse(self):
+        return fn_string_upper(self.val.traverse())
+
+
+class Lower:
+    def __init__(self, val):
+        self.val = val
+
+    def walk(self, fn):
+        fn(self)
+        self.val.walk(fn)
+
+    def __str__(self):
+        return """({}.lower()""".format(self.val)
+
+    def traverse(self):
+        return fn_string_lower(self.val.traverse())
+
+
 class Replace(LogicMixin):
     def __init__(self, val, src, dst):
         self.val = val
@@ -1010,6 +1054,10 @@ fn_string_list_add_if_not_exists = z3.RecFunction(
     "string_list_add_if_not_exists", StringList, z3.StringSort(), StringList
 )
 
+fn_string_upper = z3.RecFunction("string_upper", z3.StringSort(), z3.StringSort())
+
+fn_string_lower = z3.RecFunction("string_lower", z3.StringSort(), z3.StringSort())
+
 
 def string_list(vals: Iterable[String]):
     def iff(iterator):
@@ -1036,6 +1084,58 @@ def define_string_list_contains():
                 StringList.car(vals) == element,
                 z3.BoolVal(True),
                 fn_string_list_contains(StringList.cdr(vals), element),
+            ),
+        ),
+    )
+
+
+def define_string_upper():
+    element = z3.StringVal("string_upper_input")
+    z3.RecAddDefinition(
+        fn_string_upper,
+        [element],
+        z3.If(
+            z3.Length(element) == 0,
+            element,
+            z3.Concat(
+                z3.If(
+                    z3.And(
+                        z3.StrToCode(z3.SubString(element, 0, 1)) <= z3.StrToCode("z"),
+                        z3.StrToCode(z3.SubString(element, 0, 1)) >= z3.StrToCode("a"),
+                    ),
+                    z3.StrFromCode(
+                        z3.StrToCode(z3.SubString(element, 0, 1))
+                        - (ord("a") - ord("A"))
+                    ),
+                    z3.SubString(element, 0, 1),
+                ),
+                fn_string_upper(z3.SubString(element, 1, z3.Length(element) - 1)),
+            ),
+        ),
+    )
+
+
+def define_string_lower():
+    element = z3.StringVal("string_lower_input")
+    z3.RecAddDefinition(
+        fn_string_lower,
+        [element],
+        z3.If(
+            z3.Length(element) == 0,
+            element,
+            z3.Concat(
+                z3.If(
+                    z3.And(
+                        z3.StrToCode(z3.SubString(element, 0, 1)) <= z3.StrToCode("Z"),
+                        z3.StrToCode(z3.SubString(element, 0, 1)) >= z3.StrToCode("A"),
+                    ),
+                    z3.StrFromCode(
+                        z3.StrToCode(z3.SubString(element, 0, 1))
+                        + (ord("a") - ord("A"))
+                    ),
+                    z3.SubString(element, 0, 1),
+                ),
+                fn_string_lower(z3.SubString(element, 1, z3.Length(element) - 1)),
             ),
         ),
     )
@@ -1115,6 +1215,8 @@ define_string_list_contains_regex()
 define_string_list_replace()
 define_string_list_add_if_not_exists()
 define_string_list_first()
+define_string_upper()
+define_string_lower()
 
 
 class StringListWrapper:
@@ -1241,7 +1343,7 @@ class StringSetMap:
     'key': set("a", "b", "c")
     """
 
-    def __init__(self, name: String, values: typing.Dict = None):
+    def __init__(self, name: str, values: typing.Dict = None):
         self.name = name
 
         if values is None:
@@ -1455,7 +1557,7 @@ class StringSetMapIndex:
     def contains(self, val):
         if isinstance(val, str):
             return StringSetMapIndexContains(self, StringLiteral(val))
-        if isinstance(val, String):
+        if isinstance(val, (String, MapIndex)):
             return StringSetMapIndexContains(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 

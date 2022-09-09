@@ -32,6 +32,6 @@ setuptools.setup(
         "mypy>=0.971" "lint-python",
     ],
     install_requires=[
-        "z3-solver>=4.8.12.0",
+        "z3-solver>=4.11.2.0",
     ],
 )
