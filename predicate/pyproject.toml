@@ -12,6 +12,7 @@ lint-python = "^2.0.0"
 flake8 = "^5.0.4"
 isort = "^5.10.1"
 pytest = "^7.1.3"
+black = "^22.8.0"
 
 [tool.lint-python]
 lint-version = "2"
