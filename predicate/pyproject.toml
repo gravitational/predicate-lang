@@ -4,6 +4,13 @@ version = "0.1.0"
 description = ""
 authors = ["Joel Wejdenstål <jwejdenstal@icloud.com>"]
 readme = "README.md"
+packages = [
+    { include = "solver" },
+    { include = "cli" },
+]
+
+[tool.poetry.scripts]
+predicate = 'cli:main'
 
 [tool.poetry.dependencies]
 python = "^3.10"

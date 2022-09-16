@@ -10,4 +10,4 @@ check:
 
 .PHONY: test
 test:
-	pytest --pyargs src
+	pytest --pyargs solver
