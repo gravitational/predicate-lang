@@ -10,4 +10,4 @@ check:
 
 .PHONY: test
 test:
-	echo hi
+	pytest --pyargs src
