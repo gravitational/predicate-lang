@@ -22,7 +22,6 @@ def test(policy_file):
     policyClass = module["Test"]
     testFns = {x: y for x, y in policyClass.__dict__.items() if type(y) == FunctionType and x.startswith("test_")}
     for testName, testFn in testFns.items():
-        testFn()
         success = False
         try:
             testFn()
