@@ -1,5 +1,5 @@
-class Policy:
-    policy = Policy(
+class Test:
+    p = Policy(
         name="access",
         allow=Rules(
             Node((Node.login == User.name)),
@@ -7,6 +7,8 @@ class Policy:
     )
 
     def test_access():
+        p = Test.p
+
         # Alice will be able to login to any machine as herself
         ret, _ = p.check(Node((Node.login == "alice") & (User.name == "alice")))
         assert ret is True, "Alice can login with her user to any node"
