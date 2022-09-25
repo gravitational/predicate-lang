@@ -4,8 +4,34 @@ from types import FunctionType
 
 import click
 
-from solver.teleport import Node, Policy, Rules, User
+from solver import (
+    Case,
+    Default,
+    Duration,
+    ParameterError,
+    Predicate,
+    Select,
+    StringLiteral,
+    StringSetMap,
+)
 
+from solver.teleport import (
+    LoginRule,
+    Node,
+    Options,
+    OptionsSet,
+    Policy,
+    PolicyMap,
+    PolicySet,
+    Request,
+    Review,
+    Role,
+    Rules,
+    Thresholds,
+    map_policies,
+    try_login,
+    User,
+)
 
 @click.group()
 def main():
@@ -16,7 +42,34 @@ def main():
 @click.argument("policy-file")
 def test(policy_file):
     # These are the predicate items we supply to the policy definition
-    env = {"Policy": Policy, "Rules": Rules, "User": User, "Node": Node}
+    env = {item.__name__: item for item in [
+        # General
+        Case,
+        Default,
+        Duration,
+        ParameterError,
+        Predicate,
+        Select,
+        StringLiteral,
+        StringSetMap,
+
+        # Teleport
+        LoginRule,
+        Node,
+        Options,
+        OptionsSet,
+        Policy,
+        PolicyMap,
+        PolicySet,
+        Request,
+        Review,
+        Role,
+        Rules,
+        Thresholds,
+        map_policies,
+        try_login,
+        User,
+    ]}
 
     # Ugly python hack to load a module with a defined environment
     module = run_path(policy_file, env)
@@ -33,9 +86,9 @@ def test(policy_file):
     click.echo(f"Running {len(fns)} tests:")
     for name, fn in fns.items():
         try:
-            fn()
-        except:
-            out = "error"
+            fn(policyClass)
+        except Exception as err:
+            out = f"error: {err}"
         else:
             out = "ok"
 
