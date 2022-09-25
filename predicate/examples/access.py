@@ -3,7 +3,7 @@ class Test:
         name="access",
         allow=Rules(
             Node((Node.login == User.name)),
-        )
+        ),
     )
 
     def test_access():
