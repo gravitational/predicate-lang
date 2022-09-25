@@ -1,4 +1,4 @@
-# predicaate
+# predicate
 
 ## Working with policies
 
