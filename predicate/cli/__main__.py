@@ -26,7 +26,7 @@ def test(policy_file):
     fns = {
         x: y
         for x, y in policyClass.__dict__.items()
-        if type(y) == FunctionType and x.startswith("test_")
+        if isinstance(y, FunctionType) and x.startswith("test_")
     }
 
     # Run all the tests, catching any exceptions and reporting success/failure accordingly
