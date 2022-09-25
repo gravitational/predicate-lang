@@ -15,5 +15,4 @@ jobs:
           pip install poetry
           poetry install
       - name: Run tests
-        working-directory: python
         run: 'poetry run make test'
