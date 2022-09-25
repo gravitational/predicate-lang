@@ -15,25 +15,32 @@ def main():
 @main.command()
 @click.argument("policy-file")
 def test(policy_file):
+    # These are the predicate items we supply to the policy definition
     env = {"Policy": Policy, "Rules": Rules, "User": User, "Node": Node}
+
+    # Ugly python hack to load a module with a defined environment
     module = run_path(policy_file, env)
-    policyClass = module["Test"]
-    testFns = {
+
+    # Extract the defined policy class and filter out all test functions
+    policyClass = module["Teleport"]
+    fns = {
         x: y
         for x, y in policyClass.__dict__.items()
         if type(y) == FunctionType and x.startswith("test_")
     }
-    for testName, testFn in testFns.items():
+
+    # Run all the tests, catching any exceptions and reporting success/failure accordingly
+    for name, fn in fns.items():
         success = False
         try:
-            testFn()
+            fn()
         except:
             pass
         else:
             success = True
 
         out = "yes" if success else "no"
-        click.echo(f"{testName}: {out}")
+        click.echo(f"{name}: {out}")
 
 
 if __name__ == "__main__":

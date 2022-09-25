@@ -1,4 +1,4 @@
-class Test:
+class Teleport:
     p = Policy(
         name="access",
         allow=Rules(
@@ -7,7 +7,7 @@ class Test:
     )
 
     def test_access():
-        p = Test.p
+        p = Teleport.p
 
         # Alice will be able to login to any machine as herself
         ret, _ = p.check(Node((Node.login == "alice") & (User.name == "alice")))
