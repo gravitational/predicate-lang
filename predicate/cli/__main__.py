@@ -88,7 +88,7 @@ def test(policy_file):
         try:
             fn(policyClass)
         except Exception as err:
-            out = f"error: {err}"
+            out = f"error -> {err}"
         else:
             out = "ok"
 
