@@ -32,15 +32,13 @@ def test(policy_file):
     # Run all the tests, catching any exceptions and reporting success/failure accordingly
     click.echo(f"Running {len(fns)} tests:")
     for name, fn in fns.items():
-        success = False
         try:
             fn()
         except:
-            pass
+            out = "error"
         else:
-            success = True
+            out = "ok"
 
-        out = "ok" if success else "error"
         click.echo(f"  - {name}: {out}")
 
 
