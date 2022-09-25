@@ -186,6 +186,7 @@ class Policy:
         options: OptionsSet = None,
         allow: Rules = None,
         deny: Rules = None,
+        loud: bool = True,
     ):
         self.name = name
         if name == "":
@@ -195,12 +196,13 @@ class Policy:
         self.allow = allow or Rules()
         self.deny = deny or Rules()
         self.options = options or OptionsSet()
+        self.loud = loud
 
     def check(self, other: ast.Predicate):
-        return PolicySet([self]).check(other)
+        return PolicySet([self], self.loud).check(other)
 
     def query(self, other: ast.Predicate):
-        return PolicySet([self]).query(other)
+        return PolicySet([self], self.loud).query(other)
 
 
 class PolicySet:
@@ -209,8 +211,9 @@ class PolicySet:
     from all other policies.
     """
 
-    def __init__(self, policies: Iterable[Policy]):
+    def __init__(self, policies: Iterable[Policy], loud: bool = True):
         self.policies = policies
+        self.loud = loud
 
     def build_predicate(self, other: ast.Predicate) -> ast.Predicate:
         allow = []
@@ -228,7 +231,7 @@ class PolicySet:
         # probably < equation will solve this problem
         allow_expr = None
         options_expr = None
-        # if option predicgae are present, apply them as mandatory
+        # if option predicate are present, apply them as mandatory
         # to the allow expression, so allow is matching only if options
         # match as well.
         if options:
@@ -244,11 +247,11 @@ class PolicySet:
             raise ast.ParameterError("policy set is empty {}")
         pr = None
         if not deny:
-            pr = ast.Predicate(allow_expr)
+            pr = ast.Predicate(allow_expr, self.loud)
         elif not allow_expr:
-            pr = ast.Predicate(deny_expr)
+            pr = ast.Predicate(deny_expr, self.loud)
         else:
-            pr = ast.Predicate(allow_expr & deny_expr)
+            pr = ast.Predicate(allow_expr & deny_expr, self.loud)
         return pr
 
     def check(self, other: ast.Predicate):

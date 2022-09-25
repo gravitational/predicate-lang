@@ -1,6 +1,7 @@
 class Teleport:
     p = Policy(
         name="access",
+        loud=False,
         allow=Rules(
             Node((Node.login == User.name)),
         ),

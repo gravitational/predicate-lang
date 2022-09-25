@@ -1739,10 +1739,11 @@ def collect_names(s, expr):
 
 
 class Predicate:
-    def __init__(self, expr):
+    def __init__(self, expr, loud=True):
         self.symbols = set()
         self.expr = expr
         self.expr.walk(functools.partial(collect_symbols, self.symbols))
+        self.loud = loud
 
     def __str__(self):
         return self.expr.__str__()
@@ -1795,7 +1796,8 @@ class Predicate:
         """
         solver = z3.Solver()
         e = self.expr.traverse()
-        print("OUR EXPR: {}".format(e))
+        if self.loud:
+            print("OUR EXPR: {}".format(e))
         solver.add(self.expr.traverse())
 
         if solver.check() == z3.unsat:
@@ -1809,13 +1811,15 @@ class Predicate:
         """
         solver = z3.Solver()
         e = self.expr.traverse()
-        print("OUR EXPR: {}".format(e))
+        if self.loud:
+            print("OUR EXPR: {}".format(e))
         solver.add(self.expr.traverse())
 
         if solver.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
         o = other.expr.traverse()
-        print("THEIR EXPR: {}".format(o))
+        if self.loud:
+            print("THEIR EXPR: {}".format(o))
         solver.add(other.expr.traverse())
 
         # TODO do a second pass to build a key checking function
