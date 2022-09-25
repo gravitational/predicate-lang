@@ -29,9 +29,8 @@ def test(policy_file):
         if type(y) == FunctionType and x.startswith("test_")
     }
 
-    click.echo(f"Running {len(fns)} tests:")
-
     # Run all the tests, catching any exceptions and reporting success/failure accordingly
+    click.echo(f"Running {len(fns)} tests:")
     for name, fn in fns.items():
         success = False
         try:
