@@ -205,8 +205,20 @@ class Policy:
         return PolicySet([self], self.loud).query(other)
 
     def export(self):
-        # TODO: walk and serialize it into something teleport can run
-        allow_expr = functools.reduce(operator.or_, self.allow.rules)
+        options_expr = None
+        if self.options.options:
+            options_rules = functools.reduce(operator.and_, self.options.options)
+            options_expr = options_rules.traverse().__str__()
+
+        allow_expr = None
+        if self.allow.rules:
+            allow_rules = functools.reduce(operator.or_, self.allow.rules)
+            allow_expr = allow_rules.traverse().__str__()
+
+        deny_expr = None
+        if self.deny.rules:
+            deny_rules = functools.reduce(operator.and_, self.deny.rules)
+            deny_expr = deny_rules.traverse().__str__()
 
         return {
             "kind": "policy",
@@ -215,9 +227,9 @@ class Policy:
                 "name": self.name,
             },
             "spec": {
-                "options": "",
-                "allow": allow_expr.__str__(),
-                "deny": "",
+                "options": options_expr or "",
+                "allow": allow_expr or "",
+                "deny": deny_expr or "",
             },
         }
 
