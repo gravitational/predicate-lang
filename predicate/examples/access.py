@@ -6,7 +6,7 @@ class Teleport:
             Node((Node.login == User.name)),
         ),
         deny=Rules(
-            Node((Node.login == "root")),
+            Node((Node.login == "mike")),
         ),
     )
 
@@ -23,3 +23,7 @@ class Teleport:
         assert (
             ret is False
         ), "This role does not allow access as root unless a user name is root"
+
+        # No one is permitted to login as mike
+        ret, _ = self.p.query(Node((Node.login == "mike")))
+        assert ret is False, "This role does not allow access as mike"
