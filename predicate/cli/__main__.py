@@ -34,7 +34,7 @@ from solver.teleport import (
     User,
 )
 
-test_env = {item.__name__: item for item in [
+env = {item.__name__: item for item in [
     # General
     Case,
     Default,
@@ -71,7 +71,7 @@ def main():
 @click.argument("policy-file")
 def export(policy_file):
     # Ugly python hack to load a module with a defined environment
-    module = run_path(policy_file, test_env)
+    module = run_path(policy_file, env)
 
     # Grabs the class and directly reads the policy since it's a static member.
     policy = module["Teleport"].p
@@ -84,7 +84,7 @@ def export(policy_file):
 @click.argument("policy-file")
 def test(policy_file):
     # Ugly python hack to load a module with a defined environment
-    module = run_path(policy_file, test_env)
+    module = run_path(policy_file, env)
 
     # Extract the defined policy class and filter out all test functions
     policyClass = module["Teleport"]
