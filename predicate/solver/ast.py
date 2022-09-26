@@ -1748,9 +1748,6 @@ class Predicate:
     def __str__(self):
         return self.expr.__str__()
 
-    def traverse(self):
-        return self.expr.traverse()
-
     def walk(self, fn):
         self.expr.walk(fn)
 

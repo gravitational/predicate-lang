@@ -178,6 +178,8 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+def transform_expr(predicate):
+    return predicate.__str__()
 
 class Policy:
     def __init__(
@@ -208,17 +210,17 @@ class Policy:
         options_expr = None
         if self.options.options:
             options_rules = functools.reduce(operator.and_, self.options.options)
-            options_expr = options_rules.traverse().__str__()
+            options_expr = transform_expr(options_rules)
 
         allow_expr = None
         if self.allow.rules:
             allow_rules = functools.reduce(operator.or_, self.allow.rules)
-            allow_expr = allow_rules.traverse().__str__()
+            allow_expr = transform_expr(allow_rules)
 
         deny_expr = None
         if self.deny.rules:
             deny_rules = functools.reduce(operator.and_, self.deny.rules)
-            deny_expr = deny_rules.traverse().__str__()
+            deny_expr = transform_expr(deny_rules)
 
         return {
             "kind": "policy",
