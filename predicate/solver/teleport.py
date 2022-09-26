@@ -193,7 +193,7 @@ def transform_expr(predicate):
     elif isinstance(predicate, ast.StringLiteral):
         return f'"{predicate.V}"'
     else:
-        return predicate.__str__()
+        return str(predicate)
 
 class Policy:
     def __init__(
