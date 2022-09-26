@@ -76,6 +76,7 @@ def export(policy_file):
     # Grabs the class and directly reads the policy since it's a static member.
     policy = module["Teleport"].p
 
+    # Dump the policy into a Teleport resource and write it to the terminal.
     obj = policy.export()
     serialized = yaml.dump(obj)
     click.echo(serialized)
