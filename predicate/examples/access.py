@@ -5,6 +5,9 @@ class Teleport:
         allow=Rules(
             Node((Node.login == User.name)),
         ),
+        deny=Rules(
+            Node((Node.login == "root")),
+        ),
     )
 
     def test_access(self):
