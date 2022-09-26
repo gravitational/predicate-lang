@@ -187,7 +187,7 @@ def transform_expr(predicate):
     if isinstance(predicate, ast.Predicate):
         return transform_expr(predicate.expr)
     elif isinstance(predicate, ast.Eq):
-        return f"{transform_expr(predicate.L)} == {transform_expr(predicate.R)}"
+        return f"({transform_expr(predicate.L)} == {transform_expr(predicate.R)})"
     elif isinstance(predicate, ast.String):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
