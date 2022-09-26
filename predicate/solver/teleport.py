@@ -221,34 +221,28 @@ class Policy:
         return PolicySet([self], self.loud).query(other)
 
     def export(self):
-        options_expr = None
-        if self.options.options:
-            options_rules = functools.reduce(operator.and_, self.options.options)
-            options_expr = transform_expr(options_rules)
-
-        allow_expr = None
-        if self.allow.rules:
-            allow_rules = functools.reduce(operator.or_, self.allow.rules)
-            allow_expr = transform_expr(allow_rules)
-
-        deny_expr = None
-        if self.deny.rules:
-            deny_rules = functools.reduce(operator.and_, self.deny.rules)
-            deny_expr = transform_expr(deny_rules)
-
-        return {
+        out = {
             "kind": "policy",
             "version": "v1",
             "metadata": {
                 "name": self.name,
             },
-            "spec": {
-                "options": options_expr or "",
-                "allow": allow_expr or "",
-                "deny": deny_expr or "",
-            },
+            "spec": {},
         }
 
+        if self.options.options:
+            options_rules = functools.reduce(operator.and_, self.options.options)
+            out["spec"]["options"] = transform_expr(options_rules)
+
+        if self.allow.rules:
+            allow_rules = functools.reduce(operator.or_, self.allow.rules)
+            out["spec"]["allow"] = transform_expr(allow_rules)
+
+        if self.deny.rules:
+            deny_rules = functools.reduce(operator.and_, self.deny.rules)
+            out["spec"]["deny"] = transform_expr(deny_rules)
+
+        return out
 
 class PolicySet:
     """
