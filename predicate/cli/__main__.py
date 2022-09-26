@@ -3,6 +3,7 @@ from runpy import run_path
 from types import FunctionType
 
 import click
+import yaml
 
 from solver import (
     Case,
@@ -33,46 +34,57 @@ from solver.teleport import (
     User,
 )
 
+test_env = {item.__name__: item for item in [
+    # General
+    Case,
+    Default,
+    Duration,
+    ParameterError,
+    Predicate,
+    Select,
+    StringLiteral,
+    StringSetMap,
+
+    # Teleport
+    LoginRule,
+    Node,
+    Options,
+    OptionsSet,
+    Policy,
+    PolicyMap,
+    PolicySet,
+    Request,
+    Review,
+    Role,
+    Rules,
+    Thresholds,
+    map_policies,
+    try_login,
+    User,
+]}
+
 @click.group()
 def main():
     pass
 
+@main.command()
+@click.argument("policy-file")
+def export(policy_file):
+    # Ugly python hack to load a module with a defined environment
+    module = run_path(policy_file, test_env)
+
+    # Grabs the class and directly reads the policy since it's a static member.
+    policy = module["Teleport"].p
+
+    obj = policy.export()
+    serialized = yaml.dump(obj)
+    click.echo(serialized)
 
 @main.command()
 @click.argument("policy-file")
 def test(policy_file):
-    # These are the predicate items we supply to the policy definition
-    env = {item.__name__: item for item in [
-        # General
-        Case,
-        Default,
-        Duration,
-        ParameterError,
-        Predicate,
-        Select,
-        StringLiteral,
-        StringSetMap,
-
-        # Teleport
-        LoginRule,
-        Node,
-        Options,
-        OptionsSet,
-        Policy,
-        PolicyMap,
-        PolicySet,
-        Request,
-        Review,
-        Role,
-        Rules,
-        Thresholds,
-        map_policies,
-        try_login,
-        User,
-    ]}
-
     # Ugly python hack to load a module with a defined environment
-    module = run_path(policy_file, env)
+    module = run_path(policy_file, test_env)
 
     # Extract the defined policy class and filter out all test functions
     policyClass = module["Teleport"]

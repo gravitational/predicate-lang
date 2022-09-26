@@ -204,6 +204,20 @@ class Policy:
     def query(self, other: ast.Predicate):
         return PolicySet([self], self.loud).query(other)
 
+    def export(self):
+        return {
+            "kind": "policy",
+            "version": "v1",
+            "metadata": {
+                "name": self.name,
+            },
+            "spec": {
+                "options": "",
+                "allow": "",
+                "deny": "",
+            },
+        }
+
 
 class PolicySet:
     """
