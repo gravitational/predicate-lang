@@ -178,8 +178,22 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+# TODO: not really sure how I want to structure this logic
+#       as I'd like to keep the logic for non-teleport specific ast elements close to their
+#       definitions, but I am not sure if this is doable without a lot of complexity as the output
+#       format is tied to whatever builds on top of the general ast
+#       this might do for now
 def transform_expr(predicate):
-    return predicate.__str__()
+    if isinstance(predicate, ast.Predicate):
+        return transform_expr(predicate.expr)
+    elif isinstance(predicate, ast.Eq):
+        return f"{transform_expr(predicate.L)} == {transform_expr(predicate.R)}"
+    elif isinstance(predicate, ast.String):
+        return predicate.name
+    elif isinstance(predicate, ast.StringLiteral):
+        return f'"{predicate.V}"'
+    else:
+        return predicate.__str__()
 
 class Policy:
     def __init__(
