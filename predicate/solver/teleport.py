@@ -205,6 +205,9 @@ class Policy:
         return PolicySet([self], self.loud).query(other)
 
     def export(self):
+        # TODO: walk and serialize it into something teleport can run
+        allow_expr = functools.reduce(operator.or_, self.allow.rules)
+
         return {
             "kind": "policy",
             "version": "v1",
@@ -213,7 +216,7 @@ class Policy:
             },
             "spec": {
                 "options": "",
-                "allow": "",
+                "allow": allow_expr.__str__(),
                 "deny": "",
             },
         }
