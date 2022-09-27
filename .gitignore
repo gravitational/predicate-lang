@@ -16,3 +16,6 @@
 
 target/
 *.wasm
+
+**/.pytest_cache/
+**/__pycache__/

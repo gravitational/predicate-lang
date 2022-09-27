@@ -1,6 +1,6 @@
 import pytest
 
-from predicate import (
+from .. import (
     Case,
     Default,
     Duration,
@@ -10,7 +10,7 @@ from predicate import (
     StringLiteral,
     StringSetMap,
 )
-from predicate.teleport import (
+from ..teleport import (
     LoginRule,
     Node,
     Options,

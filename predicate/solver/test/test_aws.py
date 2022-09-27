@@ -1,6 +1,6 @@
 import pytest
 
-from predicate import Predicate, aws
+from .. import Predicate, aws
 
 
 class TestAWS:

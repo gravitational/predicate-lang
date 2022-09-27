@@ -1,6 +1,6 @@
 import pytest
 
-from predicate import (
+from .. import (
     Bool,
     Case,
     Default,

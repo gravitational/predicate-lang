@@ -49,10 +49,8 @@ ret = s.check()
 print("Ret: {}".format(ret))
 
 """
-
 fn_a = z3.Function('fn_a', z3.StringSort(), z3.StringSort(), z3.BoolSort())
 s.add(fn_a(z3.StringVal("key"), z3.StringVal("potato"))  == True)
-
 fn_b = z3.RecFunction('fn_b', z3.StringSort(), z3.StringSort(), z3.BoolSort())
 key = z3.String('key')
 val = z3.String('val')
@@ -62,9 +60,7 @@ z3.RecAddDefinition(fn_b, [key, val],
                           z3.If(z3.And(key == z3.StringVal("key"), val == z3.StringVal("apple")),
                                 z3.BoolVal(True),
                                 z3.BoolVal(False))))
-
 s.add(fn_b(z3.StringVal("key"), z3.StringVal("strawberry"))  == True)
-
 #free = z3.String('free')
 #s.add(z3.Distinct(fn_a(z3.StringVal("key"), free), fn_b(z3.StringVal("key"), free)))
 ret = s.check()

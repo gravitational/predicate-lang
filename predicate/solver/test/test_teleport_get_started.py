@@ -1,4 +1,5 @@
-from predicate.teleport import Node, Policy, Rules, User
+from ..teleport import Node, Policy, Rules, User
+
 
 class TestTeleportGetStarted:
     """

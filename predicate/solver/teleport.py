@@ -178,6 +178,22 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+# TODO: not really sure how I want to structure this logic
+#       as I'd like to keep the logic for non-teleport specific ast elements close to their
+#       definitions, but I am not sure if this is doable without a lot of complexity as the output
+#       format is tied to whatever builds on top of the general ast
+#       this might do for now
+def transform_expr(predicate):
+    if isinstance(predicate, ast.Predicate):
+        return transform_expr(predicate.expr)
+    elif isinstance(predicate, ast.Eq):
+        return f"({transform_expr(predicate.L)} == {transform_expr(predicate.R)})"
+    elif isinstance(predicate, ast.String):
+        return predicate.name
+    elif isinstance(predicate, ast.StringLiteral):
+        return f'"{predicate.V}"'
+    else:
+        return str(predicate)
 
 class Policy:
     def __init__(
@@ -186,6 +202,7 @@ class Policy:
         options: OptionsSet = None,
         allow: Rules = None,
         deny: Rules = None,
+        loud: bool = True,
     ):
         self.name = name
         if name == "":
@@ -195,13 +212,37 @@ class Policy:
         self.allow = allow or Rules()
         self.deny = deny or Rules()
         self.options = options or OptionsSet()
+        self.loud = loud
 
     def check(self, other: ast.Predicate):
-        return PolicySet([self]).check(other)
+        return PolicySet([self], self.loud).check(other)
 
     def query(self, other: ast.Predicate):
-        return PolicySet([self]).query(other)
+        return PolicySet([self], self.loud).query(other)
 
+    def export(self):
+        out = {
+            "kind": "policy",
+            "version": "v1",
+            "metadata": {
+                "name": self.name,
+            },
+            "spec": {},
+        }
+
+        if self.options.options:
+            options_rules = functools.reduce(operator.and_, self.options.options)
+            out["spec"]["options"] = transform_expr(options_rules)
+
+        if self.allow.rules:
+            allow_rules = functools.reduce(operator.or_, self.allow.rules)
+            out["spec"]["allow"] = transform_expr(allow_rules)
+
+        if self.deny.rules:
+            deny_rules = functools.reduce(operator.and_, self.deny.rules)
+            out["spec"]["deny"] = transform_expr(deny_rules)
+
+        return out
 
 class PolicySet:
     """
@@ -209,8 +250,9 @@ class PolicySet:
     from all other policies.
     """
 
-    def __init__(self, policies: Iterable[Policy]):
+    def __init__(self, policies: Iterable[Policy], loud: bool = True):
         self.policies = policies
+        self.loud = loud
 
     def build_predicate(self, other: ast.Predicate) -> ast.Predicate:
         allow = []
@@ -228,7 +270,7 @@ class PolicySet:
         # probably < equation will solve this problem
         allow_expr = None
         options_expr = None
-        # if option predicgae are present, apply them as mandatory
+        # if option predicate are present, apply them as mandatory
         # to the allow expression, so allow is matching only if options
         # match as well.
         if options:
@@ -244,11 +286,11 @@ class PolicySet:
             raise ast.ParameterError("policy set is empty {}")
         pr = None
         if not deny:
-            pr = ast.Predicate(allow_expr)
+            pr = ast.Predicate(allow_expr, self.loud)
         elif not allow_expr:
-            pr = ast.Predicate(deny_expr)
+            pr = ast.Predicate(deny_expr, self.loud)
         else:
-            pr = ast.Predicate(allow_expr & deny_expr)
+            pr = ast.Predicate(allow_expr & deny_expr, self.loud)
         return pr
 
     def check(self, other: ast.Predicate):
