@@ -13,6 +13,7 @@ from .. import (
     String,
     StringEnum,
     StringMap,
+    StringList,
     StringSetMap,
     StringTuple,
     parse_regex,
@@ -360,6 +361,56 @@ class TestAst:
         p = Predicate(Server.login == User.name.lower())
         ret, z = p.check(Predicate((Server.login == "alice") & (User.name == "AlicE")))
         assert ret is True, "lowercase works"
+
+    def test_string_list_init(self):
+        # filter example - we only keep fruits by copying them over
+        fruits = StringList("fruits", ("apple", "strawberry", "banana"))
+
+        p = Predicate(
+            (fruits == ("apple", "strawberry", "banana"))
+        )
+        ret, _ = p.solve()
+        assert ret is True, "values match"
+
+    def test_string_list_with_if(self):
+        basket = StringList("basket")
+        # filter example - we only keep fruits by copying them over
+        fruits = StringList("fruits", If(
+            basket.contains("banana"),
+            basket.add("blueberry"),
+            basket,
+        ))
+
+        p = Predicate(
+            (basket == ("strawberry", "apple", "banana"))
+            & (fruits == ("blueberry", "strawberry", "apple", "banana"))
+        )
+        ret, _ = p.solve()
+        assert ret is True, "blueberry was added"
+
+        p = Predicate(
+            (basket == ("apple", "strawberry"))
+            & (fruits == ("apple", "strawberry"))
+        )
+        p.solve()
+        assert ret is True, "blueberry was not added"
+
+    def test_string_list_transform_value(self):
+        external = StringList("external")
+        # transform example - we reference another variable and transform
+        traits = StringList("traits", external.replace("@", "-"))
+
+        p = Predicate(
+            (external == ("alice@wonderland.local",))
+            & (traits == ("alice-wonderland.local",))
+        )
+        ret, _ = p.solve()
+        assert ret is True, "transformation has been applied"
+
+        p = Predicate((external == ()) & (traits == ()))
+        ret, _ = p.solve()
+        assert ret is True, "transformation on empty list is empty"
+    ###
 
     def test_string_set_map_contains(self):
         traits = StringSetMap("mymap")
