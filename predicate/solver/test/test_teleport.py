@@ -19,8 +19,8 @@ from ..teleport import (
     PolicyMap,
     PolicySet,
     Request,
+    RequestPolicy,
     Review,
-    Role,
     Rules,
     Thresholds,
     map_policies,
@@ -105,24 +105,24 @@ class TestTeleport:
             name="a",
             allow=Rules(
                 Request(
-                    (Role.name == "access-prod")
+                    (RequestPolicy.names == ("access-prod",))
                     & (Thresholds.approve == 1)
                     & (Thresholds.deny == 2)
                 ),
-                Review(Role.name == "access-prod"),
+                Review(RequestPolicy.names == ("access-prod",)),
             ),
         )
 
         # Can user request a role?
-        ret, _ = p.query(Request((Role.name == "access-prod")))
+        ret, _ = p.query(Request((RequestPolicy.names == ("access-prod",))))
         assert ret is True, "check works"
 
         # Can user with these policies review a role?
-        ret, _ = p.query(Review(Role.name == "access-prod"))
+        ret, _ = p.query(Review(RequestPolicy.names == ("access-prod",)))
         assert ret is True, "check works"
 
         # Can user with these policies review a role?
-        ret, _ = p.query(Review(Role.name == "access-stage"))
+        ret, _ = p.query(Review(RequestPolicy.names == ("access-stage",)))
         assert ret is False, "can't approve role that is not listed in the policy"
 
     def test_options(self):

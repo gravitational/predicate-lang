@@ -9,6 +9,8 @@ from .ast import (
     Select,
     String,
     StringEnum,
+    StringList,
+    StringListLiteral,
     StringLiteral,
     StringMap,
     StringSetMap,

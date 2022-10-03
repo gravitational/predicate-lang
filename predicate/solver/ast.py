@@ -590,6 +590,204 @@ class String:
         fn(self)
 
 
+class StringList:
+    def __init__(self, name: str, values: typing.Iterable[str] = None):
+        self.name = name
+        if values is None:
+            self.fn_map = z3.Function(self.name, z3.StringSort(), StringListSort)
+        else:
+            # if string set map is defined, instead of unbound function as above,
+            # define the map as a recursive function evaluating to list
+            def iff(val):
+                if isinstance(val, tuple):
+                    val = StringListLiteral(val)
+                return val.traverse()
+            # wrap the original map function to always add a key if it exists
+            arg_key = z3.StringVal(self.name + "string_list_arg")
+            self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringListSort)
+            z3.RecAddDefinition(
+                self.fn_map, [arg_key], iff(values)
+            )
+
+    def first(self):
+        """
+        First returns first non-empty value
+        """
+        return StringSetMapIndexFirst(self)
+
+    def contains(self, val):
+        if isinstance(val, str):
+            return StringListContains(self, StringLiteral(val))
+        if isinstance(val, (String, MapIndex)):
+            return StringListContains(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def contains_regex(self, val):
+        if isinstance(val, str):
+            return StringListContainsRegex(self, parse_regex(val))
+        raise TypeError(
+            "unsupported type {}, supported strings with regexp only".format(type(val))
+        )
+
+    def replace(self, src, dst):
+        if isinstance(src, str):
+            return StringListReplace(
+                self, StringLiteral(src), StringLiteral(dst)
+            )
+        if isinstance(dst, String):
+            return StringListReplace(self, src, dst)
+        raise TypeError("unsupported type {}, supported strings only".format(type(src)))
+
+    def add(self, val):
+        if isinstance(val, str):
+            return StringListAdd(self, StringLiteral(val))
+        if isinstance(val, String):
+            return StringListAdd(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def walk(self, fn):
+        fn(self)
+
+    def __eq__(self, val):
+        if isinstance(val, tuple):
+            return StringListEquals(self, StringTuple(val))
+        raise TypeError(
+            "unsupported type {}, supported string tuples only".format(type(val))
+        )
+
+    def __str__(self):
+        return "string_list({})".format(self.name)
+
+    def traverse(self):
+        return self.fn_map(z3.StringVal(self.name))
+
+
+class StringListContains(LogicMixin):
+    def __init__(self, expr: StringList, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return """({}.contains({}))""".format(self.E, self.V)
+
+    def traverse(self):
+        return fn_string_list_contains(
+            self.E.fn_map(z3.StringVal(self.E.name)), self.V.traverse()
+        ) == z3.BoolVal(True)
+
+
+class StringListFirst:
+    def __init__(self, expr: StringList):
+        self.E = expr
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+
+    def __str__(self):
+        return """({}.first())""".format(self.E)
+
+    def traverse(self):
+        return fn_string_list_first(self.E.m.fn_map(z3.StringVal(self.E.name)))
+
+    def __eq__(self, val):
+        if isinstance(val, str):
+            return Eq(self, StringLiteral(val))
+        if isinstance(val, (String, Concat, Split, Replace, StringListFirst, StringSetMapIndexFirst)):
+            return Eq(self, val)
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+    def __ne__(self, val):
+        if isinstance(val, str):
+            return Not(Eq(self, StringLiteral(val)))
+        if isinstance(val, (String, Concat, Split, Replace, StringListFirst, StringSetMapIndexFirst)):
+            return Not(Eq(self, val))
+        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+
+
+class StringListContainsRegex(LogicMixin):
+    def __init__(self, expr: StringList, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return """({}.contains_regex({}))""".format(self.E, self.V)
+
+    def traverse(self):
+        return fn_string_list_contains_regex(
+            self.E.fn_map(z3.StringVal(self.E.name)), self.V.traverse()
+        ) == z3.BoolVal(True)
+
+
+class StringListReplace:
+    def __init__(self, expr: StringList, src, dst):
+        self.E = expr
+        self.S = src
+        self.D = dst
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.S.walk(fn)
+        self.D.walk(fn)
+
+    def __str__(self):
+        return """({}.replace({}, {}))""".format(self.E, self.S, self.D)
+
+    def traverse(self):
+        return fn_string_list_replace(
+            self.E.fn_map(z3.StringVal(self.E.name)),
+            self.S.traverse(),
+            self.D.traverse(),
+        )
+
+
+class StringListAdd:
+    def __init__(self, expr: StringList, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return """({}.add({}))""".format(self.E, self.V)
+
+    def traverse(self):
+        return fn_string_list_add_if_not_exists(
+            self.E.fn_map(z3.StringVal(self.E.name)), self.V.traverse()
+        )
+
+
+class StringListEquals(LogicMixin):
+    def __init__(self, expr: StringList, val):
+        self.E = expr
+        self.V = val
+
+    def walk(self, fn):
+        fn(self)
+        self.E.walk(fn)
+        self.V.walk(fn)
+
+    def __str__(self):
+        return """({} == {})""".format(self.E.name, self.V.vals)
+
+    def traverse(self):
+        return self.E.fn_map(z3.StringVal(self.E.name)) == string_list(self.V.vals)
+
+
 def define_enum_fn(fn_map, fn_key, kv: typing.Dict[String, Int]):
     """
     Define mapfn defines a key value map using recursive Z3 function,
@@ -1030,28 +1228,28 @@ class MapIndex(LogicMixin):
 # See https://ericpony.github.io/z3py-tutorial/advanced-examples.htm
 # for details on the advanced data types
 #
-StringList = z3.Datatype("List")
-StringList.declare("cons", ("car", z3.StringSort()), ("cdr", StringList))
+StringListSort = z3.Datatype("List")
+StringListSort.declare("cons", ("car", z3.StringSort()), ("cdr", StringListSort))
 # nil list
-StringList.declare("nil")
+StringListSort.declare("nil")
 # Create the datatype
-StringList = StringList.create()
+StringListSort = StringListSort.create()
 
 fn_string_list_contains = z3.RecFunction(
-    "string_list_contains", StringList, z3.StringSort(), z3.BoolSort()
+    "string_list_contains", StringListSort, z3.StringSort(), z3.BoolSort()
 )
-fn_string_list_first = z3.RecFunction("string_list_first", StringList, z3.StringSort())
+fn_string_list_first = z3.RecFunction("string_list_first", StringListSort, z3.StringSort())
 fn_string_list_contains_regex = z3.RecFunction(
     "string_list_contains_regex",
-    StringList,
+    StringListSort,
     z3.ReSort(z3.StringSort()),
     z3.BoolSort(),
 )
 fn_string_list_replace = z3.RecFunction(
-    "string_list_replace", StringList, z3.StringSort(), z3.StringSort(), StringList
+    "string_list_replace", StringListSort, z3.StringSort(), z3.StringSort(), StringListSort
 )
 fn_string_list_add_if_not_exists = z3.RecFunction(
-    "string_list_add_if_not_exists", StringList, z3.StringSort(), StringList
+    "string_list_add_if_not_exists", StringListSort, z3.StringSort(), StringListSort
 )
 
 fn_string_upper = z3.RecFunction("string_upper", z3.StringSort(), z3.StringSort())
@@ -1059,31 +1257,31 @@ fn_string_upper = z3.RecFunction("string_upper", z3.StringSort(), z3.StringSort(
 fn_string_lower = z3.RecFunction("string_lower", z3.StringSort(), z3.StringSort())
 
 
-def string_list(vals: Iterable[String]):
+def string_list(vals: Iterable[str]):
     def iff(iterator):
         try:
             val = next(iterator)
         except StopIteration:
-            return StringList.nil
+            return StringListSort.nil
         else:
-            return StringList.cons(z3.StringVal(val), iff(iterator))
+            return StringListSort.cons(z3.StringVal(val), iff(iterator))
 
     return iff(iter(vals))
 
 
 def define_string_list_contains():
-    vals = z3.Const("string_list_contains_vals", StringList)
+    vals = z3.Const("string_list_contains_vals", StringListSort)
     element = z3.StringVal("string_list_contains_search")
     z3.RecAddDefinition(
         fn_string_list_contains,
         [vals, element],
         z3.If(
-            StringList.nil == vals,
+            StringListSort.nil == vals,
             z3.BoolVal(False),
             z3.If(
-                StringList.car(vals) == element,
+                StringListSort.car(vals) == element,
                 z3.BoolVal(True),
-                fn_string_list_contains(StringList.cdr(vals), element),
+                fn_string_list_contains(StringListSort.cdr(vals), element),
             ),
         ),
     )
@@ -1142,24 +1340,24 @@ def define_string_lower():
 
 
 def define_string_list_first():
-    vals = z3.Const("string_list_first_vals", StringList)
+    vals = z3.Const("string_list_first_vals", StringListSort)
     z3.RecAddDefinition(
         fn_string_list_first,
         [vals],
         z3.If(
-            StringList.nil == vals,
+            StringListSort.nil == vals,
             z3.StringVal(""),
             z3.If(
-                StringList.car(vals) != z3.StringVal(""),
-                StringList.car(vals),
-                fn_string_list_first(StringList.cdr(vals)),
+                StringListSort.car(vals) != z3.StringVal(""),
+                StringListSort.car(vals),
+                fn_string_list_first(StringListSort.cdr(vals)),
             ),
         ),
     )
 
 
 def define_string_list_contains_regex():
-    vals = z3.Const("string_list_contains_regex_vals", StringList)
+    vals = z3.Const("string_list_contains_regex_vals", StringListSort)
     expression = z3.Const(
         "string_list_contains_regex_expression", z3.ReSort(z3.StringSort())
     )
@@ -1167,37 +1365,37 @@ def define_string_list_contains_regex():
         fn_string_list_contains_regex,
         [vals, expression],
         z3.If(
-            StringList.nil == vals,
+            StringListSort.nil == vals,
             z3.BoolVal(False),
             z3.If(
-                z3.InRe(StringList.car(vals), expression),
+                z3.InRe(StringListSort.car(vals), expression),
                 z3.BoolVal(True),
-                fn_string_list_contains_regex(StringList.cdr(vals), expression),
+                fn_string_list_contains_regex(StringListSort.cdr(vals), expression),
             ),
         ),
     )
 
 
 def define_string_list_replace():
-    vals = z3.Const("string_list_replace_vals", StringList)
+    vals = z3.Const("string_list_replace_vals", StringListSort)
     src = z3.StringVal("string_list_replace_src")
     dst = z3.StringVal("string_list_replace_dst")
     z3.RecAddDefinition(
         fn_string_list_replace,
         [vals, src, dst],
         z3.If(
-            StringList.nil == vals,
-            StringList.nil,
-            StringList.cons(
-                z3.Replace(StringList.car(vals), src, dst),
-                fn_string_list_replace(StringList.cdr(vals), src, dst),
+            StringListSort.nil == vals,
+            StringListSort.nil,
+            StringListSort.cons(
+                z3.Replace(StringListSort.car(vals), src, dst),
+                fn_string_list_replace(StringListSort.cdr(vals), src, dst),
             ),
         ),
     )
 
 
 def define_string_list_add_if_not_exists():
-    vals = z3.Const("string_list_add_ifne_vals", StringList)
+    vals = z3.Const("string_list_add_ifne_vals", StringListSort)
     element = z3.StringVal("string_add_ifne_contains_search")
     z3.RecAddDefinition(
         fn_string_list_add_if_not_exists,
@@ -1205,7 +1403,7 @@ def define_string_list_add_if_not_exists():
         z3.If(
             fn_string_list_contains(vals, element) == z3.BoolVal(True),
             vals,
-            StringList.cons(element, vals),
+            StringListSort.cons(element, vals),
         ),
     )
 
@@ -1219,8 +1417,8 @@ define_string_upper()
 define_string_lower()
 
 
-class StringListWrapper:
-    def __init__(self, vals: Iterable[String]):
+class StringListLiteral:
+    def __init__(self, vals: Iterable[str]):
         self.vals = vals
 
     def traverse(self):
@@ -1269,7 +1467,7 @@ class Default:
 
 def convert_literal(expr):
     if isinstance(expr, tuple):
-        return StringListWrapper(expr)
+        return StringListLiteral(expr)
     if isinstance(expr, str):
         return StringLiteral(expr)
     if isinstance(expr, int):
@@ -1347,7 +1545,7 @@ class StringSetMap:
         self.name = name
 
         if values is None:
-            self.fn_map = z3.Function(self.name, z3.StringSort(), StringList)
+            self.fn_map = z3.Function(self.name, z3.StringSort(), StringListSort)
         else:
             # if string set map is defined, instead of unbound function as above,
             # define the map as a recursive function
@@ -1355,20 +1553,20 @@ class StringSetMap:
                 try:
                     key, val = next(iterator)
                     if isinstance(val, tuple):
-                        val = StringListWrapper(val)
+                        val = StringListLiteral(val)
                 except StopIteration:
-                    return StringList.nil
+                    return StringListSort.nil
                 else:
                     return z3.If(
                         fn_key == z3.StringVal(key),
                         val.traverse(),
                         iff(fn_key, iterator),
                     )
-                    return StringList.cons(z3.StringVal(val), iff(iterator))
+                    return StringListSort.cons(z3.StringVal(val), iff(iterator))
 
             # wrap the original map function to always add a key if it exists
             arg_key = z3.StringVal(self.name + "string_set_map_add_key")
-            self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+            self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringListSort)
             z3.RecAddDefinition(
                 self.fn_map, [arg_key], iff(arg_key, iter(values.items()))
             )
@@ -1407,14 +1605,14 @@ class StringSetMapOverwrite(StringSetMap):
 
         # wrap the original map function to always add a key if it exists
         arg_key = z3.StringVal(self.name + "_string_set_map_overwrite")
-        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringListSort)
 
         # define the map as a recursive function
         def iff(fn_key, iterator, wrapped_map_fn):
             try:
                 key, val = next(iterator)
                 if isinstance(val, tuple):
-                    val = StringListWrapper(val)
+                    val = StringListLiteral(val)
             except StopIteration:
                 return wrapped_map_fn(fn_key)
             else:
@@ -1426,7 +1624,7 @@ class StringSetMapOverwrite(StringSetMap):
 
         # wrap the original map function to always add a key if it exists
         arg_key = z3.StringVal(self.name + "_string_set_map_extend_arg")
-        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringListSort)
         z3.RecAddDefinition(
             self.fn_map, [arg_key], iff(arg_key, iter(values.items()), self.m.fn_map)
         )
@@ -1462,7 +1660,7 @@ class StringSetMapAddValue(StringSetMap):
 
         # wrap the original map function to always add a key if it exists
         arg_key = z3.StringVal(self.name + "string_set_map_add_key")
-        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringListSort)
         z3.RecAddDefinition(
             self.fn_map,
             [arg_key],
@@ -1471,7 +1669,7 @@ class StringSetMapAddValue(StringSetMap):
                 z3.If(
                     fn_string_list_contains(self.m.fn_map(arg_key), z3.StringVal(val)),
                     self.m.fn_map(arg_key),
-                    StringList.cons(z3.StringVal(val), self.m.fn_map(arg_key)),
+                    StringListSort.cons(z3.StringVal(val), self.m.fn_map(arg_key)),
                 ),
                 self.m.fn_map(arg_key),
             ),
@@ -1507,7 +1705,7 @@ class StringSetMapRemoveKeys(StringSetMap):
         self.K = keys
 
         arg_key = z3.StringVal(self.name + "string_set_map_remove_key")
-        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringList)
+        self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringListSort)
         # wrap the original map function to always return a nil list if key matches,
         # return original function otherwise
         z3.RecAddDefinition(
@@ -1515,7 +1713,7 @@ class StringSetMapRemoveKeys(StringSetMap):
             [arg_key],
             z3.If(
                 z3.Or([arg_key == z3.StringVal(key) for key in self.K]),
-                StringList.nil,
+                StringListSort.nil,
                 self.m.fn_map(arg_key),
             ),
         )
