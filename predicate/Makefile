@@ -1,4 +1,9 @@
-all: 
+all:
+
+.PHONY: test-%
+test-%:
+	mypy solver/test/test_$*.py
+	pytest --pyargs solver/test/test_$*.py
 
 .PHONY: lint
 lint:

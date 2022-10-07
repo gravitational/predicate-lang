@@ -136,7 +136,7 @@ def map_policies(policy_names, policies):
     return PolicySet(mapped_policies)
 
 
-def replay_request(request:tuple, approve:Iterable=(), deny:Iterable=()):
+def replay_request(request: tuple, approve: Iterable = (), deny: Iterable = ()):
     requestor, expr = request
     # First, check if requestor can request
     ret, model = requestor.query(expr)
@@ -144,7 +144,7 @@ def replay_request(request:tuple, approve:Iterable=(), deny:Iterable=()):
         return ret, model
     # Check if any of the approvers can approve, calculate thresholds?
     # Or build a model threshold > 1 and threshold == (0 + 1 + 1 + 1)
-    
+
     pass
 
     # Ok, requestor can create the request,
@@ -165,8 +165,17 @@ class User:
     # traits is a map of user traits
     traits = ast.StringSetMap("user.traits")
 
+
 class RequestPolicy:
+    # names is a list of policy names
     names = ast.StringList("policy.names")
+
+    # approvals is a list of recorded approvals for policy name
+    approvals = ast.StringSetMap("policy.approvals")
+
+    # denials is a list of recorded approvals for policy
+    denials = ast.StringSetMap("policy.denials")
+
 
 class Thresholds:
     approve = ast.Int("request.approve")
@@ -179,6 +188,7 @@ class Request(ast.Predicate):
 
     def traverse(self):
         return self.expr.traverse()
+
 
 class Review(ast.Predicate):
     def __init__(self, expr):
@@ -196,6 +206,7 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+
 # TODO: not really sure how I want to structure this logic
 #       as I'd like to keep the logic for non-teleport specific ast elements close to their
 #       definitions, but I am not sure if this is doable without a lot of complexity as the output
@@ -212,6 +223,7 @@ def transform_expr(predicate):
         return f'"{predicate.V}"'
     else:
         return str(predicate)
+
 
 class Policy:
     def __init__(
@@ -261,6 +273,7 @@ class Policy:
             out["spec"]["deny"] = transform_expr(deny_rules)
 
         return out
+
 
 class PolicySet:
     """
