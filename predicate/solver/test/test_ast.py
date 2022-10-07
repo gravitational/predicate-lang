@@ -12,8 +12,8 @@ from .. import (
     Select,
     String,
     StringEnum,
-    StringMap,
     StringList,
+    StringMap,
     StringSetMap,
     StringTuple,
     parse_regex,
@@ -366,20 +366,21 @@ class TestAst:
         # filter example - we only keep fruits by copying them over
         fruits = StringList("fruits", ("apple", "strawberry", "banana"))
 
-        p = Predicate(
-            (fruits == ("apple", "strawberry", "banana"))
-        )
+        p = Predicate((fruits == ("apple", "strawberry", "banana")))
         ret, _ = p.solve()
         assert ret is True, "values match"
 
     def test_string_list_with_if(self):
         basket = StringList("basket")
         # filter example - we only keep fruits by copying them over
-        fruits = StringList("fruits", If(
-            basket.contains("banana"),
-            basket.add("blueberry"),
-            basket,
-        ))
+        fruits = StringList(
+            "fruits",
+            If(
+                basket.contains("banana"),
+                basket.add("blueberry"),
+                basket,
+            ),
+        )
 
         p = Predicate(
             (basket == ("strawberry", "apple", "banana"))
@@ -389,8 +390,7 @@ class TestAst:
         assert ret is True, "blueberry was added"
 
         p = Predicate(
-            (basket == ("apple", "strawberry"))
-            & (fruits == ("apple", "strawberry"))
+            (basket == ("apple", "strawberry")) & (fruits == ("apple", "strawberry"))
         )
         p.solve()
         assert ret is True, "blueberry was not added"
@@ -410,7 +410,6 @@ class TestAst:
         p = Predicate((external == ()) & (traits == ()))
         ret, _ = p.solve()
         assert ret is True, "transformation on empty list is empty"
-    ###
 
     def test_string_set_map_contains(self):
         traits = StringSetMap("mymap")
@@ -447,6 +446,46 @@ class TestAst:
             p = Predicate(traits["groups"].contains_regex("fruit-apple"))
             ret, _ = p.solve()
         assert "unsolvable" in str(exc.value)
+
+    def test_string_set_map_len(self):
+        traits = StringSetMap(
+            "mymap",
+            {
+                "groups": ("fruit-apple", "veggie-potato", "fruit-banana"),
+            },
+        )
+        p = Predicate(traits["groups"].len() == 3)
+        ret, _ = p.solve()
+        assert ret is True, "counts properly"
+
+        p = Predicate(traits["missing"].len() == 0)
+        ret, _ = p.solve()
+        assert ret is True, "missing key results in empty count"
+
+        with pytest.raises(ParameterError) as exc:
+            p = Predicate(traits["missing"].len() == 1)
+            ret, _ = p.solve()
+
+    def test_string_set_map_len_undefined(self):
+        approvals = StringSetMap("mymap")
+        p = Predicate(approvals["my-policy"].len() > 2)
+        ret, _ = p.solve()
+        assert ret is True, "predicate solves"
+
+        ret, _ = p.check(
+            Predicate(approvals["my-policy"].len() == 3)
+        )
+        assert ret is True, "predicate solves"
+
+        ret, _ = p.check(
+            Predicate(approvals["my-policy"].len() == 2)
+        )
+        assert ret is False, "predicate fails to solve"
+
+        ret, _ = p.query(
+            Predicate(approvals["my-policy"].len() == 2)
+        )
+        assert ret is False, "predicate fails to solve with query as well"
 
     def test_string_set_map_first(self):
         traits = StringSetMap(

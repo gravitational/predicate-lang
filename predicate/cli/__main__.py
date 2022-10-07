@@ -15,7 +15,6 @@ from solver import (
     StringLiteral,
     StringSetMap,
 )
-
 from solver.teleport import (
     LoginRule,
     Node,
@@ -29,43 +28,47 @@ from solver.teleport import (
     Role,
     Rules,
     Thresholds,
+    User,
     map_policies,
     try_login,
-    User,
 )
 
-env = {item.__name__: item for item in [
-    # General
-    Case,
-    Default,
-    Duration,
-    ParameterError,
-    Predicate,
-    Select,
-    StringLiteral,
-    StringSetMap,
+env = {
+    item.__name__: item
+    for item in [
+        # General
+        Case,
+        Default,
+        Duration,
+        ParameterError,
+        Predicate,
+        Select,
+        StringLiteral,
+        StringSetMap,
+        # Teleport
+        LoginRule,
+        Node,
+        Options,
+        OptionsSet,
+        Policy,
+        PolicyMap,
+        PolicySet,
+        Request,
+        Review,
+        Role,
+        Rules,
+        Thresholds,
+        map_policies,
+        try_login,
+        User,
+    ]
+}
 
-    # Teleport
-    LoginRule,
-    Node,
-    Options,
-    OptionsSet,
-    Policy,
-    PolicyMap,
-    PolicySet,
-    Request,
-    Review,
-    Role,
-    Rules,
-    Thresholds,
-    map_policies,
-    try_login,
-    User,
-]}
 
 @click.group()
 def main():
     pass
+
 
 @main.command()
 @click.argument("policy-file")
@@ -80,6 +83,7 @@ def export(policy_file):
     obj = policy.export()
     serialized = yaml.dump(obj)
     click.echo(serialized)
+
 
 @main.command()
 @click.argument("policy-file")

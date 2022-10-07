@@ -1,4 +1,12 @@
-from ..teleport import Policy, Request, RequestPolicy, Review, Rules, Thresholds, replay_request
+from ..teleport import (
+    Policy,
+    Request,
+    RequestPolicy,
+    Review,
+    Rules,
+    Thresholds,
+    replay_request,
+)
 
 
 class TestTeleportAccessRequests:
@@ -19,30 +27,75 @@ class TestTeleportAccessRequests:
             name="devs",
             allow=Rules(
                 Request(
-                    (RequestPolicy.names == ("access-prod", "access-stage"))
-                    & (Thresholds.approve == 2)
-                    & (Thresholds.deny == 1)
+                    ((RequestPolicy.names == ('access-stage',)) & (RequestPolicy.approvals["access-stage"].len() > 1) & (RequestPolicy.denials["access-stage"].len() < 1))
                 ),
-                Review(RequestPolicy.names == ("access-prod",)),
+                Review(RequestPolicy.names == ("access-stage",)),
             ),
         )
 
-        # Can devs request access to prod?
-        ret, _ = devs.query(Request(RequestPolicy.names.contains("access-prod",)))
-        assert ret is True, "Devs can request access to prod"
+        # Can devs request access to stage?
+        ret, _ = devs.query(
+            Request(
+                (RequestPolicy.names == ('access-stage',)) & (RequestPolicy.approvals['access-stage'].len() > 0)
+            )
+        )
+        assert ret is True, "Devs can request access to stage"
+
+        ret, _ = devs.query(
+            Request(
+                (RequestPolicy.names == ('access-prod',)) & (RequestPolicy.approvals['access-prod'].len() > 0)
+            )
+        )
+        assert ret is False, "Devs can't request access to prod"
 
         # Can devs review access to prod?
-        ret, _ = devs.query(Review(RequestPolicy.names.contains("access-prod",)))
-        assert ret is True, "Devs can review other folks access to prod"
+        ret, _ = devs.query(
+            Review(
+                RequestPolicy.names.contains(
+                    "access-stage",
+                )
+            )
+        )
+        assert ret is True, "Devs can review other folks access to stage"
 
         # Can user with these policies review a role?
-        ret, _ = devs.query(Review(RequestPolicy.names.contains("access-stage",)))
+        ret, _ = devs.query(
+            Review(
+                RequestPolicy.names.contains(
+                    "access-prod",
+                )
+            )
+        )
         assert ret is False, "can't review role that is not listed in the policy"
 
-        # TODO finish this
+        # TODO: how to bind to roles?
+        ret, _ = devs.query(
+            Request(
+                (RequestPolicy.names == ('access-stage',)) &
+                (RequestPolicy.approvals['access-stage'] == ('alice', 'bob'))
+            )
+        )
+        assert ret is True, "two folks have approved the request"
+
+        ret, _ = devs.query(
+            Request(
+                (RequestPolicy.names == ('access-stage',)) &
+                (RequestPolicy.approvals['access-stage'] == ('alice', 'bob')) &
+                (RequestPolicy.denials['access-stage'] == ('ketanji',))
+            )
+        )
+        assert ret is False, "two folks have approved the request, but one person denied it"
         return
+
         ret = replay_request(
-            request=(devs, Request(RequestPolicy.names.contains("access-prod",))),
+            request=(
+                devs,
+                Request(
+                    RequestPolicy.names.contains(
+                        "access-prod",
+                    )
+                ),
+            ),
             approve=(devs, devs),
             deny=(devs,),
         )
