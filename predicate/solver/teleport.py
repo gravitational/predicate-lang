@@ -219,12 +219,16 @@ def t_expr(predicate):
         return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Not):
         return f"(!{t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.MapIndex):
+        return f"{predicate.m.name}[{t_expr(predicate.key)}]"
     elif isinstance(predicate, ast.StringSetMapIndexEquals):
         return f"contains({predicate.E.m.name}[\"{predicate.E.key}\"], {list(predicate.V.vals)})"
     elif isinstance(predicate, ast.String):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
         return f'"{predicate.V}"'
+    elif isinstance(predicate, str):
+        return f'"{predicate}"'
     else:
         raise Exception(f"unknown predicate type: {type(predicate)}")
 

@@ -6,13 +6,13 @@ class Teleport:
             Node(((Node.login == User.name) & (User.name != "root")) | (User.traits["team"] == ("admins",))),
         ),
         deny=Rules(
-            Node((Node.login == "mike") | (Node.login == "jester")),
+            Node((Node.login == "mike") | (Node.login == "jester") | (Node.labels["env"] == "prod")),
         ),
     )
 
     def test_access(self):
         # Alice will be able to login to any machine as herself
-        ret, _ = self.p.check(Node((Node.login == "alice") & (User.name == "alice")))
+        ret, _ = self.p.check(Node((Node.login == "alice") & (User.name == "alice") & (Node.labels["env"] == "dev")))
         assert ret is True, "Alice can login with her user to any node"
 
         # We can verify that a strong invariant holds:
