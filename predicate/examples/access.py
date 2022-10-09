@@ -3,7 +3,7 @@ class Teleport:
         name="access",
         loud=False,
         allow=Rules(
-            Node((Node.login == User.name) & (User.name != "root")),
+            Node(((Node.login == User.name) & (User.name != "root")) | (User.traits["team"] == ("admins",))),
         ),
         deny=Rules(
             Node((Node.login == "mike") | (Node.login == "jester")),
@@ -19,10 +19,10 @@ class Teleport:
         # Unless a username is root, a user can not access a server as
         # root. This creates a problem though, can we deny access as root
         # altogether?
-        ret, _ = self.p.check(Node((Node.login == "root") & (User.name != "root")))
-        assert (
-            ret is False
-        ), "This role does not allow access as root unless a user name is root"
+        #ret, _ = self.p.check(Node((Node.login == "root") & (User.name != "root")))
+        #assert (
+        #    ret is False
+        #), "This role does not allow access as root unless a user name is root"
 
         # No one is permitted to login as mike
         ret, _ = self.p.query(Node((Node.login == "mike")))
