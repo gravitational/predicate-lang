@@ -230,7 +230,7 @@ def t_expr(predicate):
     elif isinstance(predicate, str):
         return f'"{predicate}"'
     elif isinstance(predicate, tuple):
-        return f"[{', '.join([t_expr(p) for p in predicate])}]"
+        return f"[{', '.join(t_expr(p) for p in predicate)}]"
     else:
         raise Exception(f"unknown predicate type: {type(predicate)}")
 
