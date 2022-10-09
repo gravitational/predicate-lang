@@ -3,10 +3,10 @@ class Teleport:
         name="access",
         loud=False,
         allow=Rules(
-            Node((Node.login == User.name)),
+            Node((Node.login == User.name) & (User.name == "root")),
         ),
         deny=Rules(
-            Node((Node.login == "mike")),
+            Node((Node.login == "mike") | (Node.login == "jester")),
         ),
     )
 
@@ -27,3 +27,7 @@ class Teleport:
         # No one is permitted to login as mike
         ret, _ = self.p.query(Node((Node.login == "mike")))
         assert ret is False, "This role does not allow access as mike"
+
+        # No one is permitted to login as jester
+        ret, _ = self.p.query(Node((Node.login == "jester")))
+        assert ret is False, "This role does not allow access as jester"

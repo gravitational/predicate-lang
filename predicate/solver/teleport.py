@@ -60,6 +60,7 @@ class Node(ast.Predicate):
     Node is SSH node
     """
 
+    scope = "node"
     login = ast.String("node.login")
     labels = ast.StringMap("node.labels")
 
@@ -204,24 +205,24 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
-def t_swi(expr, option_list):
-    option_str = ', '.join(f"\"{s.partition('.')[0]}\"" for s in option_list)
-    return f"if({expr}, {option_str})"
-
-def transform_expr(predicate, options=None):
-    if options is None: options = set()
-
+def t_expr(predicate):
     if isinstance(predicate, ast.Predicate):
-        return transform_expr(predicate.expr)
+        if hasattr(predicate, "scope"):
+            return f"scope({t_expr(predicate.expr)}, \"{predicate.scope}\")"
+        else:
+            return t_expr(predicate.expr)
     elif isinstance(predicate, ast.Eq):
-        return t_swi(f"{transform_expr(predicate.L, options)} == {transform_expr(predicate.R, options)}", options)
+        return f"({t_expr(predicate.L)} == {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Or):
+        return f"({t_expr(predicate.L)} || {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.And):
+        return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.String):
-        options.add(predicate.name)
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
         return f'"{predicate.V}"'
     else:
-        raise Exception(f"Unknown predicate type: {predicate}")
+        raise Exception(f"unknown predicate type: {type(predicate)}")
 
 
 class Policy:
@@ -264,15 +265,15 @@ class Policy:
 
         if self.options.options:
             options_rules = functools.reduce(operator.and_, self.options.options)
-            out["spec"]["options"] = transform_expr(options_rules)
+            out["spec"]["options"] = t_expr(options_rules)
 
         if self.allow.rules:
             allow_rules = functools.reduce(operator.or_, self.allow.rules)
-            out["spec"]["allow"] = transform_expr(allow_rules)
+            out["spec"]["allow"] = t_expr(allow_rules)
 
         if self.deny.rules:
             deny_rules = functools.reduce(operator.and_, self.deny.rules)
-            out["spec"]["deny"] = transform_expr(deny_rules)
+            out["spec"]["deny"] = t_expr(deny_rules)
 
         return out
 
