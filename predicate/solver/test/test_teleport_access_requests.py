@@ -5,8 +5,9 @@ from ..teleport import (
     Review,
     Rules,
     Thresholds,
-    replay_request,
 )
+
+from ..ast import StringList, If
 
 
 class TestTeleportAccessRequests:
@@ -85,18 +86,27 @@ class TestTeleportAccessRequests:
             )
         )
         assert ret is False, "two folks have approved the request, but one person denied it"
-        return
 
-        ret = replay_request(
-            request=(
-                devs,
+        # Model the approve / request scenario using if/else and list
+        # Work in progress
+        #
+        devs = Policy(
+            name="devs",
+            allow=Rules(
                 Request(
-                    RequestPolicy.names.contains(
-                        "access-prod",
-                    )
+                    ((RequestPolicy.names == ('access-stage',)) & (RequestPolicy.approvals["access-stage"].len() > 0) & (RequestPolicy.denials["access-stage"].len() < 1))
                 ),
+                Review(RequestPolicy.names == ("access-stage",)),
             ),
-            approve=(devs, devs),
-            deny=(devs,),
         )
-        assert ret is True
+        approvals = StringList("approvals")
+        ret, _ = devs.query(
+            Request(
+                (RequestPolicy.names == ('access-stage',)) &
+                (RequestPolicy.approvals['access-stage'] == If(devs.build_predicate(
+                    Request(RequestPolicy.names == ('access-stage',))
+                ).expr, approvals.add("approval"), StringList("approvals", ())))
+            )
+        )
+        assert ret is True, "two folks have approved the request"
+

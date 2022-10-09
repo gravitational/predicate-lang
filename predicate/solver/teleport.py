@@ -136,24 +136,6 @@ def map_policies(policy_names, policies):
     return PolicySet(mapped_policies)
 
 
-def replay_request(request: tuple, approve: Iterable = (), deny: Iterable = ()):
-    requestor, expr = request
-    # First, check if requestor can request
-    ret, model = requestor.query(expr)
-    if not ret:
-        return ret, model
-    # Check if any of the approvers can approve, calculate thresholds?
-    # Or build a model threshold > 1 and threshold == (0 + 1 + 1 + 1)
-
-    pass
-
-    # Ok, requestor can create the request,
-    vals = model.eval(RequestPolicy.names.traverse())
-    print("MODEL: {}".format(model))
-    print("POLICIES: {}".format(vals))
-    return None, None
-
-
 class User:
     """
     User is a Teleport user
@@ -249,6 +231,9 @@ class Policy:
 
     def query(self, other: ast.Predicate):
         return PolicySet([self], self.loud).query(other)
+
+    def build_predicate(self, other: ast.Predicate):
+        return PolicySet([self], self.loud).build_predicate(other)
 
     def export(self):
         out = {

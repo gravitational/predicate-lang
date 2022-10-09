@@ -926,6 +926,9 @@ class StringTuple:
             return IterableContains(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
+    def traverse(self):
+        return string_list(self.vals)
+
     def walk(self, fn):
         fn(self)
         fn(self.vals)
@@ -1466,6 +1469,12 @@ class If:
         self.on_true = on_true
         self.on_false = on_false
 
+    def walk(self, fn):
+        fn(self)
+        fn(self.cond)
+        fn(self.on_true)
+        fn(self.on_false)
+
     def traverse(self):
         return z3.If(
             self.cond.traverse(), self.on_true.traverse(), self.on_false.traverse()
@@ -1818,9 +1827,7 @@ class StringSetMapIndex:
     def __eq__(self, val):
         if isinstance(val, tuple):
             return StringSetMapIndexEquals(self, StringTuple(val))
-        raise TypeError(
-            "unsupported type {}, supported string tuples only".format(type(val))
-        )
+        return StringSetMapIndexEquals(self, val)
 
     def traverse(self):
         return self.m.fn_map(z3.StringVal(self.key))
@@ -1961,10 +1968,10 @@ class StringSetMapIndexEquals(LogicMixin):
         self.V.walk(fn)
 
     def __str__(self):
-        return """({}[{}] == {})""".format(self.E.m.name, self.E.key, self.V.vals)
+        return """({}[{}] == {})""".format(self.E.m.name, self.E.key, self.V)
 
     def traverse(self):
-        return self.E.m.fn_map(z3.StringVal(self.E.key)) == string_list(self.V.vals)
+        return self.E.m.fn_map(z3.StringVal(self.E.key)) == self.V.traverse()
 
 
 def collect_symbols(s, expr):
