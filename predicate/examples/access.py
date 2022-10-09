@@ -3,7 +3,7 @@ class Teleport:
         name="access",
         loud=False,
         allow=Rules(
-            Node((Node.login == User.name) & (User.name == "root")),
+            Node((Node.login == User.name) & (User.name != "root")),
         ),
         deny=Rules(
             Node((Node.login == "mike") | (Node.login == "jester")),

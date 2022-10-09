@@ -217,6 +217,8 @@ def t_expr(predicate):
         return f"({t_expr(predicate.L)} || {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.And):
         return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Not):
+        return f"(!{t_expr(predicate.V)})"
     elif isinstance(predicate, ast.String):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
