@@ -204,23 +204,24 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+def t_swi(expr, option_list):
+    option_str = ', '.join(f"\"{s.partition('.')[0]}\"" for s in option_list)
+    return f"if({expr}, {option_str})"
 
-# TODO: not really sure how I want to structure this logic
-#       as I'd like to keep the logic for non-teleport specific ast elements close to their
-#       definitions, but I am not sure if this is doable without a lot of complexity as the output
-#       format is tied to whatever builds on top of the general ast
-#       this might do for now
-def transform_expr(predicate):
+def transform_expr(predicate, options=None):
+    if options is None: options = set()
+
     if isinstance(predicate, ast.Predicate):
         return transform_expr(predicate.expr)
     elif isinstance(predicate, ast.Eq):
-        return f"({transform_expr(predicate.L)} == {transform_expr(predicate.R)})"
+        return t_swi(f"({transform_expr(predicate.L, options)} == {transform_expr(predicate.R, options)})", options)
     elif isinstance(predicate, ast.String):
+        options.add(predicate.name)
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
         return f'"{predicate.V}"'
     else:
-        return str(predicate)
+        raise Exception(f"Unknown predicate type: {predicate}")
 
 
 class Policy:
