@@ -214,7 +214,7 @@ def transform_expr(predicate, options=None):
     if isinstance(predicate, ast.Predicate):
         return transform_expr(predicate.expr)
     elif isinstance(predicate, ast.Eq):
-        return t_swi(f"({transform_expr(predicate.L, options)} == {transform_expr(predicate.R, options)})", options)
+        return t_swi(f"{transform_expr(predicate.L, options)} == {transform_expr(predicate.R, options)}", options)
     elif isinstance(predicate, ast.String):
         options.add(predicate.name)
         return predicate.name
