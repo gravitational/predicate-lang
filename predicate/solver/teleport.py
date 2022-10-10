@@ -232,7 +232,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.MapIndex):
         return f"{predicate.m.name}[{t_expr(predicate.key)}]"
     elif isinstance(predicate, ast.StringSetMapIndexEquals):
-        return f"contains({predicate.E.m.name}[{t_expr(predicate.E.key)}], {t_expr(predicate.V.vals)})"
+        return f"({predicate.E.m.name}[{t_expr(predicate.E.key)}] == {t_expr(predicate.V.vals)})"
     elif isinstance(predicate, ast.String):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
