@@ -1,9 +1,9 @@
+import subprocess
 from runpy import run_path
 from types import FunctionType
 
 import click
 import yaml
-import subprocess
 
 from solver import (
     Case,
@@ -83,7 +83,7 @@ def export(policy_file):
 
 @main.command()
 @click.argument("policy-file")
-@click.option('--sudo', '-s', is_flag=True)
+@click.option("--sudo", "-s", is_flag=True)
 def deploy(policy_file, sudo):
     click.echo("parsing policy...")
     module = run_path(policy_file, env)
@@ -97,7 +97,8 @@ def deploy(policy_file, sudo):
         args.insert(0, "sudo")
 
     subprocess.run(args, text=True, input=serialized, check=True)
-    click.echo(f"policy deployed as resource \"{policy.name}\"")
+    click.echo(f'policy deployed as resource "{policy.name}"')
+
 
 @main.command()
 @click.argument("policy-file")

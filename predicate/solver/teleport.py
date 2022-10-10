@@ -209,6 +209,7 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+
 # t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
 def t_expr(predicate):
     # special-case predicate subclasses like Node to get their inner expression
@@ -216,7 +217,7 @@ def t_expr(predicate):
         if hasattr(predicate, "scope"):
             # if the predicate has an evaluation scope for which it is only enabled,
             # case it's expression within a `scope` call to allow defaulting in the expression evaluator
-            return f"scope({t_expr(predicate.expr)}, \"{predicate.scope}\")"
+            return f'scope({t_expr(predicate.expr)}, "{predicate.scope}")'
         else:
             return t_expr(predicate.expr)
     elif isinstance(predicate, ast.Eq):
