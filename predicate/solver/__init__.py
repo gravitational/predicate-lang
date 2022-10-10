@@ -10,7 +10,6 @@ from .ast import (
     String,
     StringEnum,
     StringList,
-    StringListLiteral,
     StringLiteral,
     StringMap,
     StringSetMap,

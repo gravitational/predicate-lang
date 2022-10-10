@@ -18,11 +18,7 @@ from ..teleport import (
     Policy,
     PolicyMap,
     PolicySet,
-    Request,
-    RequestPolicy,
-    Review,
     Rules,
-    Thresholds,
     map_policies,
     try_login,
 )
@@ -99,31 +95,6 @@ class TestTeleport:
             Node((Node.login == "ubuntu") & (Node.labels["env"] == "prod"))
         )
         assert ret is True, "non-denied part of allow is OK"
-
-    def test_requests(self):
-        p = Policy(
-            name="a",
-            allow=Rules(
-                Request(
-                    (RequestPolicy.names == ("access-prod",))
-                    & (Thresholds.approve == 1)
-                    & (Thresholds.deny == 2)
-                ),
-                Review(RequestPolicy.names == ("access-prod",)),
-            ),
-        )
-
-        # Can user request a role?
-        ret, _ = p.query(Request((RequestPolicy.names == ("access-prod",))))
-        assert ret is True, "check works"
-
-        # Can user with these policies review a role?
-        ret, _ = p.query(Review(RequestPolicy.names == ("access-prod",)))
-        assert ret is True, "check works"
-
-        # Can user with these policies review a role?
-        ret, _ = p.query(Review(RequestPolicy.names == ("access-stage",)))
-        assert ret is False, "can't approve role that is not listed in the policy"
 
     def test_options(self):
         p = Policy(

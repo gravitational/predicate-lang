@@ -377,7 +377,7 @@ class TestAst:
             "fruits",
             If(
                 basket.contains("banana"),
-                basket.add("blueberry"),
+                basket.add_if_not_exists("blueberry"),
                 basket,
             ),
         )
@@ -462,7 +462,7 @@ class TestAst:
         ret, _ = p.solve()
         assert ret is True, "missing key results in empty count"
 
-        with pytest.raises(ParameterError) as exc:
+        with pytest.raises(ParameterError):
             p = Predicate(traits["missing"].len() == 1)
             ret, _ = p.solve()
 
@@ -472,19 +472,13 @@ class TestAst:
         ret, _ = p.solve()
         assert ret is True, "predicate solves"
 
-        ret, _ = p.check(
-            Predicate(approvals["my-policy"].len() == 3)
-        )
+        ret, _ = p.check(Predicate(approvals["my-policy"].len() == 3))
         assert ret is True, "predicate solves"
 
-        ret, _ = p.check(
-            Predicate(approvals["my-policy"].len() == 2)
-        )
+        ret, _ = p.check(Predicate(approvals["my-policy"].len() == 2))
         assert ret is False, "predicate fails to solve"
 
-        ret, _ = p.query(
-            Predicate(approvals["my-policy"].len() == 2)
-        )
+        ret, _ = p.query(Predicate(approvals["my-policy"].len() == 2))
         assert ret is False, "predicate fails to solve with query as well"
 
     def test_string_set_map_first(self):
@@ -613,7 +607,7 @@ class TestAst:
             {
                 "our-fruits": If(
                     external["fruits"].contains("banana"),
-                    external["fruits"].add("blueberry"),
+                    external["fruits"].add_if_not_exists("blueberry"),
                     external["fruits"],
                 )
             },

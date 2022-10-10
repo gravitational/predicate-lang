@@ -1,12 +1,4 @@
-from ..teleport import (
-    Policy,
-    Request,
-    RequestPolicy,
-    Review,
-    Rules,
-    Thresholds,
-    replay_request,
-)
+from ..teleport import Policy, Request, RequestPolicy, Review, Rules, reviews
 
 
 class TestTeleportAccessRequests:
@@ -27,7 +19,11 @@ class TestTeleportAccessRequests:
             name="devs",
             allow=Rules(
                 Request(
-                    ((RequestPolicy.names == ('access-stage',)) & (RequestPolicy.approvals["access-stage"].len() > 1) & (RequestPolicy.denials["access-stage"].len() < 1))
+                    (
+                        (RequestPolicy.names == ("access-stage",))
+                        & (RequestPolicy.approvals["access-stage"].len() > 1)
+                        & (RequestPolicy.denials["access-stage"].len() < 1)
+                    )
                 ),
                 Review(RequestPolicy.names == ("access-stage",)),
             ),
@@ -36,14 +32,16 @@ class TestTeleportAccessRequests:
         # Can devs request access to stage?
         ret, _ = devs.query(
             Request(
-                (RequestPolicy.names == ('access-stage',)) & (RequestPolicy.approvals['access-stage'].len() > 0)
+                (RequestPolicy.names == ("access-stage",))
+                & (RequestPolicy.approvals["access-stage"].len() > 0)
             )
         )
         assert ret is True, "Devs can request access to stage"
 
         ret, _ = devs.query(
             Request(
-                (RequestPolicy.names == ('access-prod',)) & (RequestPolicy.approvals['access-prod'].len() > 0)
+                (RequestPolicy.names == ("access-prod",))
+                & (RequestPolicy.approvals["access-prod"].len() > 0)
             )
         )
         assert ret is False, "Devs can't request access to prod"
@@ -71,32 +69,60 @@ class TestTeleportAccessRequests:
         # TODO: how to bind to roles?
         ret, _ = devs.query(
             Request(
-                (RequestPolicy.names == ('access-stage',)) &
-                (RequestPolicy.approvals['access-stage'] == ('alice', 'bob'))
+                (RequestPolicy.names == ("access-stage",))
+                & (RequestPolicy.approvals["access-stage"] == ("alice", "bob"))
             )
         )
         assert ret is True, "two folks have approved the request"
 
         ret, _ = devs.query(
             Request(
-                (RequestPolicy.names == ('access-stage',)) &
-                (RequestPolicy.approvals['access-stage'] == ('alice', 'bob')) &
-                (RequestPolicy.denials['access-stage'] == ('ketanji',))
+                (RequestPolicy.names == ("access-stage",))
+                & (RequestPolicy.approvals["access-stage"] == ("alice", "bob"))
+                & (RequestPolicy.denials["access-stage"] == ("ketanji",))
             )
         )
-        assert ret is False, "two folks have approved the request, but one person denied it"
-        return
+        assert (
+            ret is False
+        ), "two folks have approved the request, but one person denied it"
 
-        ret = replay_request(
-            request=(
-                devs,
+        # Model the approve / request scenario using if/else and list
+        devs = Policy(
+            name="devs",
+            allow=Rules(
                 Request(
-                    RequestPolicy.names.contains(
-                        "access-prod",
+                    (
+                        (RequestPolicy.names == ("access-stage",))
+                        & (RequestPolicy.approvals["access-stage"].len() > 0)
+                        & (RequestPolicy.denials["access-stage"].len() < 1)
                     )
                 ),
+                Review(RequestPolicy.names == ("access-stage",)),
             ),
-            approve=(devs, devs),
-            deny=(devs,),
         )
-        assert ret is True
+
+        ret, _ = devs.query(
+            Request(
+                (RequestPolicy.names == ("access-stage",))
+                & (
+                    RequestPolicy.approvals["access-stage"]
+                    == reviews(
+                        (devs, Request(RequestPolicy.names == ("access-stage",)))
+                    )
+                )
+            )
+        )
+        assert ret is True, "one person have approved the request"
+
+        ret, _ = devs.query(
+            Request(
+                (RequestPolicy.names == ("access-stage",))
+                & (
+                    RequestPolicy.denials["access-stage"]
+                    == reviews(
+                        (devs, Request(RequestPolicy.names == ("access-stage",)))
+                    )
+                ),
+            )
+        )
+        assert ret is False, "one person has denied the request"

@@ -369,6 +369,7 @@ class BoolLiteral:
     def __str__(self):
         return "`{}`".format(self.V)
 
+
 class IntMixin:
     def __eq__(self, val):
         if isinstance(val, int):
@@ -601,7 +602,7 @@ class StringList:
             # define the map as a recursive function evaluating to list
             def iff(val):
                 if isinstance(val, tuple):
-                    val = StringListLiteral(val)
+                    val = StringTuple(val)
                 return val.traverse()
 
             # wrap the original map function to always add a key if it exists
@@ -636,7 +637,7 @@ class StringList:
             return StringListReplace(self, src, dst)
         raise TypeError("unsupported type {}, supported strings only".format(type(src)))
 
-    def add(self, val):
+    def add_if_not_exists(self, val):
         if isinstance(val, str):
             return StringListAdd(self, StringLiteral(val))
         if isinstance(val, String):
@@ -919,6 +920,10 @@ class IterableContains(LogicMixin):
 class StringTuple:
     vals: Iterable[str]
 
+    @classmethod
+    def cons(cls, val, t):
+        return StringTupleCons(convert_literal(val), t)
+
     def contains(self, val):
         if isinstance(val, str):
             return IterableContains(self, StringLiteral(val))
@@ -926,12 +931,32 @@ class StringTuple:
             return IterableContains(self, val)
         raise TypeError("unsupported type {}, supported strings only".format(type(val)))
 
+    def traverse(self):
+        return string_list(self.vals)
+
     def walk(self, fn):
         fn(self)
         fn(self.vals)
 
     def __str__(self):
         return "[{}]".format(",".join(["`{}`".format(v) for v in self.vals]))
+
+
+class StringTupleCons:
+    def __init__(self, val, tail):
+        self.V = val
+        self.T = tail
+
+    def traverse(self):
+        return StringListSort.cons(self.V.traverse(), self.T.traverse())
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.V)
+        fn(self.T)
+
+    def __str__(self):
+        return "({}, {})".format(self.V, self.T)
 
 
 class Not(LogicMixin):
@@ -1245,9 +1270,7 @@ fn_string_list_contains = z3.RecFunction(
 fn_string_list_first = z3.RecFunction(
     "string_list_first", StringListSort, z3.StringSort()
 )
-fn_string_list_len = z3.RecFunction(
-    "string_list_len", StringListSort, z3.IntSort()
-)
+fn_string_list_len = z3.RecFunction("string_list_len", StringListSort, z3.IntSort())
 fn_string_list_contains_regex = z3.RecFunction(
     "string_list_contains_regex",
     StringListSort,
@@ -1268,7 +1291,6 @@ fn_string_list_add_if_not_exists = z3.RecFunction(
 fn_string_upper = z3.RecFunction("string_upper", z3.StringSort(), z3.StringSort())
 
 fn_string_lower = z3.RecFunction("string_lower", z3.StringSort(), z3.StringSort())
-
 
 
 def string_list(vals: Iterable[str]):
@@ -1369,6 +1391,7 @@ def define_string_list_first():
         ),
     )
 
+
 def define_string_list_len():
     vals = z3.Const("string_list_len_vals", StringListSort)
     z3.RecAddDefinition(
@@ -1444,17 +1467,6 @@ define_string_upper()
 define_string_lower()
 
 
-class StringListLiteral:
-    def __init__(self, vals: Iterable[str]):
-        self.vals = vals
-
-    def traverse(self):
-        return string_list(self.vals)
-
-    def walk(self, fn):
-        fn(self)
-
-
 class If:
     """
     If works like a functional style if:
@@ -1465,6 +1477,12 @@ class If:
         self.cond = cond
         self.on_true = on_true
         self.on_false = on_false
+
+    def walk(self, fn):
+        fn(self)
+        fn(self.cond)
+        fn(self.on_true)
+        fn(self.on_false)
 
     def traverse(self):
         return z3.If(
@@ -1494,7 +1512,7 @@ class Default:
 
 def convert_literal(expr):
     if isinstance(expr, tuple):
-        return StringListLiteral(expr)
+        return StringTuple(expr)
     if isinstance(expr, str):
         return StringLiteral(expr)
     if isinstance(expr, int):
@@ -1580,7 +1598,7 @@ class StringSetMap:
                 try:
                     key, val = next(iterator)
                     if isinstance(val, tuple):
-                        val = StringListLiteral(val)
+                        val = StringTuple(val)
                 except StopIteration:
                     return StringListSort.nil
                 else:
@@ -1639,7 +1657,7 @@ class StringSetMapOverwrite(StringSetMap):
             try:
                 key, val = next(iterator)
                 if isinstance(val, tuple):
-                    val = StringListLiteral(val)
+                    val = StringTuple(val)
             except StopIteration:
                 return wrapped_map_fn(fn_key)
             else:
@@ -1805,7 +1823,7 @@ class StringSetMapIndex:
             return StringSetMapIndexReplace(self, src, dst)
         raise TypeError("unsupported type {}, supported strings only".format(type(src)))
 
-    def add(self, val):
+    def add_if_not_exists(self, val):
         if isinstance(val, str):
             return StringSetMapIndexAdd(self, StringLiteral(val))
         if isinstance(val, String):
@@ -1818,9 +1836,7 @@ class StringSetMapIndex:
     def __eq__(self, val):
         if isinstance(val, tuple):
             return StringSetMapIndexEquals(self, StringTuple(val))
-        raise TypeError(
-            "unsupported type {}, supported string tuples only".format(type(val))
-        )
+        return StringSetMapIndexEquals(self, val)
 
     def traverse(self):
         return self.m.fn_map(z3.StringVal(self.key))
@@ -1961,10 +1977,10 @@ class StringSetMapIndexEquals(LogicMixin):
         self.V.walk(fn)
 
     def __str__(self):
-        return """({}[{}] == {})""".format(self.E.m.name, self.E.key, self.V.vals)
+        return """({}[{}] == {})""".format(self.E.m.name, self.E.key, self.V)
 
     def traverse(self):
-        return self.E.m.fn_map(z3.StringVal(self.E.key)) == string_list(self.V.vals)
+        return self.E.m.fn_map(z3.StringVal(self.E.key)) == self.V.traverse()
 
 
 def collect_symbols(s, expr):
