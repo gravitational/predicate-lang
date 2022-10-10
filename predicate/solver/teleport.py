@@ -226,10 +226,14 @@ def t_expr(predicate):
         return f"({t_expr(predicate.L)} || {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.And):
         return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Xor):
+        return f"({t_expr(predicate.L)} ^ {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Not):
         return f"(!{t_expr(predicate.V)})"
     elif isinstance(predicate, ast.Lt):
         return f"({t_expr(predicate.L)} < {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Gt):
+        return f"({t_expr(predicate.L)} > {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.MapIndex):
         return f"{predicate.m.name}[{t_expr(predicate.key)}]"
     elif isinstance(predicate, ast.StringSetMapIndexEquals):
@@ -246,6 +250,14 @@ def t_expr(predicate):
         return f'"{predicate}"'
     elif isinstance(predicate, tuple):
         return f"[{', '.join(t_expr(p) for p in predicate)}]"
+    elif isinstance(predicate, ast.Bool):
+        return f'{predicate.name}'
+    elif isinstance(predicate, ast.BoolLiteral):
+        return f'{predicate.V}'
+    elif isinstance(predicate, ast.Int):
+        return f'{predicate.name}'
+    elif isinstance(predicate, ast.IntLiteral):
+        return f'{predicate.V}'
     else:
         raise Exception(f"unknown predicate type: {type(predicate)}")
 
