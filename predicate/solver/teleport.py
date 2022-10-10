@@ -182,6 +182,8 @@ class RequestPolicy:
 
 
 class Request(ast.Predicate):
+    scope = "access_request"
+
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
@@ -190,6 +192,8 @@ class Request(ast.Predicate):
 
 
 class Review(ast.Predicate):
+    scope = "access_review"
+
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
