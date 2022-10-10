@@ -237,7 +237,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.MapIndex):
         return f"{predicate.m.name}[{t_expr(predicate.key)}]"
     elif isinstance(predicate, ast.StringSetMapIndexEquals):
-        return f"({predicate.E.m.name}[{t_expr(predicate.E.key)}] == {t_expr(predicate.V.vals)})"
+        return f"equals({predicate.E.m.name}[{t_expr(predicate.E.key)}], {t_expr(predicate.V.vals)})"
     elif isinstance(predicate, ast.String):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
@@ -261,7 +261,39 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.Concat):
         return f'({t_expr(predicate.L)} + {t_expr(predicate.R)})'
     elif isinstance(predicate, ast.Split):
-        return f'{t_expr(predicate.val)}.split({t_expr(predicate.sep)})'
+        return f'split({t_expr(predicate.val)}, {t_expr(predicate.sep)})'
+    elif isinstance(predicate, ast.StringTuple):
+        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+    elif isinstance(predicate, ast.Upper):
+        return f"upper({t_expr(predicate.val)})"
+    elif isinstance(predicate, ast.Lower):
+        return f"lower({t_expr(predicate.val)})"
+    elif isinstance(predicate, ast.StringList):
+        return predicate.name
+    elif isinstance(predicate, ast.StringListContains):
+        return f"contains({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.StringListFirst):
+        return f"first({t_expr(predicate.E)})"
+    elif isinstance(predicate, ast.StringListAdd):
+        return f"add({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.StringListEquals):
+        return f"equals({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.Replace):
+        return f"replace({t_expr(predicate.val)}, {t_expr(predicate.src)}, {t_expr(predicate.dst)})"
+    elif isinstance(predicate, ast.StringListReplace):
+        return f"replace({t_expr(predicate.E)}, {t_expr(predicate.S)}, {t_expr(predicate.D)})"
+    elif isinstance(predicate, ast.StringListLiteral):
+        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+    elif isinstance(predicate, ast.RegexConstraint):
+        return f"regex({t_expr(predicate.expr)})"
+    elif isinstance(predicate, ast.RegexTuple):
+        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+    elif isinstance(predicate, ast.Matches):
+        return f"matches({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.IterableMatches):
+        return f"matches({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.StringEnum):
+        return predicate.name
     else:
         raise Exception(f"unknown predicate type: {type(predicate)}")
 
