@@ -105,7 +105,7 @@ def PolicyMap(expr):
 
 
 def try_login(policy_map_expr, traits_expr):
-    p = ast.Predicate(policy_map_expr != ast.StringListLiteral(()))
+    p = ast.Predicate(policy_map_expr != ast.StringTuple(()))
     ret, model = p.check(ast.Predicate(traits_expr))
     if not ret:
         return ()
@@ -136,6 +136,27 @@ def map_policies(policy_names, policies):
     return PolicySet(mapped_policies)
 
 
+def reviews(*roles: tuple):
+    """
+    Reviews converts qualified reviews into a list ("review", "review")
+    reviews((devs, expr)) -> ("review")
+    """
+
+    def iff(iterator):
+        try:
+            role, expr = next(iterator)
+        except StopIteration:
+            return ast.StringTuple(())
+        else:
+            return ast.If(
+                role.build_predicate(expr).expr,
+                ast.StringTuple.cons("review", ast.StringTuple(())),
+                iff(iterator),
+            )
+
+    return iff(iter(roles))
+
+
 class User:
     """
     User is a Teleport user
@@ -157,11 +178,6 @@ class RequestPolicy:
 
     # denials is a list of recorded approvals for policy
     denials = ast.StringSetMap("policy.denials")
-
-
-class Thresholds:
-    approve = ast.Int("request.approve")
-    deny = ast.Int("request.deny")
 
 
 class Request(ast.Predicate):

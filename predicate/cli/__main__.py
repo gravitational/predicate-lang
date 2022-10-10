@@ -1,4 +1,3 @@
-from pathlib import Path
 from runpy import run_path
 from types import FunctionType
 
@@ -25,9 +24,7 @@ from solver.teleport import (
     PolicySet,
     Request,
     Review,
-    Role,
     Rules,
-    Thresholds,
     User,
     map_policies,
     try_login,
@@ -55,9 +52,7 @@ env = {
         PolicySet,
         Request,
         Review,
-        Role,
         Rules,
-        Thresholds,
         map_policies,
         try_login,
         User,
