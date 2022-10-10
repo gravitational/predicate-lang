@@ -3,6 +3,7 @@ from types import FunctionType
 
 import click
 import yaml
+import subprocess
 
 from solver import (
     Case,
@@ -79,6 +80,19 @@ def export(policy_file):
     serialized = yaml.dump(obj)
     click.echo(serialized)
 
+
+@main.command()
+@click.argument("policy-file")
+def deploy(policy_file):
+    click.echo("parsing policy...")
+    module = run_path(policy_file, env)
+    policy = module["Teleport"].p
+    click.echo("translating policy...")
+    obj = policy.export()
+    serialized = yaml.dump(obj)
+    click.echo("deploying policy...")
+    subprocess.run(["tctl", "create", "-f", "-"], text=True, input=serialized, check=True)
+    click.echo(f"policy deployed as resource \"{policy.name}\"")
 
 @main.command()
 @click.argument("policy-file")
