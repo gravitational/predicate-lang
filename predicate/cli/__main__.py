@@ -92,7 +92,7 @@ def deploy(policy_file, sudo):
     obj = policy.export()
     serialized = yaml.dump(obj)
     click.echo("deploying policy...")
-    args = ["tctl", "create", "-f", "-"]
+    args = ["tctl", "create", "-f"]
     if sudo:
         args.insert(0, "sudo")
 
