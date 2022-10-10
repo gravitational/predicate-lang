@@ -83,7 +83,8 @@ def export(policy_file):
 
 @main.command()
 @click.argument("policy-file")
-def deploy(policy_file):
+@click.option('--sudo', '-s', is_flag=True)
+def deploy(policy_file, sudo):
     click.echo("parsing policy...")
     module = run_path(policy_file, env)
     policy = module["Teleport"].p
@@ -91,7 +92,11 @@ def deploy(policy_file):
     obj = policy.export()
     serialized = yaml.dump(obj)
     click.echo("deploying policy...")
-    subprocess.run(["tctl", "create", "-f", "-"], text=True, input=serialized, check=True)
+    args = ["tctl", "create", "-f", "-"]
+    if sudo:
+        args.insert(0, "sudo")
+
+    subprocess.run(args, text=True, input=serialized, check=True)
     click.echo(f"policy deployed as resource \"{policy.name}\"")
 
 @main.command()
