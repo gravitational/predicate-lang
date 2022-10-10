@@ -5,6 +5,9 @@ class Teleport:
         allow=Rules(
             Node(((Node.login == User.name) & (User.name != "root")) | (User.traits["team"] == ("admins",))),
         ),
+        options=OptionsSet(
+            Options((Options.max_session_ttl < Duration.new(hours=10)))
+        ),
         deny=Rules(
             Node((Node.login == "mike") | (Node.login == "jester") | (Node.labels["env"] == "prod")),
         ),

@@ -205,9 +205,13 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+# t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
 def t_expr(predicate):
+    # special-case predicate subclasses like Node to get their inner expression
     if isinstance(predicate, ast.Predicate):
         if hasattr(predicate, "scope"):
+            # if the predicate has an evaluation scope for which it is only enabled,
+            # case it's expression within a `scope` call to allow defaulting in the expression evaluator
             return f"scope({t_expr(predicate.expr)}, \"{predicate.scope}\")"
         else:
             return t_expr(predicate.expr)
@@ -219,6 +223,8 @@ def t_expr(predicate):
         return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Not):
         return f"(!{t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.Lt):
+        return f"({t_expr(predicate.L)} < {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.MapIndex):
         return f"{predicate.m.name}[{t_expr(predicate.key)}]"
     elif isinstance(predicate, ast.StringSetMapIndexEquals):
@@ -227,6 +233,10 @@ def t_expr(predicate):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
         return f'"{predicate.V}"'
+    elif isinstance(predicate, ast.Duration):
+        return predicate.name
+    elif isinstance(predicate, ast.DurationLiteral):
+        return f"{predicate.V}"
     elif isinstance(predicate, str):
         return f'"{predicate}"'
     elif isinstance(predicate, tuple):
