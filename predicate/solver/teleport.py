@@ -258,6 +258,10 @@ def t_expr(predicate):
         return f'{predicate.name}'
     elif isinstance(predicate, ast.IntLiteral):
         return f'{predicate.V}'
+    elif isinstance(predicate, ast.Concat):
+        return f'({t_expr(predicate.L)} + {t_expr(predicate.R)})'
+    elif isinstance(predicate, ast.Split):
+        return f'{t_expr(predicate.val)}.split({t_expr(predicate.sep)})'
     else:
         raise Exception(f"unknown predicate type: {type(predicate)}")
 
