@@ -23,6 +23,9 @@ import z3
 from . import ast
 from .errors import ParameterError
 
+def scoped(cls):
+    cls.scope = cls.__name__.lower()
+    return cls
 
 class Options(ast.Predicate):
     """
@@ -55,12 +58,12 @@ class OptionsSet:
         ]
 
 
+@scoped
 class Node(ast.Predicate):
     """
     Node is SSH node
     """
 
-    scope = "node"
     login = ast.String("node.login")
     labels = ast.StringMap("node.labels")
 
@@ -180,20 +183,16 @@ class RequestPolicy:
     # denials is a list of recorded approvals for policy
     denials = ast.StringSetMap("policy.denials")
 
-
+@scoped
 class Request(ast.Predicate):
-    scope = "access_request"
-
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
     def traverse(self):
         return self.expr.traverse()
 
-
+@scoped
 class Review(ast.Predicate):
-    scope = "access_review"
-
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
