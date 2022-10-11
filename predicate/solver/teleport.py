@@ -251,17 +251,17 @@ def t_expr(predicate):
     elif isinstance(predicate, tuple):
         return f"[{', '.join(t_expr(p) for p in predicate)}]"
     elif isinstance(predicate, ast.Bool):
-        return f'{predicate.name}'
+        return f"{predicate.name}"
     elif isinstance(predicate, ast.BoolLiteral):
-        return f'{predicate.V}'
+        return f"{predicate.V}"
     elif isinstance(predicate, ast.Int):
-        return f'{predicate.name}'
+        return f"{predicate.name}"
     elif isinstance(predicate, ast.IntLiteral):
-        return f'{predicate.V}'
+        return f"{predicate.V}"
     elif isinstance(predicate, ast.Concat):
-        return f'({t_expr(predicate.L)} + {t_expr(predicate.R)})'
+        return f"({t_expr(predicate.L)} + {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Split):
-        return f'split({t_expr(predicate.val)}, {t_expr(predicate.sep)})'
+        return f"split({t_expr(predicate.val)}, {t_expr(predicate.sep)})"
     elif isinstance(predicate, ast.StringTuple):
         return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
     elif isinstance(predicate, ast.Upper):
