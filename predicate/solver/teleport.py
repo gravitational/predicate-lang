@@ -282,8 +282,6 @@ def t_expr(predicate):
         return f"replace({t_expr(predicate.val)}, {t_expr(predicate.src)}, {t_expr(predicate.dst)})"
     elif isinstance(predicate, ast.StringListReplace):
         return f"replace({t_expr(predicate.E)}, {t_expr(predicate.S)}, {t_expr(predicate.D)})"
-    elif isinstance(predicate, ast.StringListLiteral):
-        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
     elif isinstance(predicate, ast.RegexConstraint):
         return f"regex({t_expr(predicate.expr)})"
     elif isinstance(predicate, ast.RegexTuple):
@@ -294,6 +292,18 @@ def t_expr(predicate):
         return f"matches({t_expr(predicate.E)}, {t_expr(predicate.V)})"
     elif isinstance(predicate, ast.StringEnum):
         return predicate.name
+    elif isinstance(predicate, ast.StringListContainsRegex):
+        return f"contains_regex({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.IterableContains):
+        return f"contains({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.If):
+        return f"if({t_expr(predicate.cond)}, {t_expr(predicate.on_true)}, {t_expr(predicate.on_false)})"
+    elif isinstance(predicate, ast.Select):
+        return f"select([{', '.join(t_expr(p) for p in predicate.cases)}], {t_expr(predicate.default)})"
+    elif isinstance(predicate, ast.Case):
+        return f"case({t_expr(predicate.when)}, {t_expr(predicate.then)})"
+    elif isinstance(predicate, ast.Default):
+        return f"default({t_expr(predicate.expr)})"
     else:
         raise Exception(f"unknown predicate type: {type(predicate)}")
 
