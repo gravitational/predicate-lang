@@ -236,9 +236,18 @@ def t_expr(predicate):
         return f"({t_expr(predicate.L)} > {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.MapIndex):
         return f"{predicate.m.name}[{t_expr(predicate.key)}]"
-    elif isinstance(predicate, ast.StringSetMapIndexEquals):
-        return f"equals({predicate.E.m.name}[{t_expr(predicate.E.key)}], {t_expr(predicate.V.vals)})"
-    elif isinstance(predicate, (ast.String, ast.Duration, ast.StringList, ast.StringEnum, ast.Bool, ast.Int)):
+    elif isinstance(
+        predicate,
+        (
+            ast.String,
+            ast.Duration,
+            ast.StringList,
+            ast.StringEnum,
+            ast.Bool,
+            ast.Int,
+            ast.StringSetMap,
+        ),
+    ):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
         return f'"{predicate.V}"'
@@ -258,15 +267,20 @@ def t_expr(predicate):
         return f"upper({t_expr(predicate.val)})"
     elif isinstance(predicate, ast.Lower):
         return f"lower({t_expr(predicate.val)})"
-    elif isinstance(predicate, (ast.StringListContains, ast.IterableContains)):
+    elif isinstance(
+        predicate,
+        (ast.StringListContains, ast.IterableContains, ast.StringSetMapIndexContains),
+    ):
         return f"contains({t_expr(predicate.E)}, {t_expr(predicate.V)})"
     elif isinstance(predicate, ast.StringListFirst):
         return f"first({t_expr(predicate.E)})"
-    elif isinstance(predicate, ast.StringListAdd):
+    elif isinstance(predicate, (ast.StringListAdd, ast.StringSetMapIndexAdd)):
         return f"add({t_expr(predicate.E)}, {t_expr(predicate.V)})"
-    elif isinstance(predicate, ast.StringListEquals):
+    elif isinstance(predicate, (ast.StringListEquals, ast.StringSetMapIndexEquals)):
         return f"equals({t_expr(predicate.E)}, {t_expr(predicate.V)})"
-    elif isinstance(predicate, (ast.Replace, ast.StringListReplace)):
+    elif isinstance(
+        predicate, (ast.Replace, ast.StringListReplace, ast.StringSetMapIndexReplace)
+    ):
         return f"replace({t_expr(predicate.val)}, {t_expr(predicate.src)}, {t_expr(predicate.dst)})"
     elif isinstance(predicate, ast.RegexConstraint):
         return f"regex({t_expr(predicate.expr)})"
@@ -274,7 +288,9 @@ def t_expr(predicate):
         return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
     elif isinstance(predicate, (ast.Matches, ast.IterableMatches)):
         return f"matches({t_expr(predicate.E)}, {t_expr(predicate.V)})"
-    elif isinstance(predicate, ast.StringListContainsRegex):
+    elif isinstance(
+        predicate, (ast.StringListContainsRegex, ast.StringSetMapIndexContainsRegex)
+    ):
         return f"contains_regex({t_expr(predicate.E)}, {t_expr(predicate.V)})"
     elif isinstance(predicate, ast.If):
         return f"if({t_expr(predicate.cond)}, {t_expr(predicate.on_true)}, {t_expr(predicate.on_false)})"
@@ -284,6 +300,16 @@ def t_expr(predicate):
         return f"case({t_expr(predicate.when)}, {t_expr(predicate.then)})"
     elif isinstance(predicate, ast.Default):
         return f"default({t_expr(predicate.expr)})"
+    elif isinstance(predicate, ast.StringSetMapIndex):
+        return f"{predicate.m.name}[{t_expr(predicate.key)}]"
+    elif isinstance(predicate, ast.StringSetMapIndexLen):
+        return f"len({t_expr(predicate.E)})"
+    elif isinstance(predicate, ast.StringSetMapIndexFirst):
+        return f"first({t_expr(predicate.E)})"
+    elif isinstance(predicate, ast.StringSetMapAddValue):
+        return f"map_add({t_expr(predicate.m.name)}, {t_expr(predicate.K)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.StringSetMapRemoveKeys):
+        return f"map_remove({t_expr(predicate.m.name)}, {t_expr(predicate.K)})"
     else:
         raise Exception(f"unknown predicate type: {type(predicate)}")
 
