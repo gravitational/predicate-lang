@@ -23,6 +23,9 @@ import z3
 from . import ast
 from .errors import ParameterError
 
+def scoped(cls):
+    cls.scope = cls.__name__.lower()
+    return cls
 
 class Options(ast.Predicate):
     """
@@ -55,6 +58,7 @@ class OptionsSet:
         ]
 
 
+@scoped
 class Node(ast.Predicate):
     """
     Node is SSH node
@@ -179,7 +183,7 @@ class RequestPolicy:
     # denials is a list of recorded approvals for policy
     denials = ast.StringSetMap("policy.denials")
 
-
+@scoped
 class Request(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
@@ -187,7 +191,7 @@ class Request(ast.Predicate):
     def traverse(self):
         return self.expr.traverse()
 
-
+@scoped
 class Review(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
@@ -205,22 +209,102 @@ class Rules:
         return [r for r in self.rules if r.__class__ == other.__class__]
 
 
-# TODO: not really sure how I want to structure this logic
-#       as I'd like to keep the logic for non-teleport specific ast elements close to their
-#       definitions, but I am not sure if this is doable without a lot of complexity as the output
-#       format is tied to whatever builds on top of the general ast
-#       this might do for now
-def transform_expr(predicate):
+# t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
+def t_expr(predicate):
     if isinstance(predicate, ast.Predicate):
-        return transform_expr(predicate.expr)
+        return t_expr(predicate.expr)
     elif isinstance(predicate, ast.Eq):
-        return f"({transform_expr(predicate.L)} == {transform_expr(predicate.R)})"
-    elif isinstance(predicate, ast.String):
+        return f"({t_expr(predicate.L)} == {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Or):
+        return f"({t_expr(predicate.L)} || {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.And):
+        return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Xor):
+        return f"({t_expr(predicate.L)} ^ {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Not):
+        return f"(!{t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.Lt):
+        return f"({t_expr(predicate.L)} < {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Gt):
+        return f"({t_expr(predicate.L)} > {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.MapIndex):
+        return f"{predicate.m.name}[{t_expr(predicate.key)}]"
+    elif isinstance(
+        predicate,
+        (
+            ast.String,
+            ast.Duration,
+            ast.StringList,
+            ast.StringEnum,
+            ast.Bool,
+            ast.Int,
+            ast.StringSetMap,
+        ),
+    ):
         return predicate.name
     elif isinstance(predicate, ast.StringLiteral):
         return f'"{predicate.V}"'
+    elif isinstance(predicate, str):
+        return f'"{predicate}"'
+    elif isinstance(predicate, tuple):
+        return f"[{', '.join(t_expr(p) for p in predicate)}]"
+    elif isinstance(predicate, (ast.BoolLiteral, ast.IntLiteral, ast.DurationLiteral)):
+        return f"{predicate.V}"
+    elif isinstance(predicate, ast.Concat):
+        return f"({t_expr(predicate.L)} + {t_expr(predicate.R)})"
+    elif isinstance(predicate, ast.Split):
+        return f"split({t_expr(predicate.val)}, {t_expr(predicate.sep)})"
+    elif isinstance(predicate, ast.StringTuple):
+        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+    elif isinstance(predicate, ast.Upper):
+        return f"upper({t_expr(predicate.val)})"
+    elif isinstance(predicate, ast.Lower):
+        return f"lower({t_expr(predicate.val)})"
+    elif isinstance(
+        predicate,
+        (ast.StringListContains, ast.IterableContains, ast.StringSetMapIndexContains),
+    ):
+        return f"contains({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.StringListFirst):
+        return f"first({t_expr(predicate.E)})"
+    elif isinstance(predicate, (ast.StringListAdd, ast.StringSetMapIndexAdd)):
+        return f"add({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, (ast.StringListEquals, ast.StringSetMapIndexEquals)):
+        return f"equals({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(
+        predicate, (ast.Replace, ast.StringListReplace, ast.StringSetMapIndexReplace)
+    ):
+        return f"replace({t_expr(predicate.val)}, {t_expr(predicate.src)}, {t_expr(predicate.dst)})"
+    elif isinstance(predicate, ast.RegexConstraint):
+        return f"regex({t_expr(predicate.expr)})"
+    elif isinstance(predicate, ast.RegexTuple):
+        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+    elif isinstance(predicate, (ast.Matches, ast.IterableMatches)):
+        return f"matches({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(
+        predicate, (ast.StringListContainsRegex, ast.StringSetMapIndexContainsRegex)
+    ):
+        return f"contains_regex({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.If):
+        return f"if({t_expr(predicate.cond)}, {t_expr(predicate.on_true)}, {t_expr(predicate.on_false)})"
+    elif isinstance(predicate, ast.Select):
+        return f"select([{', '.join(t_expr(p) for p in predicate.cases)}], {t_expr(predicate.default)})"
+    elif isinstance(predicate, ast.Case):
+        return f"case({t_expr(predicate.when)}, {t_expr(predicate.then)})"
+    elif isinstance(predicate, ast.Default):
+        return f"default({t_expr(predicate.expr)})"
+    elif isinstance(predicate, ast.StringSetMapIndex):
+        return f"{predicate.m.name}[{t_expr(predicate.key)}]"
+    elif isinstance(predicate, ast.StringSetMapIndexLen):
+        return f"len({t_expr(predicate.E)})"
+    elif isinstance(predicate, ast.StringSetMapIndexFirst):
+        return f"first({t_expr(predicate.E)})"
+    elif isinstance(predicate, ast.StringSetMapAddValue):
+        return f"map_add({t_expr(predicate.m.name)}, {t_expr(predicate.K)}, {t_expr(predicate.V)})"
+    elif isinstance(predicate, ast.StringSetMapRemoveKeys):
+        return f"map_remove({t_expr(predicate.m.name)}, {t_expr(predicate.K)})"
     else:
-        return str(predicate)
+        raise Exception(f"unknown predicate type: {type(predicate)}")
 
 
 class Policy:
@@ -261,17 +345,29 @@ class Policy:
             "spec": {},
         }
 
+        def group_rules(operator, rules):
+            scopes = {}
+            for rule in rules:
+                if rule.scope not in scopes:
+                    scopes[rule.scope] = []
+
+                scopes[rule.scope].append(rule)
+
+            for scope, rules in scopes.items():
+                expr = functools.reduce(operator, rules)
+                scopes[scope] = t_expr(expr)
+
+            return scopes
+
         if self.options.options:
             options_rules = functools.reduce(operator.and_, self.options.options)
-            out["spec"]["options"] = transform_expr(options_rules)
+            out["spec"]["options"] = t_expr(options_rules)
 
         if self.allow.rules:
-            allow_rules = functools.reduce(operator.or_, self.allow.rules)
-            out["spec"]["allow"] = transform_expr(allow_rules)
+            out["spec"]["allow"] = group_rules(operator.or_, self.allow.rules)
 
         if self.deny.rules:
-            deny_rules = functools.reduce(operator.and_, self.deny.rules)
-            out["spec"]["deny"] = transform_expr(deny_rules)
+            out["spec"]["deny"] = group_rules(operator.and_, self.deny.rules)
 
         return out
 

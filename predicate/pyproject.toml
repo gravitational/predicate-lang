@@ -31,6 +31,9 @@ source = "."
 extra-requirements = "types-requests"
 use-mypy = true
 
+[tool.isort]
+profile = "black"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

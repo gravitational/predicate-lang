@@ -1,3 +1,4 @@
+import subprocess
 from runpy import run_path
 from types import FunctionType
 
@@ -78,6 +79,25 @@ def export(policy_file):
     obj = policy.export()
     serialized = yaml.dump(obj)
     click.echo(serialized)
+
+
+@main.command()
+@click.argument("policy-file")
+@click.option("--sudo", "-s", is_flag=True)
+def deploy(policy_file, sudo):
+    click.echo("parsing policy...")
+    module = run_path(policy_file, env)
+    policy = module["Teleport"].p
+    click.echo("translating policy...")
+    obj = policy.export()
+    serialized = yaml.dump(obj)
+    click.echo("deploying policy...")
+    args = ["tctl", "create", "-f"]
+    if sudo:
+        args.insert(0, "sudo")
+
+    subprocess.run(args, text=True, input=serialized, check=True)
+    click.echo(f'policy deployed as resource "{policy.name}"')
 
 
 @main.command()
