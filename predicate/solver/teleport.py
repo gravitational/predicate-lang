@@ -212,14 +212,8 @@ class Rules:
 
 # t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
 def t_expr(predicate):
-    # special-case predicate subclasses like Node to get their inner expression
     if isinstance(predicate, ast.Predicate):
-        if hasattr(predicate, "scope"):
-            # if the predicate has an evaluation scope for which it is only enabled,
-            # case it's expression within a `scope` call to allow defaulting in the expression evaluator
-            return f'scope({t_expr(predicate.expr)}, "{predicate.scope}")'
-        else:
-            return t_expr(predicate.expr)
+        return t_expr(predicate.expr)
     elif isinstance(predicate, ast.Eq):
         return f"({t_expr(predicate.L)} == {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Or):
@@ -352,17 +346,29 @@ class Policy:
             "spec": {},
         }
 
+        def group_rules(operator, rules):
+            scopes = {}
+            for rule in rules:
+                if rule.scope not in scopes:
+                    scopes[rule.scope] = []
+
+                scopes[rule.scope].append(rule)
+
+            for scope, rules in scopes.items():
+                expr = functools.reduce(operator, rules)
+                scopes[scope] = t_expr(expr)
+
+            return scopes
+
         if self.options.options:
             options_rules = functools.reduce(operator.and_, self.options.options)
             out["spec"]["options"] = t_expr(options_rules)
 
         if self.allow.rules:
-            allow_rules = functools.reduce(operator.or_, self.allow.rules)
-            out["spec"]["allow"] = t_expr(allow_rules)
+            out["spec"]["allow"] = group_rules(operator.or_, self.allow.rules)
 
         if self.deny.rules:
-            deny_rules = functools.reduce(operator.and_, self.deny.rules)
-            out["spec"]["deny"] = t_expr(deny_rules)
+            out["spec"]["deny"] = group_rules(operator.and_, self.deny.rules)
 
         return out
 
