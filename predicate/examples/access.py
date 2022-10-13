@@ -1,5 +1,6 @@
 from solver.ast import Duration
-from solver.teleport import Policy, Rules, Node, User, OptionsSet, Options
+from solver.teleport import Node, Options, OptionsSet, Policy, Rules, User
+
 
 class Teleport:
     p = Policy(

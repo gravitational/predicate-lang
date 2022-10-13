@@ -23,9 +23,11 @@ import z3
 from . import ast
 from .errors import ParameterError
 
+
 def scoped(cls):
     cls.scope = cls.__name__.lower()
     return cls
+
 
 class Options(ast.Predicate):
     """
@@ -183,6 +185,7 @@ class RequestPolicy:
     # denials is a list of recorded approvals for policy
     denials = ast.StringSetMap("policy.denials")
 
+
 @scoped
 class Request(ast.Predicate):
     def __init__(self, expr):
@@ -190,6 +193,7 @@ class Request(ast.Predicate):
 
     def traverse(self):
         return self.expr.traverse()
+
 
 @scoped
 class Review(ast.Predicate):

@@ -5,31 +5,6 @@ from types import FunctionType
 import click
 import yaml
 
-from solver import (
-    Case,
-    Default,
-    Duration,
-    ParameterError,
-    Predicate,
-    Select,
-    StringLiteral,
-    StringSetMap,
-)
-from solver.teleport import (
-    LoginRule,
-    Node,
-    Options,
-    OptionsSet,
-    Policy,
-    PolicyMap,
-    PolicySet,
-    Request,
-    Review,
-    Rules,
-    User,
-    map_policies,
-    try_login,
-)
 
 @click.group()
 def main():
