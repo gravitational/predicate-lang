@@ -14,7 +14,6 @@ def main():
 @main.command()
 @click.argument("policy-file")
 def export(policy_file):
-    # Ugly python hack to load a module with a defined environment
     module = run_path(policy_file)
 
     # Grabs the class and directly reads the policy since it's a static member.
@@ -48,7 +47,6 @@ def deploy(policy_file, sudo):
 @main.command()
 @click.argument("policy-file")
 def test(policy_file):
-    # Ugly python hack to load a module with a defined environment
     module = run_path(policy_file)
 
     # Extract the defined policy class and filter out all test functions
