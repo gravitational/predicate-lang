@@ -31,36 +31,6 @@ from solver.teleport import (
     try_login,
 )
 
-env = {
-    item.__name__: item
-    for item in [
-        # General
-        Case,
-        Default,
-        Duration,
-        ParameterError,
-        Predicate,
-        Select,
-        StringLiteral,
-        StringSetMap,
-        # Teleport
-        LoginRule,
-        Node,
-        Options,
-        OptionsSet,
-        Policy,
-        PolicyMap,
-        PolicySet,
-        Request,
-        Review,
-        Rules,
-        map_policies,
-        try_login,
-        User,
-    ]
-}
-
-
 @click.group()
 def main():
     pass
@@ -70,7 +40,7 @@ def main():
 @click.argument("policy-file")
 def export(policy_file):
     # Ugly python hack to load a module with a defined environment
-    module = run_path(policy_file, env)
+    module = run_path(policy_file)
 
     # Grabs the class and directly reads the policy since it's a static member.
     policy = module["Teleport"].p
@@ -86,7 +56,7 @@ def export(policy_file):
 @click.option("--sudo", "-s", is_flag=True)
 def deploy(policy_file, sudo):
     click.echo("parsing policy...")
-    module = run_path(policy_file, env)
+    module = run_path(policy_file)
     policy = module["Teleport"].p
     click.echo("translating policy...")
     obj = policy.export()
@@ -104,7 +74,7 @@ def deploy(policy_file, sudo):
 @click.argument("policy-file")
 def test(policy_file):
     # Ugly python hack to load a module with a defined environment
-    module = run_path(policy_file, env)
+    module = run_path(policy_file)
 
     # Extract the defined policy class and filter out all test functions
     policyClass = module["Teleport"]
