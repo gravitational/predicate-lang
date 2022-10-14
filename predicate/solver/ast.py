@@ -2105,7 +2105,7 @@ class Predicate:
 
     def simplify(self):
         """
-        Simplify is just an example. It splits expression into subexpressoins.
+        Simplify is just an example. It splits expression into subexpressions.
         If an expression renders equivalent results with left or right tree branch of or, and
         then it removes the redundant one.
         """

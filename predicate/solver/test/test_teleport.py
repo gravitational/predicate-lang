@@ -275,7 +275,7 @@ class TestTeleport:
 
         assert (
             ret is False
-        ), "options fails recodring mode restriction from the policy b"
+        ), "options fails recording mode restriction from the policy b"
 
         ret, _ = p.check(
             Node(
@@ -454,7 +454,7 @@ class TestTeleport:
         p = map_policies(policy_names, (dev, ext))
 
         # policy set will allow Alice to connect to prod if her
-        # emial is alice@wonderland.local
+        # email is alice@wonderland.local
         ret, _ = p.check(
             Node(
                 (Node.login == "alice-wonderland.local")

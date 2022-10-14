@@ -21,7 +21,7 @@ from typing import Final
 from . import ast
 from .errors import ParameterError
 
-# Convert AWS policies to predictate expression.
+# Convert AWS policies to predicate expression.
 # It's not that the policy that should be modeled,
 # it's the action against resource that should be modeled,
 # AWS policy should be converted to predicate.

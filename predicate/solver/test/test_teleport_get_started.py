@@ -45,7 +45,7 @@ class TestTeleportGetStarted:
         ), "This role does not allow access as root unless a user name is root"
 
         # Let's prohibit root access altogether. Deny rules always take
-        # precendence over any allow rules.
+        # precedence over any allow rules.
         p = Policy(
             name="everyone",
             allow=Rules(
@@ -55,7 +55,7 @@ class TestTeleportGetStarted:
         )
 
         # Notice the difference between check and query. Query allows to query
-        # partial condititions, our predicate requires user to be specified,
+        # partial conditions, our predicate requires user to be specified,
         # while this query does not specify any user. Checks require all
         # parameters of the predicate, while queries do not.
         ret, _ = p.query(Node((Node.login == "root")))
