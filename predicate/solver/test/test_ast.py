@@ -44,7 +44,7 @@ class User:
 
 class Request:
     """
-    Request is a domain specific model, e.g. (Teleport approval thesholds)
+    Request is a domain specific model, e.g. (Teleport approval thresholds)
     """
 
     approve = Int("request.approve")
@@ -69,7 +69,7 @@ class TestAst:
         """
         p = Predicate(User.team == "stage")
 
-        # This predicate is unsolvable, contradicts our main prediccate
+        # This predicate is unsolvable, contradicts our main predicate
         ret, msg = p.check(Predicate(User.team != "stage"))
         assert ret is False
         assert "unsolvable" in msg
@@ -680,7 +680,7 @@ class TestAst:
         p = Predicate((m["key"] == "val") & (m["key-2"] == "val-2"))
 
         ret, _ = p.query(Predicate(m["key"] == "val"))
-        assert ret is True, "query on subset of keys is successfull"
+        assert ret is True, "query on subset of keys is successful"
 
         # check will raise error when there is ambiguity because
         # not all keys have been specified
