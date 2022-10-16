@@ -155,8 +155,9 @@ def reviews(*roles: tuple):
             return ast.StringTuple(())
         else:
             return ast.If(
-                role.build_predicate(expr).expr,
-                ast.StringTuple.cons("review", ast.StringTuple(())),
+                # this is to collect all subexpressions related to review, if any
+                role.build_predicate(Review(ast.BoolLiteral(True))).expr,
+                ast.StringTuple.cons("review", iff(iterator)),
                 iff(iterator),
             )
 
