@@ -2072,14 +2072,14 @@ class Predicate:
         e = self.expr.traverse()
         if self.loud:
             print("OUR EXPR: {}".format(e))
-        solver.add(self.expr.traverse())
+        solver.add(e)
 
         if solver.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
         o = other.expr.traverse()
         if self.loud:
             print("THEIR EXPR: {}".format(o))
-        solver.add(other.expr.traverse())
+        solver.add(o)
 
         # TODO do a second pass to build a key checking function
         # for both predicates!
