@@ -60,6 +60,9 @@ class OptionsSet:
             o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0
         ]
 
+@scoped
+class Connection(ast.Predicate):
+    login = ast.String("node.login")
 
 @scoped
 class AccessNode(ast.Predicate):
@@ -181,6 +184,12 @@ class User:
     # name is username
     name = ast.String("user.name")
 
+    # policies is a list of access policies assigned to the user
+    polices = ast.StringList("user.policies")
+
+    # policies is a list of logins/principals assigned to the user
+    ssh_logins = ast.StringList("user.ssh_logins")
+
     # traits is a map of user traits
     traits = ast.StringSetMap("user.traits")
 
@@ -264,7 +273,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.And):
         return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Xor):
-        return f"({t_expr(predicate.L)} ^ {t_expr(predicate.R)})"
+        return f"xor({t_expr(predicate.L)}, {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Not):
         return f"(!{t_expr(predicate.V)})"
     elif isinstance(predicate, ast.Lt):
@@ -292,7 +301,7 @@ def t_expr(predicate):
     elif isinstance(predicate, str):
         return f'"{predicate}"'
     elif isinstance(predicate, tuple):
-        return f"[{', '.join(t_expr(p) for p in predicate)}]"
+        return f"array({', '.join(t_expr(p) for p in predicate)})"
     elif isinstance(predicate, (ast.BoolLiteral, ast.IntLiteral, ast.DurationLiteral)):
         return f"{predicate.V}"
     elif isinstance(predicate, ast.Concat):
@@ -300,7 +309,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.Split):
         return f"split({t_expr(predicate.val)}, {t_expr(predicate.sep)})"
     elif isinstance(predicate, ast.StringTuple):
-        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+        return f"array({', '.join(t_expr(p) for p in predicate.vals)})"
     elif isinstance(predicate, ast.Upper):
         return f"upper({t_expr(predicate.val)})"
     elif isinstance(predicate, ast.Lower):
@@ -313,9 +322,9 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.StringListFirst):
         return f"first({t_expr(predicate.E)})"
     elif isinstance(predicate, (ast.StringListAdd, ast.StringSetMapIndexAdd)):
-        return f"add({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+        return f"append({t_expr(predicate.E)}, {t_expr(predicate.V)})"
     elif isinstance(predicate, (ast.StringListEquals, ast.StringSetMapIndexEquals)):
-        return f"equals({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+        return f"({t_expr(predicate.E)} == {t_expr(predicate.V)})"
     elif isinstance(
         predicate, (ast.Replace, ast.StringListReplace, ast.StringSetMapIndexReplace)
     ):
@@ -323,7 +332,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.RegexConstraint):
         return f"regex({t_expr(predicate.expr)})"
     elif isinstance(predicate, ast.RegexTuple):
-        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+        return f"array({', '.join(t_expr(p) for p in predicate.vals)})"
     elif isinstance(predicate, (ast.Matches, ast.IterableMatches)):
         return f"matches({t_expr(predicate.E)}, {t_expr(predicate.V)})"
     elif isinstance(
@@ -345,7 +354,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.StringSetMapIndexFirst):
         return f"first({t_expr(predicate.E)})"
     elif isinstance(predicate, ast.StringSetMapAddValue):
-        return f"map_add({t_expr(predicate.m.name)}, {t_expr(predicate.K)}, {t_expr(predicate.V)})"
+        return f"map_insert({t_expr(predicate.m.name)}, {t_expr(predicate.K)}, {t_expr(predicate.V)})"
     elif isinstance(predicate, ast.StringSetMapRemoveKeys):
         return f"map_remove({t_expr(predicate.m.name)}, {t_expr(predicate.K)})"
     else:
