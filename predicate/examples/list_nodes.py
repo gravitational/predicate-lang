@@ -1,5 +1,4 @@
-from solver.ast import Duration
-from solver.teleport import Node, Options, OptionsSet, Policy, Rules, User
+from solver.teleport import Resource, Policy, Rules
 
 
 class Teleport:
@@ -7,6 +6,6 @@ class Teleport:
         name="list_nodes",
         loud=False,
         allow=Rules(
-            Node((Node.namespace == "default")),
+            Resource((Resource.namespace == "default") & (Resource.kind == "node")),
         ),
     )

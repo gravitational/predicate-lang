@@ -61,8 +61,13 @@ class OptionsSet:
         ]
 
 @scoped
-class Connection(ast.Predicate):
-    login = ast.String("node.login")
+class Resource(ast.Predicate):
+    namespace = ast.String("resource.namespace")
+    kind = ast.String("resource.kind")
+    labels = ast.String("resource.labels")
+
+    def __init__(self, expr):
+        ast.Predicate.__init__(self, expr)
 
 @scoped
 class AccessNode(ast.Predicate):
@@ -186,6 +191,9 @@ class User:
 
     # policies is a list of access policies assigned to the user
     polices = ast.StringList("user.policies")
+
+    # roles is a list of roles assigned to the user
+    roles = ast.StringList("user.roles")
 
     # policies is a list of logins/principals assigned to the user
     ssh_logins = ast.StringList("user.ssh_logins")
@@ -391,7 +399,7 @@ class Policy:
 
     def export(self):
         out = {
-            "kind": "policy",
+            "kind": "access_policy",
             "version": "v1",
             "metadata": {
                 "name": self.name,
@@ -412,10 +420,6 @@ class Policy:
                 scopes[scope] = t_expr(expr)
 
             return scopes
-
-        if self.options.options:
-            options_rules = functools.reduce(operator.and_, self.options.options)
-            out["spec"]["options"] = t_expr(options_rules)
 
         if self.allow.rules:
             out["spec"]["allow"] = group_rules(operator.or_, self.allow.rules)
