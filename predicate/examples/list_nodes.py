@@ -1,4 +1,4 @@
-from solver.teleport import Resource, Policy, Rules
+from solver.teleport import Resource, Policy, Rules, Node, User
 
 
 class Teleport:
@@ -7,5 +7,6 @@ class Teleport:
         loud=False,
         allow=Rules(
             Resource((Resource.namespace == "default") & (Resource.kind == "node")),
+            Node((Node.login == "root"))
         ),
     )
