@@ -62,6 +62,10 @@ class OptionsSet:
 
 @scoped
 class Resource(ast.Predicate):
+    """
+    Resource defines read/list/write access to a resource.
+    """
+
     namespace = ast.String("resource.namespace")
     kind = ast.String("resource.kind")
     labels = ast.String("resource.labels")
