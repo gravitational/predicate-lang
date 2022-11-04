@@ -82,17 +82,32 @@ class Node(ast.Predicate):
         return Node(self.expr & options.expr)
 
 @scoped
+class StartSession(ast.Predicate):
+    """
+    StartSession defines the permission to start a moderated session.
+
+    Full documentation here: https://goteleport.com/docs/access-controls/guides/moderated-sessions
+    Note that this predicate models `require_session_join`.
+    """
+
+    mode = ast.String("start_session.mode")
+    on_leave = ast.String("start_session.on_leave")
+    count = ast.Int("start_session.count")
+
+    def __init__(self, expr):
+        ast.Predicate.__init__(self, expr)
+
+@scoped
 class JoinSession(ast.Predicate):
     """
     JoinSession defines the permission to join a moderated session.
 
     Full documentation here: https://goteleport.com/docs/access-controls/guides/moderated-sessions
-    Note that this predicate models both `join_sessions` and `require_session_join`.
+    Note that this predicate models `join_sessions`.
     """
 
     mode = ast.String("join_session.mode")
     on_leave = ast.String("join_session.on_leave")
-    count = ast.Int("join_session.count")
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
