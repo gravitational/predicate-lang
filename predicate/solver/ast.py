@@ -415,10 +415,10 @@ class Int(IntMixin):
 
     def __init__(self, name: str):
         self.name = name
-        self.fn = z3.Function(self.name, z3.StringSort(), z3.IntSort())
+        self.val = z3.Int(self.name)
 
     def traverse(self):
-        return self.fn(z3.StringVal(self.name))
+        return self.val
 
     def walk(self, fn):
         fn(self)
@@ -430,10 +430,10 @@ class Int(IntMixin):
 class Duration:
     def __init__(self, name: str):
         self.name = name
-        self.fn = z3.Function(self.name, z3.StringSort(), z3.IntSort())
+        self.val = z3.Int(self.name)
 
     def traverse(self):
-        return self.fn(z3.StringVal(self.name))
+        return self.val
 
     def walk(self, fn):
         fn(self)
@@ -493,7 +493,7 @@ class Duration:
 class Bool:
     def __init__(self, name: str):
         self.name = name
-        self.fn = z3.Function(self.name, z3.StringSort(), z3.BoolSort())
+        self.val = z3.Int(self.name)
 
     def __eq__(self, val):
         if isinstance(val, bool):
@@ -514,7 +514,7 @@ class Bool:
         )
 
     def traverse(self):
-        return self.fn(z3.StringVal(self.name))
+        return self.val
 
     def walk(self, fn):
         fn(self)
@@ -526,7 +526,7 @@ class Bool:
 class String:
     def __init__(self, name: str):
         self.name = name
-        self.fn = z3.Function(self.name, z3.StringSort(), z3.StringSort())
+        self.val = z3.String(self.name)
 
     def __eq__(self, val):
         if isinstance(val, str):
@@ -586,7 +586,7 @@ class String:
         return "string({})".format(self.name)
 
     def traverse(self):
-        return self.fn(z3.StringVal(self.name))
+        return self.val
 
     def walk(self, fn):
         fn(self)
