@@ -351,7 +351,7 @@ class DurationLiteral:
         return "`{}`".format(self.V)
 
 
-class BoolLiteral:
+class BoolLiteral(LogicMixin):
     """
     Boolean literal is true or false
     """
@@ -964,7 +964,7 @@ class Not(LogicMixin):
         self.V = v
 
     def __str__(self):
-        return "^({})".format(self.V)
+        return "!({})".format(self.V)
 
     def walk(self, fn):
         fn(self)
@@ -1984,16 +1984,20 @@ class StringSetMapIndexEquals(LogicMixin):
 
 
 def collect_symbols(s, expr):
-    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
-        s.add(expr.name)
-    if isinstance(expr, MapIndex):
-        s.add(expr.m.name + "." + expr.key)
+    s.add(symbol(expr))
 
+def symbol(expr):
+    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
+        return expr.name
+    if isinstance(expr, (MapIndex, StringSetMapIndex)):
+        return expr.m.name + "." + expr.key
+    # TODO: implement this for all types
+    return "UNDEFINED"
 
 def collect_names(s, expr):
     if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
         s.add(expr.name)
-    if isinstance(expr, MapIndex):
+    if isinstance(expr, (MapIndex, StringSetMapIndex)):
         s.add(expr.m.name)
 
 

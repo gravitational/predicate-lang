@@ -331,13 +331,19 @@ class Policy:
         self.options = options or OptionsSet()
         self.loud = loud
 
+    def symbols(self) -> set[str]:
+        """
+        symbols returns all predicate symbols present in the policy.
+        """
+        return PolicySet([self], self.loud).symbols()
+
     def check(self, other: ast.Predicate):
         return PolicySet([self], self.loud).check(other)
 
     def query(self, other: ast.Predicate):
         return PolicySet([self], self.loud).query(other)
 
-    def build_predicate(self, other: ast.Predicate):
+    def build_predicate(self, other: ast.Predicate) -> ast.Predicate:
         return PolicySet([self], self.loud).build_predicate(other)
 
     def export(self):
@@ -426,13 +432,27 @@ class PolicySet:
             pr = ast.Predicate(allow_expr & deny_expr, self.loud)
         return pr
 
+    def symbols(self) -> set[str]:
+        """
+        symbols returns all predicate symbols present in the policy set.
+        """
+        symbols = set()
+        for p in self.policies:
+            for e in p.options.options:
+                symbols = symbols.union(e.symbols)
+            for e in p.allow.rules:
+                symbols = symbols.union(e.symbols)
+            for e in p.deny.rules:
+                symbols = symbols.union(e.symbols)
+        return symbols
+
     def check(self, other: ast.Predicate):
         return self.build_predicate(other).check(other)
 
     def query(self, other: ast.Predicate):
         return self.build_predicate(other).query(other)
 
-    def names(self):
+    def names(self) -> set[str]:
         """
         Names returns names in the policy set
         """
@@ -440,3 +460,160 @@ class PolicySet:
         for p in self.policies:
             s.add(p.name)
         return s
+
+class TeleportNode:
+    """
+    TeleportNode contains information about a teleport node (hostname & labels).
+    """
+
+    def __init__(self, hostname, labels={}):
+        self.hostname = hostname
+        self.labels = labels
+
+    def __repr__(self):
+        return "TeleportNode(hostname = {}, labels = {})".format(self.hostname, self.labels)
+
+    def parse(node):
+        """
+        parse extracts the hostname & labels of a node from the JSON output of `tctl get nodes`.
+        Note that both `labels` & `cmd_labels` are considered as labels.
+        """
+        hostname = node["spec"]["hostname"]
+        labels = {}
+        if "labels" in node["metadata"]:
+            for key, value in node["metadata"]["labels"].items():
+                labels[key] = value
+        if "cmd_labels" in node["spec"]:
+            for key, value in node["spec"]["cmd_labels"].items():
+                labels[key] = value["result"]
+
+        return TeleportNode(hostname, labels)
+
+    def predicate(self, policy: Policy) -> ast.Predicate:
+        """
+        predicate builds a predicate representing this node.
+        The predicate returned only contains symbols present in the policy passed as argument
+        (which ensures that the predicate returned can be used to query to policy).
+        TODO it's unclear why the query symbols have to be a subset of the policy/predicate symbols.
+        """
+        symbols = policy.symbols()
+        predicate = ast.BoolLiteral(True)
+        for key, value in self.labels.items():
+            if ast.symbol(Node.labels[key]) in symbols:
+                predicate = predicate & (Node.labels[key] == value)
+        return predicate
+
+class TeleportUser:
+    """
+    TeleportUser contains information about a teleport user (name & traits).
+    """
+
+    def __init__(self, name, traits={}):
+        self.name = name
+        self.traits = traits
+
+    def __repr__(self):
+        return "TeleportUser(name = {}, traits = {})".format(self.name, self.traits)
+
+    def parse(user):
+        """
+        parse extracts the name & traits of a user from the JSON output of `tctl get users`.
+        """
+        name = user["metadata"]["name"]
+        traits = {}
+        if "traits" in user["spec"]:
+            for key, values in user["spec"]["traits"].items():
+                if values != None:
+                    traits[key] = values
+
+        return TeleportUser(name, traits)
+
+    def predicate(self, policy: Policy) -> ast.Predicate:
+        """
+        predicate builds a predicate representing this user.
+        The predicate returned only contains symbols present in the policy passed as argument
+        (which ensures that the predicate returned can be used to query to policy).
+        TODO it's unclear why the query symbols have to be a subset of the policy/predicate symbols.
+        """
+        symbols = policy.symbols()
+        predicate = ast.BoolLiteral(True)
+
+        if ast.symbol(User.name) in symbols:
+            predicate = predicate & (User.name == self.name)
+
+        for key, values in self.traits.items():
+            if ast.symbol(User.traits[key]) in symbols:
+                predicate = predicate & (User.traits[key] == values)
+
+        return predicate
+
+    def logins(self, node: TeleportNode, policy: Policy, loud=False, max=3):
+        """
+        logins returns a list of valid logins that this user can use to access
+        the `node` (passed as argument) given the `policy` (passed as argument).
+
+        As the list of valid logins may be infinite, the `max` argument
+        is used to limit the size of the list returned.
+
+        If the list returned is empty, then the user cannot access the node.
+        """
+        logins = []
+        predicate = self.predicate(policy) & node.predicate(policy)
+
+        # compute the set of symbols that are mentioned in the policy, but are not
+        # mentioned by the user & node predicate.
+        # `user.name`` is always present (as this is a required field), so the missing
+        # symbols can only be of the following form:
+        # - `user.traits.*`
+        # - `node.labels.*`
+        missing_symbols = policy.symbols().difference(Node(predicate).symbols)
+
+        # for any such symbol, set it to some reserved value.
+        # TODO explain why
+        for symbol in missing_symbols:
+            if symbol.startswith("user.traits."):
+                key = symbol.removeprefix("user.traits.")
+                predicate = predicate & (User.traits[key] == ("$RESERVED_VALUE$",))
+            elif symbol.startswith("node.labels."):
+                key = symbol.removeprefix("node.labels.")
+                predicate = predicate & (Node.labels[key] == "$RESERVED_VALUE$")
+
+        while len(logins) < max:
+            # the base query is the predicate that represents both the user & the node.
+            # this base query is extended so that z3 only returns logins that haven't
+            # been returned by previous queries.
+            query = predicate
+            for login in logins:
+                query = query & (Node.login != login)
+
+            if loud:
+                print("query  = {}".format(query))
+
+            solves, result = policy.query(Node(query))
+            if solves & loud:
+                print("solves = {}".format(solves))
+                print("model  = ")
+                show_teleport_model(result)
+
+            if solves:
+                # if the query is solvable, then we extract the login from the model.
+                login = result[Node.login.val]
+                if login != None:
+                    logins.append(login.as_string())
+                else:
+                    # if the policy set doesn't say anything about the login, then it
+                    # won't be part of the model.
+                    # when this happens, we just make up a list of logins.
+                    return ["login{}".format(i) for i in range(max)]
+
+            else:
+                if loud:
+                    print(result)
+                break
+
+        return logins
+
+def show_teleport_model(model):
+    for d in model.decls():
+        if d.name().startswith("node.") or d.name().startswith("user."):
+            print("    {}: {}".format(d.name(), model[d]))
