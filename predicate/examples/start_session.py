@@ -26,7 +26,7 @@ class Teleport:
                 (StartSession.on_leave == "terminate")
             )
         )
-        assert ret is True, "any two users (with this policy) from the admin team can start a session as moderators"
+        assert ret is True, "any two users from the admin team can start a session as moderators"
 
         ret, _ = self.p.check(
             StartSession(
@@ -36,7 +36,7 @@ class Teleport:
                 (StartSession.on_leave == "terminate")
             )
         )
-        assert ret is False, "any two users (with this policy) from the dev team cannot start a session as moderators"
+        assert ret is False, "any two users from the dev team cannot start a session as moderators"
 
         ret, _ = self.p.check(
             StartSession(
@@ -46,4 +46,4 @@ class Teleport:
                 (StartSession.on_leave == "terminate")
             )
         )
-        assert ret is False, "a single user (with this policy) from the admin team cannot start a session as moderators"
+        assert ret is False, "a single user from the admin team cannot start a session as moderators"
