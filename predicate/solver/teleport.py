@@ -200,7 +200,7 @@ class User:
     # roles is a list of roles assigned to the user
     roles = ast.StringList("user.roles")
 
-    # policies is a list of logins/principals assigned to the user
+    # ssh_logins is a list of logins/principals assigned to the user
     ssh_logins = ast.StringList("user.ssh_logins")
 
     # traits is a map of user traits
