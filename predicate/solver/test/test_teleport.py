@@ -12,6 +12,7 @@ from .. import (
 )
 from ..teleport import (
     LoginRule,
+    User,
     Node,
     Options,
     OptionsSet,
@@ -19,6 +20,8 @@ from ..teleport import (
     PolicyMap,
     PolicySet,
     Rules,
+    StartSession,
+    JoinSession,
     map_policies,
     try_login,
 )
@@ -300,6 +303,102 @@ class TestTeleport:
         assert (
             ret is False
         ), "strict is enforced for all modes of access across all policies in the set"
+
+    def test_start_session(self):
+        p = Policy(
+            name="start_session",
+            allow=Rules(
+                StartSession(
+                    (User.traits["team"].contains("admin")) &
+                    (StartSession.count == 2) &
+                    (StartSession.mode == "moderator") &
+                    (StartSession.on_leave == "terminate")
+                )
+            ),
+        )
+
+        ret, _ = p.check(
+            StartSession(
+                (User.traits["team"] == ("admin",)) &
+                (StartSession.count == 2) &
+                (StartSession.mode == "moderator") &
+                (StartSession.on_leave == "terminate")
+            )
+        )
+        assert ret is True, "any two users from the admin team can start a session as moderators"
+
+        ret, _ = p.check(
+            StartSession(
+                (User.traits["team"] == ("dev",)) &
+                (StartSession.count == 2) &
+                (StartSession.mode == "moderator") &
+                (StartSession.on_leave == "terminate")
+            )
+        )
+        assert ret is False, "any two users from the dev team cannot start a session as moderators"
+
+        ret, _ = p.check(
+            StartSession(
+                (User.traits["team"] == ("admin",)) &
+                (StartSession.count == 1) &
+                (StartSession.mode == "moderator") &
+                (StartSession.on_leave == "terminate")
+            )
+        )
+        assert ret is False, "a single user from the admin team cannot start a session as moderators"
+
+    def test_join_session(self):
+        p = Policy(
+            name="join_session",
+            allow=Rules(
+                JoinSession(
+                    (User.traits["team"].contains("admin")) &
+                    (Node.labels["env"] == "dev") &
+                    ((JoinSession.mode == "peer") | (JoinSession.mode == "observer")) &
+                    (JoinSession.on_leave == "pause")
+                ),
+            ),
+        )
+
+        ret, _ = p.check(
+            JoinSession(
+                (User.traits["team"] == ("admin",)) &
+                (Node.labels["env"] == "dev") &
+                (JoinSession.mode == "observer") &
+                (JoinSession.on_leave == "pause")
+            )
+        )
+        assert ret is True, "a user from the admin team can join an env=dev node session as an observer"
+
+        ret, _ = p.check(
+            JoinSession(
+                (User.traits["team"] == ("dev",)) &
+                (Node.labels["env"] == "dev") &
+                (JoinSession.mode == "observer") &
+                (JoinSession.on_leave == "pause")
+            )
+        )
+        assert ret is False, "a user from the dev team cannot join an env=dev node session as an observer"
+
+        ret, _ = p.check(
+            JoinSession(
+                (User.traits["team"] == ("admin",)) &
+                (Node.labels["env"] == "prod") &
+                (JoinSession.mode == "observer") &
+                (JoinSession.on_leave == "pause")
+            )
+        )
+        assert ret is False, "a user from the admin team cannot join an env=prod node session as an observer"
+
+        ret, _ = p.check(
+            JoinSession(
+                (User.traits["team"] == ("admin",)) &
+                (Node.labels["env"] == "dev") &
+                (JoinSession.mode == "moderator") &
+                (JoinSession.on_leave == "pause")
+            )
+        )
+        assert ret is False, "a user from the admin team cannot join an env=dev node session as a moderator"
 
     def test_login_rules(self):
         """
