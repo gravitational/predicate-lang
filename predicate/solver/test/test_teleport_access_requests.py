@@ -248,7 +248,7 @@ class TestTeleportAccessRequests:
 
         # With multi-roles, both roles have to be requested
         request = RequestPolicy.names == ("access-stage",)
-        ret, _ = devs.check(
+        ret, _ = devs.query(
             Request(
                 request
                 & (
@@ -262,7 +262,7 @@ class TestTeleportAccessRequests:
         ), "one person have approved the request, but the request fails because both roles have to be requested"
 
         # Request for two policies got approved
-        ret, model = devs.check(
+        ret, _ = devs.query(
             Request(
                 (RequestPolicy.names == ("access-stage", "access-prod"))
                 & (

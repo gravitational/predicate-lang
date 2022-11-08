@@ -442,7 +442,7 @@ class TestTeleport:
         p = PolicySet([dev, ext])
 
         # make sure that policy set will never allow access to prod
-        ret, _ = p.check(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
+        ret, _ = p.query(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
         assert ret is False
 
         policy_names = try_login(
@@ -455,7 +455,7 @@ class TestTeleport:
 
         # policy set will allow Alice to connect to prod if her
         # email is alice@wonderland.local
-        ret, _ = p.check(
+        ret, _ = p.query(
             Node(
                 (Node.login == "alice-wonderland.local")
                 & (Node.labels["env"] == "prod")

@@ -1983,8 +1983,10 @@ class StringSetMapIndexEquals(LogicMixin):
         return self.E.m.fn_map(z3.StringVal(self.E.key)) == self.V.traverse()
 
 
-def collect_symbols(s, expr):
-    s.add(symbol(expr))
+def collect_symbols(symbols, expr):
+    s = symbol(expr)
+    if s != None:
+        symbols.add(s)
 
 def symbol(expr):
     if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
@@ -1992,7 +1994,7 @@ def symbol(expr):
     if isinstance(expr, (MapIndex, StringSetMapIndex)):
         return expr.m.name + "." + expr.key
     # TODO: implement this for all types
-    return "UNDEFINED"
+    return None
 
 def collect_names(s, expr):
     if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
