@@ -389,6 +389,7 @@ class TestTeleport:
             & (traits["login"] == ("alice-wonderland.local",))
         )
         ret, _ = p.solve()
+        assert ret is True, "match and replace works"
 
         s = PolicyMap(
             Select(
