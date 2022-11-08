@@ -60,6 +60,7 @@ class OptionsSet:
             o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0
         ]
 
+
 @scoped
 class Resource(ast.Predicate):
     """
@@ -73,6 +74,7 @@ class Resource(ast.Predicate):
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
+
 
 @scoped
 class AccessNode(ast.Predicate):

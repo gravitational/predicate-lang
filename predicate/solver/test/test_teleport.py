@@ -9,6 +9,7 @@ from .. import (
     Select,
     StringLiteral,
     StringSetMap,
+    StringTuple,
 )
 from ..teleport import (
     LoginRule,
@@ -20,6 +21,7 @@ from ..teleport import (
     Policy,
     PolicyMap,
     PolicySet,
+    Resource,
     Rules,
     JoinSession,
     Session,
@@ -45,6 +47,52 @@ class TestTeleport:
             )
         )
         assert ret is True, "check works on a superset"
+
+    def test_resource(self):
+        p = Policy(
+            name="test",
+            allow=Rules(
+                Resource(
+                    (Resource.namespace == "default")
+                    & (Resource.kind == "session_tracker")
+                    & StringTuple(("list", "read")).contains(Resource.verb)
+                ),
+            ),
+        )
+
+        ret, _ = p.check(
+            Resource(
+                (Resource.namespace == "default")
+                & (Resource.kind == "session_tracker")
+                & (Resource.verb == "read")
+            )
+        )
+        assert ret is True, "can read resource"
+
+        ret, _ = p.check(
+            Resource(
+                (Resource.namespace == "default")
+                & (Resource.kind == "session_tracker")
+                & (Resource.verb == "list")
+            )
+        )
+        assert ret is True, "can list resource"
+
+        ret, _ = p.check(
+            Resource(
+                (Resource.namespace == "default")
+                & (Resource.kind == "session_tracker")
+                & (Resource.verb == "write")
+            )
+        )
+        assert ret is False, "can write resource"
+
+        ret, _ = p.query(
+            Resource(
+                (Resource.namespace == "default") & (Resource.kind == "saml_connector")
+            )
+        )
+        assert ret is False, "cannot access wrong resource"
 
     def test_allow_policy_set(self):
         a = Policy(
