@@ -805,22 +805,25 @@ class TestAst:
 
     def test_duration(self):
         """
-        Test duration tests duration inequalities
+        Test int tests integer operations
         """
         p = Predicate(
-            Options.ttl < Duration.new(hours=5),
+            Options.ttl == Duration.new(hours=5),
         )
 
-        ret, _ = p.check(Predicate(Options.ttl < Duration.new(hours=5)))
+        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=5)))
         assert ret is True, "solves with simple equality check"
 
         p = Predicate(
-            (Options.ttl < Duration.new(seconds=10))
+            (Options.ttl > Duration.new(seconds=10))
             & (Options.ttl < Duration.new(hours=5))
         )
 
-        ret, _ = p.check(Predicate(Options.ttl < Duration.new(hours=30)))
-        assert ret is True, "solves always for < inequalities with durations"
+        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=3)))
+        assert ret is True, "solves with simple boundary check"
+
+        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=6)))
+        assert ret is False, "solves with simple boundary check"
 
     def test_bool(self):
         """

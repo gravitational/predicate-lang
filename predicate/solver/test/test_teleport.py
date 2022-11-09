@@ -96,6 +96,16 @@ class TestTeleport:
         )
         assert ret is True, "non-denied part of allow is OK"
 
+    def test_valid_options(self):
+        # check that only < inequalities are possible
+        _ = Options(Options.max_session_ttl < Duration.new(hours=3))
+        with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
+            _ = Options(Options.max_session_ttl > Duration.new(hours=3))
+        with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
+            _ = Options(Options.max_session_ttl == Duration.new(hours=3))
+        with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
+            _ = Options(Options.max_session_ttl != Duration.new(hours=3))
+
     def test_options(self):
         p = Policy(
             name="b",
