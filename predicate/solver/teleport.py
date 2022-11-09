@@ -69,7 +69,7 @@ class Resource(ast.Predicate):
 
     namespace = ast.String("resource.namespace")
     kind = ast.String("resource.kind")
-    labels = ast.String("resource.labels")
+    labels = ast.StringMap("resource.labels")
     verb = ast.String("resource.verb")
 
     def __init__(self, expr):
