@@ -99,12 +99,22 @@ class TestTeleport:
     def test_valid_options(self):
         # check that only < inequalities are possible
         _ = Options(Options.max_session_ttl < Duration.new(hours=3))
+        _ = Options(Duration.new(hours=3) > Options.max_session_ttl)
+
         with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
             _ = Options(Options.max_session_ttl > Duration.new(hours=3))
         with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
+            _ = Options(Duration.new(hours=3) < Options.max_session_ttl)
+
+        with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
             _ = Options(Options.max_session_ttl == Duration.new(hours=3))
         with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
+            _ = Options(Duration.new(hours=3) == Options.max_session_ttl)
+
+        with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
             _ = Options(Options.max_session_ttl != Duration.new(hours=3))
+        with pytest.raises(SystemExit, match=r"can only use '<' inequalities"):
+            _ = Options(Duration.new(hours=3) != Options.max_session_ttl)
 
     def test_options(self):
         p = Policy(
