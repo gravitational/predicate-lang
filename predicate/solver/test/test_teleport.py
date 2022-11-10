@@ -404,6 +404,7 @@ class TestTeleport:
             & (traits["login"] == ("alice-wonderland.local",))
         )
         ret, _ = p.solve()
+        assert ret is True, "match and replace works in login rules"
 
         s = PolicyMap(
             Select(
@@ -420,13 +421,13 @@ class TestTeleport:
             (s == ("ext-test", "ext-prod"))
             & (external["groups"] == ("admin-test", "admin-prod"))
         ).solve()
-        assert ret is True, "match and replace works"
+        assert ret is True, "match and replace works in policy maps"
 
         ret, _ = Predicate(
             (s == ("dev-test", "dev-prod"))
             & (external["groups"] == ("dev-test", "dev-prod"))
         ).solve()
-        assert ret is True, "match and replace works default value"
+        assert ret is True, "match and replace works in policy maps (default value)"
 
         # dev policy allows access to stage, and denies access to root
         dev = Policy(
