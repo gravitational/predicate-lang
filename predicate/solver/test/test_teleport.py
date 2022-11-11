@@ -20,8 +20,8 @@ from ..teleport import (
     PolicyMap,
     PolicySet,
     Rules,
-    StartSession,
     JoinSession,
+    Session,
     map_policies,
     try_login,
 )
@@ -304,58 +304,14 @@ class TestTeleport:
             ret is False
         ), "strict is enforced for all modes of access across all policies in the set"
 
-    def test_start_session(self):
-        p = Policy(
-            name="start_session",
-            allow=Rules(
-                StartSession(
-                    (User.traits["team"].contains("admin")) &
-                    (StartSession.count == 2) &
-                    (StartSession.mode == "moderator") &
-                    (StartSession.on_leave == "terminate")
-                )
-            ),
-        )
-
-        ret, _ = p.check(
-            StartSession(
-                (User.traits["team"] == ("admin",)) &
-                (StartSession.count == 2) &
-                (StartSession.mode == "moderator") &
-                (StartSession.on_leave == "terminate")
-            )
-        )
-        assert ret is True, "any two users from the admin team can start a session as moderators"
-
-        ret, _ = p.check(
-            StartSession(
-                (User.traits["team"] == ("dev",)) &
-                (StartSession.count == 2) &
-                (StartSession.mode == "moderator") &
-                (StartSession.on_leave == "terminate")
-            )
-        )
-        assert ret is False, "any two users from the dev team cannot start a session as moderators"
-
-        ret, _ = p.check(
-            StartSession(
-                (User.traits["team"] == ("admin",)) &
-                (StartSession.count == 1) &
-                (StartSession.mode == "moderator") &
-                (StartSession.on_leave == "terminate")
-            )
-        )
-        assert ret is False, "a single user from the admin team cannot start a session as moderators"
-
     def test_join_session(self):
         p = Policy(
             name="join_session",
             allow=Rules(
                 JoinSession(
                     (User.traits["team"].contains("dev")) &
-                    (Node.labels["env"] == "dev") &
-                    ((JoinSession.mode == "peer") | (JoinSession.mode == "observer")) &
-                    (JoinSession.on_leave == "pause")
+                    ((JoinSession.mode == "observer") | (JoinSession.mode == "peer")) &
+                    ((Session.owner.traits["team"].contains("dev")) | (Session.owner.traits["team"].contains("intern")))
                 ),
             ),
             deny=Rules(
@@ -368,52 +324,38 @@ class TestTeleport:
         ret, _ = p.check(
             JoinSession(
                 (User.traits["team"] == ("dev",)) &
-                (Node.labels["env"] == "dev") &
                 (JoinSession.mode == "observer") &
-                (JoinSession.on_leave == "pause")
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is True, "a user from the dev team can join an env=dev node session as an observer"
+        assert ret is True, "a dev user can join a session from an intern user as an observer"
 
         ret, _ = p.check(
             JoinSession(
                 (User.traits["team"] == ("marketing",)) &
-                (Node.labels["env"] == "dev") &
                 (JoinSession.mode == "observer") &
-                (JoinSession.on_leave == "pause")
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "a user from the marketing team cannot join an env=dev node session as an observer"
+        assert ret is False, "a marketing user cannot join a session from an intern user as an observer"
 
         ret, _ = p.check(
             JoinSession(
                 (User.traits["team"] == ("dev",)) &
-                (Node.labels["env"] == "prod") &
-                (JoinSession.mode == "observer") &
-                (JoinSession.on_leave == "pause")
-            )
-        )
-        assert ret is False, "a user from the dev team cannot join an env=prod node session as an observer"
-
-        ret, _ = p.check(
-            JoinSession(
-                (User.traits["team"] == ("dev",)) &
-                (Node.labels["env"] == "dev") &
                 (JoinSession.mode == "moderator") &
-                (JoinSession.on_leave == "pause")
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "a user from the dev team cannot join an env=dev node session as a moderator"
+        assert ret is False, "a dev user cannot join a session from an intern user as a moderator"
 
         ret, _ = p.check(
             JoinSession(
                 (User.traits["team"] == ("dev", "intern")) &
-                (Node.labels["env"] == "dev") &
-                (JoinSession.mode == "moderator") &
-                (JoinSession.on_leave == "pause")
+                (JoinSession.mode == "observer") &
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "an intern from the dev team cannot join an env=dev node session as an observer"
+        assert ret is False, "a dev intern user cannot join a session from an intern user as an observer"
 
     def test_login_rules(self):
         """

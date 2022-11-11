@@ -1,4 +1,4 @@
-from solver.teleport import JoinSession, Policy, Rules, User, Node
+from solver.teleport import JoinSession, Session, Policy, Rules, User, Node
 
 
 class Teleport:
@@ -10,9 +10,8 @@ class Teleport:
             # https://goteleport.com/docs/access-controls/guides/moderated-sessions/#join_sessions
             JoinSession(
                 (User.traits["team"].contains("dev")) &
-                (Node.labels["env"] == "dev") &
-                ((JoinSession.mode == "peer") | (JoinSession.mode == "observer")) &
-                (JoinSession.on_leave == "pause")
+                ((JoinSession.mode == "observer") | (JoinSession.mode == "peer")) &
+                ((Session.owner.traits["team"].contains("dev")) | (Session.owner.traits["team"].contains("intern")))
             ),
         ),
         deny=Rules(
@@ -26,49 +25,35 @@ class Teleport:
         ret, _ = self.p.check(
             JoinSession(
                 (User.traits["team"] == ("dev",)) &
-                (Node.labels["env"] == "dev") &
                 (JoinSession.mode == "observer") &
-                (JoinSession.on_leave == "pause")
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is True, "a user from the dev team can join an env=dev node session as an observer"
+        assert ret is True, "a dev user can join a session from an intern user as an observer"
 
         ret, _ = self.p.check(
             JoinSession(
                 (User.traits["team"] == ("marketing",)) &
-                (Node.labels["env"] == "dev") &
                 (JoinSession.mode == "observer") &
-                (JoinSession.on_leave == "pause")
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "a user from the marketing team cannot join an env=dev node session as an observer"
+        assert ret is False, "a marketing user cannot join a session from an intern user as an observer"
 
         ret, _ = self.p.check(
             JoinSession(
                 (User.traits["team"] == ("dev",)) &
-                (Node.labels["env"] == "prod") &
-                (JoinSession.mode == "observer") &
-                (JoinSession.on_leave == "pause")
-            )
-        )
-        assert ret is False, "a user from the dev team cannot join an env=prod node session as an observer"
-
-        ret, _ = self.p.check(
-            JoinSession(
-                (User.traits["team"] == ("dev",)) &
-                (Node.labels["env"] == "dev") &
                 (JoinSession.mode == "moderator") &
-                (JoinSession.on_leave == "pause")
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "a user from the dev team cannot join an env=dev node session as a moderator"
+        assert ret is False, "a dev user cannot join a session from an intern user as a moderator"
 
         ret, _ = self.p.check(
             JoinSession(
                 (User.traits["team"] == ("dev", "intern")) &
-                (Node.labels["env"] == "dev") &
-                (JoinSession.mode == "moderator") &
-                (JoinSession.on_leave == "pause")
+                (JoinSession.mode == "observer") &
+                (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "an intern from the dev team cannot join an env=dev node session as an observer"
+        assert ret is False, "a dev intern user cannot join a session from an intern user as an observer"
