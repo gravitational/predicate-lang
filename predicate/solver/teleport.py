@@ -24,8 +24,6 @@ from . import ast
 from .errors import ParameterError
 
 
-OPTIONS_MAX_SESSION_TTL_NAME = "options.max_session_ttl"
-
 def scoped(cls):
     cls.scope = cls.__name__.lower()
     return cls
@@ -36,7 +34,7 @@ class Options(ast.Predicate):
     Options apply to some allow rules if they match
     """
 
-    max_session_ttl = ast.Duration(OPTIONS_MAX_SESSION_TTL_NAME)
+    max_session_ttl = ast.LtDuration("options.max_session_ttl")
 
     pin_source_ip = ast.Bool("options.pin_source_ip")
 
@@ -45,13 +43,7 @@ class Options(ast.Predicate):
     )
 
     def __init__(self, expr):
-        expr.walk(check_options_are_valid)
         ast.Predicate.__init__(self, expr)
-
-def check_options_are_valid(expr):
-    # check that only '<' inequalities are used with Options.max_session_ttl
-    if isinstance(expr, (ast.Eq, ast.Gt)) and isinstance(expr.L, ast.Duration) and expr.L.name == OPTIONS_MAX_SESSION_TTL_NAME:
-        raise SystemExit("{} predicates can only use '<' inequalities, not '>', '==' or '!=': {}".format(OPTIONS_MAX_SESSION_TTL_NAME, expr))
 
 
 class OptionsSet:
@@ -246,6 +238,7 @@ def t_expr(predicate):
         predicate,
         (
             ast.String,
+            ast.LtDuration,
             ast.Duration,
             ast.StringList,
             ast.StringEnum,

@@ -426,8 +426,11 @@ class Int(IntMixin):
     def __str__(self):
         return "int({})".format(self.name)
 
+class LtDuration:
+    """
+    LtDuration is a duration that only allows < inequalities.
+    """
 
-class Duration:
     def __init__(self, name: str):
         self.name = name
         self.val = z3.Int(self.name)
@@ -439,7 +442,26 @@ class Duration:
         fn(self)
 
     def __str__(self):
-        return "duration({})".format(self.name)
+        return "ltduration({})".format(self.name)
+
+    def __lt__(self, val):
+        self.check_value_is_valid(val)
+        return Lt(self, val)
+
+    def check_value_is_valid(self, val):
+        if isinstance(val, DurationLiteral):
+            return
+        raise TypeError(
+            "unsupported type {}, supported duration literals only".format(
+                type(val)
+            )
+        )
+
+
+class Duration(LtDuration):
+    """
+    Duration is a duration that allows <, >, == and != inequalities.
+    """
 
     @staticmethod
     def new(
@@ -459,35 +481,20 @@ class Duration:
             + nanoseconds * NANOSECOND
         )
 
+    def __str__(self):
+        return "duration({})".format(self.name)
+
     def __eq__(self, val):
-        if isinstance(val, (Duration, DurationLiteral)):
-            return Eq(self, val)
-        raise TypeError(
-            "unsupported type {}, supported duration and duration literals only".format(type(val))
-        )
+        self.check_value_is_valid(val)
+        return Eq(self, val)
 
     def __ne__(self, val):
-        if isinstance(val, (Duration, DurationLiteral)):
-            return Not(Eq(self, val))
-        raise TypeError(
-            "unsupported type {}, supported duration and duration literals only".format(type(val))
-        )
-
-    def __lt__(self, val):
-        if isinstance(val, (Duration, DurationLiteral)):
-            return Lt(self, val)
-        raise TypeError(
-            "unsupported type {}, supported duration and duration literals only".format(type(val))
-        )
+        self.check_value_is_valid(val)
+        return Not(Eq(self, val))
 
     def __gt__(self, val):
-        if isinstance(val, (Duration, DurationLiteral)):
-            return Gt(self, val)
-        raise TypeError(
-            "unsupported type {}, supported duration and duration literals only".format(
-                type(val)
-            )
-        )
+        self.check_value_is_valid(val)
+        return Gt(self, val)
 
 
 class Bool:
@@ -1984,14 +1991,14 @@ class StringSetMapIndexEquals(LogicMixin):
 
 
 def collect_symbols(s, expr):
-    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
+    if isinstance(expr, (String, Int, LtDuration, Duration, Bool, StringEnum)):
         s.add(expr.name)
     if isinstance(expr, MapIndex):
         s.add(expr.m.name + "." + expr.key)
 
 
 def collect_names(s, expr):
-    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
+    if isinstance(expr, (String, Int, LtDuration, Duration, Bool, StringEnum)):
         s.add(expr.name)
     if isinstance(expr, MapIndex):
         s.add(expr.m.name)
