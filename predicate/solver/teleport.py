@@ -81,6 +81,7 @@ class Node(ast.Predicate):
         """
         return Node(self.expr & options.expr)
 
+
 class LoginRule(ast.StringSetMap):
     """
     Login rule maps SSO identities to Teleport's traits
@@ -184,8 +185,8 @@ class JoinSession(ast.Predicate):
     """
     JoinSession defines the permission to join a session.
 
+    This predicate models `join_sessions`.
     Full documentation here: https://goteleport.com/docs/access-controls/guides/moderated-sessions/#join_sessions
-    Note that this predicate models `join_sessions`.
     """
 
     mode = ast.String("join_session.mode")
