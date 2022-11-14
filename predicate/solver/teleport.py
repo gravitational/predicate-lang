@@ -61,13 +61,12 @@ class OptionsSet:
 
 
 @scoped
-class Node(ast.Predicate):
+class AccessNode(ast.Predicate):
     """
-    Node is SSH node
+    AccessNode defines the permission to access an SSH node.
     """
 
-    login = ast.String("node.login")
-    labels = ast.StringMap("node.labels")
+    login = ast.String("access_node.login")
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
@@ -79,7 +78,16 @@ class Node(ast.Predicate):
         so this operator constructs a node predicate that contains options
         that are relevant to node.
         """
-        return Node(self.expr & options.expr)
+        return AccessNode(self.expr & options.expr)
+
+
+class Node:
+    """
+    Node is an SSH node.
+    """
+
+    # labels are the node labels
+    labels = ast.StringMap("node.labels")
 
 
 class LoginRule(ast.StringSetMap):
@@ -196,7 +204,7 @@ class JoinSession(ast.Predicate):
 
 class Session:
     """
-    Session is a Teleport session
+    Session is a Teleport session.
     """
 
     # owner is the session owner

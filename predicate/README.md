@@ -16,7 +16,7 @@ Alternately, `poetry shell` can also be used to run `predicate`.
 # access.py
 
 from solver.ast import Duration
-from solver.teleport import Node, Options, OptionsSet, Policy, Rules, User
+from solver.teleport import AccessNode, Node, Options, OptionsSet, Policy, Rules, User
 
 
 class Teleport:
@@ -24,16 +24,16 @@ class Teleport:
         name="access",
         loud=False,
         allow=Rules(
-            Node(
-                ((Node.login == User.name) & (User.name != "root"))
+            AccessNode(
+                ((AccessNode.login == User.name) & (User.name != "root"))
                 | (User.traits["team"] == ("admins",))
             ),
         ),
         options=OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
         deny=Rules(
-            Node(
-                (Node.login == "mike")
-                | (Node.login == "jester")
+            AccessNode(
+                (AccessNode.login == "mike")
+                | (AccessNode.login == "jester")
                 | (Node.labels["env"] == "prod")
             ),
         ),
@@ -42,8 +42,8 @@ class Teleport:
     def test_access(self):
         # Alice will be able to login to any machine as herself
         ret, _ = self.p.check(
-            Node(
-                (Node.login == "alice")
+            AccessNode(
+                (AccessNode.login == "alice")
                 & (User.name == "alice")
                 & (Node.labels["env"] == "dev")
             )
@@ -51,13 +51,12 @@ class Teleport:
         assert ret is True, "Alice can login with her user to any node"
 
         # No one is permitted to login as mike
-        ret, _ = self.p.query(Node((Node.login == "mike")))
+        ret, _ = self.p.query(AccessNode((AccessNode.login == "mike")))
         assert ret is False, "This role does not allow access as mike"
 
         # No one is permitted to login as jester
-        ret, _ = self.p.query(Node((Node.login == "jester")))
+        ret, _ = self.p.query(AccessNode((AccessNode.login == "jester")))
         assert ret is False, "This role does not allow access as jester"
-
 ```
 
 ### Testing a policy
@@ -83,11 +82,11 @@ metadata:
   name: access
 spec:
   allow:
-    node: (((node.login == user.name) && (!(user.name == "root"))) || equals(user.traits["team"],
-      ["admins"]))
+    accessnode: (((access_node.login == user.name) && (!(user.name == "root"))) ||
+      equals(user.traits["team"], ["admins"]))
   deny:
-    node: (((node.login == "mike") || (node.login == "jester")) || (node.labels["env"]
-      == "prod"))
+    accessnode: (((access_node.login == "mike") || (access_node.login == "jester"))
+      || (node.labels["env"] == "prod"))
   options: (options.max_session_ttl < 36000000000000)
 version: v1
 ```

@@ -1,4 +1,4 @@
-from solver.teleport import JoinSession, Session, Policy, Rules, User, Node
+from solver.teleport import JoinSession, Session, Policy, Rules, User, AccessNode
 
 
 class Teleport:
