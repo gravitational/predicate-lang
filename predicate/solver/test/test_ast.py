@@ -717,22 +717,16 @@ class TestAst:
 
         # enums could be part of the predicate
         p = Predicate(
-            e.one_of()  # equivalent of  (e == 'apple') | (e == 'banana') | (e == 'strawberry')
+            (e == 'apple') | (e == 'banana')
         )
         ret, _ = p.query(Predicate(e == "banana"))
-        assert ret is True, "values match"
+        assert ret is True, "value can be banana"
 
-        ret, _ = p.query(Predicate(e == "potato"))
-        assert ret is False, "values don't match"
+        ret, _ = p.query(Predicate((e == "strawberry")))
+        assert ret is False, "value cannot be strawberry"
 
-        ret, _ = p.query(Predicate(e == ""))
-        assert ret is False, "values don't match"
-
-        # this predicate is unsolvable, so all tests against it will raise error
-        p = Predicate(e == "potato")
-        with pytest.raises(ParameterError):
-            ret, _ = p.query(Predicate(e == "banana"))
-            assert ret is True, "values match"
+        ret, _ = p.query(Predicate((e != "apple") & (e != "banana")))
+        assert ret is False, "value must be one of apple and banana"
 
     def test_string_enum_comparison(self):
         """
@@ -744,16 +738,26 @@ class TestAst:
         # enums could be part of the predicate and can provide constraints
         p = Predicate((e > "apple") | (e == "apple"))
         ret, _ = p.query(Predicate(e == "apple"))
-        assert ret is True, "values match"
+        assert ret is True, "the value can be apple"
 
         ret, _ = p.query(Predicate(e == "watermelon"))
-        assert ret is True, "passes equation"
+        assert ret is True, "the value can be watermelon"
 
         ret, _ = p.query(Predicate(e == "strawberry"))
-        assert ret is False, "values don't match the equation"
+        assert ret is False, "the value cannot be strawberry"
 
-        ret, _ = p.query(Predicate(e == "strawberr"))
-        assert ret is False, "unsupported value fails"
+        ret, _ = p.query(Predicate((e != "apple") & (e != "watermelon")))
+        assert ret is False, "value must be one of apple and watermelon"
+
+        # ensure that all inequalities can only be specified using valid enum values
+        with pytest.raises(TypeError, match=r"is not one of"):
+            _ = Predicate(e == "strawberr")
+        with pytest.raises(TypeError, match=r"is not one of"):
+            _ = Predicate(e < "strawberr")
+        with pytest.raises(TypeError, match=r"is not one of"):
+            _ = Predicate(e > "strawberr")
+        with pytest.raises(TypeError, match=r"is not one of"):
+            _ = Predicate(e != "strawberr")
 
     def test_string_map_regex(self):
         """
