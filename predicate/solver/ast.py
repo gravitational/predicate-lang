@@ -444,18 +444,8 @@ class LtDuration:
     def __str__(self):
         return "ltduration({})".format(self.name)
 
-    def __lt__(self, val):
-        self.check_value_is_valid(val)
+    def __lt__(self, val: DurationLiteral):
         return Lt(self, val)
-
-    def check_value_is_valid(self, val):
-        if isinstance(val, DurationLiteral):
-            return
-        raise TypeError(
-            "unsupported type {}, supported duration literals only".format(
-                type(val)
-            )
-        )
 
 
 class Duration(LtDuration):
@@ -484,16 +474,13 @@ class Duration(LtDuration):
     def __str__(self):
         return "duration({})".format(self.name)
 
-    def __eq__(self, val):
-        self.check_value_is_valid(val)
+    def __eq__(self, val: DurationLiteral):
         return Eq(self, val)
 
-    def __ne__(self, val):
-        self.check_value_is_valid(val)
+    def __ne__(self, val: DurationLiteral):
         return Not(Eq(self, val))
 
-    def __gt__(self, val):
-        self.check_value_is_valid(val)
+    def __gt__(self, val: DurationLiteral):
         return Gt(self, val)
 
 
