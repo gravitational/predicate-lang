@@ -82,10 +82,10 @@ metadata:
   name: access
 spec:
   allow:
-    accessnode: (((access_node.login == user.name) && (!(user.name == "root"))) ||
+    access_node: (((access_node.login == user.name) && (!(user.name == "root"))) ||
       equals(user.traits["team"], ["admins"]))
   deny:
-    accessnode: (((access_node.login == "mike") || (access_node.login == "jester"))
+    access_node: (((access_node.login == "mike") || (access_node.login == "jester"))
       || (node.labels["env"] == "prod"))
   options: (options.max_session_ttl < 36000000000000)
 version: v1

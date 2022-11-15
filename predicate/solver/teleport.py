@@ -19,13 +19,14 @@ import operator
 from collections.abc import Iterable
 
 import z3
+import re
 
 from . import ast
 from .errors import ParameterError
 
 
 def scoped(cls):
-    cls.scope = cls.__name__.lower()
+    cls.scope = re.sub(r"([a-z])([A-Z])", r'\1_\2', cls.__name__).lower()
     return cls
 
 
