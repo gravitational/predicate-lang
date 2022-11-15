@@ -34,7 +34,7 @@ class Options(ast.Predicate):
     Options apply to some allow rules if they match
     """
 
-    max_session_ttl = ast.Duration("options.max_session_ttl")
+    max_session_ttl = ast.LtDuration("options.max_session_ttl")
 
     pin_source_ip = ast.Bool("options.pin_source_ip")
 
@@ -268,6 +268,7 @@ def t_expr(predicate):
         predicate,
         (
             ast.String,
+            ast.LtDuration,
             ast.Duration,
             ast.StringList,
             ast.StringEnum,
