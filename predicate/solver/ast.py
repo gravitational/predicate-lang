@@ -789,7 +789,7 @@ class StringListEquals(LogicMixin):
 
 def define_enum_fn(fn_map, fn_key, kv: typing.Dict[String, Int]):
     """
-    Define mapfn defines a key value map using recursive Z3 function,
+    Define enum fn defines a key value map using recursive Z3 function,
     essentially converting {'a': 1} into if x == 'a' then 1 else ...
     """
 
@@ -805,6 +805,10 @@ def define_enum_fn(fn_map, fn_key, kv: typing.Dict[String, Int]):
 
 
 class StringEnum:
+    """
+    StringEnum is an ordered enum with strings as values.
+    """
+
     def __init__(self, name, values):
         def transform_values():
             out = {}
@@ -835,34 +839,32 @@ class StringEnum:
         )
         define_enum_fn(self.fn, z3.String(self.name + "_arg"), self.values)
 
-    def one_of(self):
-        return functools.reduce(operator.or_, [self == key for key in self.values])
-
     def __eq__(self, val):
-        if isinstance(val, str):
-            return Eq(self, StringLiteral(val))
-        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+        self.check_value_is_valid(val)
+        return Eq(self, StringLiteral(val))
 
     def __ne__(self, val):
-        if isinstance(val, str):
-            return Not(Eq(self, StringLiteral(val)))
-        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+        self.check_value_is_valid(val)
+        return Not(Eq(self, StringLiteral(val)))
 
     def __lt__(self, val):
-        if isinstance(val, str):
-            if val not in self.values:
-                raise ParameterError(
-                    "value {} is not a valid enum, valid are: {}".format(
-                        val, [v for v in self.values]
-                    )
-                )
-            return Lt(self, StringLiteral(val))
-        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+        self.check_value_is_valid(val)
+        return Lt(self, StringLiteral(val))
 
     def __gt__(self, val):
-        if isinstance(val, str):
-            return Gt(self, StringLiteral(val))
-        raise TypeError("unsupported type {}, supported strings only".format(type(val)))
+        self.check_value_is_valid(val)
+        return Gt(self, StringLiteral(val))
+
+    def check_value_is_valid(self, val):
+        if isinstance(val, str) and val in self.values:
+            return
+
+        # raise type error if `val` is not one of the enum values
+        raise TypeError(
+            "value {} is not one of: {}".format(
+                val, [v for v in self.values]
+            )
+        )
 
     def __str__(self):
         return "enum({})".format(self.name)

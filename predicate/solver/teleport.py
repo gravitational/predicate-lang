@@ -175,6 +175,36 @@ class User:
     # traits is a map of user traits
     traits = ast.StringSetMap("user.traits")
 
+    def __init__(self, prefix):
+        self.name = ast.String("{}.name".format(prefix))
+        self.traits = ast.StringSetMap("{}.traits".format(prefix))
+
+
+@scoped
+class JoinSession(ast.Predicate):
+    """
+    JoinSession defines the permission to join a session.
+
+    This predicate models `join_sessions`.
+    Full documentation here: https://goteleport.com/docs/access-controls/guides/moderated-sessions/#join_sessions
+    """
+
+    mode = ast.String("join_session.mode")
+
+    def __init__(self, expr):
+        ast.Predicate.__init__(self, expr)
+
+class Session:
+    """
+    Session is a Teleport session
+    """
+
+    # owner is the session owner
+    owner = User("session.owner")
+
+    # participants is a list of session participants
+    participants = ast.StringList("session.participants")
+
 
 class RequestPolicy:
     # names is a list of policy names
