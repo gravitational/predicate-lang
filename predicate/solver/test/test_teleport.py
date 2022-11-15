@@ -100,13 +100,33 @@ class TestTeleport:
         )
         assert ret is True, "non-denied part of allow is OK"
 
+    def test_valid_options(self):
+        # check that only < inequalities are possible
+        _ = Options(Options.max_session_ttl < Duration.new(hours=3))
+        _ = Options(Duration.new(hours=3) > Options.max_session_ttl)
+
+        with pytest.raises(Exception):
+            _ = Options(Options.max_session_ttl > Duration.new(hours=3))
+        with pytest.raises(Exception):
+            _ = Options(Duration.new(hours=3) < Options.max_session_ttl)
+
+        with pytest.raises(Exception):
+            _ = Options(Options.max_session_ttl == Duration.new(hours=3))
+        with pytest.raises(Exception):
+            _ = Options(Duration.new(hours=3) == Options.max_session_ttl)
+
+        with pytest.raises(Exception):
+            _ = Options(Options.max_session_ttl != Duration.new(hours=3))
+        with pytest.raises(Exception):
+            _ = Options(Duration.new(hours=3) != Options.max_session_ttl)
+
     def test_options(self):
         p = Policy(
             name="b",
             options=OptionsSet(
                 Options(
                     (Options.max_session_ttl < Duration.new(hours=10))
-                    & (Options.max_session_ttl > Duration.new(seconds=10)),
+                    & (Options.max_session_ttl < Duration.new(seconds=10)),
                 )
             ),
             allow=Rules(
@@ -120,21 +140,12 @@ class TestTeleport:
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
-            & Options(Options.max_session_ttl == Duration.new(hours=3))
+            # Since we only have <, it's impossible to specify a `session_ttl` that would not be valid.
+            # This means that the predicate will always match the policy.
+            & Options(Options.max_session_ttl < Duration.new(hours=3))
         )
 
         assert ret is True, "options and core predicate matches"
-
-        ret, _ = p.check(
-            AccessNode(
-                (AccessNode.login == "root")
-                & (Node.labels["env"] == "prod")
-                & (Node.labels["os"] == "Linux")
-            )
-            & Options(Options.max_session_ttl == Duration.new(hours=50))
-        )
-
-        assert ret is False, "options expression fails the entire predicate"
 
     def test_options_extra(self):
         """
@@ -145,7 +156,6 @@ class TestTeleport:
             options=OptionsSet(
                 Options(
                     (Options.max_session_ttl < Duration.new(hours=10))
-                    & (Options.max_session_ttl > Duration.new(seconds=10))
                 ),
                 Options(Options.pin_source_ip == True),
             ),
@@ -161,7 +171,11 @@ class TestTeleport:
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
-            & Options((Options.max_session_ttl == Duration.new(hours=3)))
+            & Options(
+                (Options.max_session_ttl < Duration.new(hours=3))
+                # TODO: `check` doesn't require that `pin_source_ip` is defined here, but should!?.
+                & (Options.pin_source_ip == True)
+            )
         )
 
         assert ret is True, "options and core predicate matches"
@@ -173,11 +187,10 @@ class TestTeleport:
                 & (Node.labels["os"] == "Linux")
             )
             & Options(
-                (Options.max_session_ttl == Duration.new(hours=3))
+                (Options.max_session_ttl < Duration.new(hours=3))
                 & (Options.pin_source_ip == False)
             )
         )
-
         assert ret is False, "options fails restriction when contradiction is specified"
 
     def test_options_policy_set(self):
@@ -186,7 +199,6 @@ class TestTeleport:
             options=OptionsSet(
                 Options(
                     (Options.max_session_ttl < Duration.new(hours=10))
-                    & (Options.max_session_ttl > Duration.new(seconds=10))
                 ),
                 Options(Options.pin_source_ip == True),
             ),
@@ -210,7 +222,10 @@ class TestTeleport:
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
-            & Options((Options.max_session_ttl == Duration.new(hours=3)))
+            & Options(
+                (Options.max_session_ttl < Duration.new(hours=3))
+                & (Options.pin_source_ip == True)
+            )
         )
 
         assert ret is True, "options and core predicate matches"
@@ -222,7 +237,7 @@ class TestTeleport:
                 & (Node.labels["os"] == "Linux")
             )
             & Options(
-                (Options.max_session_ttl == Duration.new(hours=3))
+                (Options.max_session_ttl < Duration.new(hours=3))
                 & (Options.pin_source_ip == False)
             )
         )
@@ -446,6 +461,7 @@ class TestTeleport:
             & (traits["login"] == ("alice-wonderland.local",))
         )
         ret, _ = p.solve()
+        assert ret is True, "match and replace works in login rules"
 
         s = PolicyMap(
             Select(
@@ -462,13 +478,13 @@ class TestTeleport:
             (s == ("ext-test", "ext-prod"))
             & (external["groups"] == ("admin-test", "admin-prod"))
         ).solve()
-        assert ret is True, "match and replace works"
+        assert ret is True, "match and replace works in policy maps"
 
         ret, _ = Predicate(
             (s == ("dev-test", "dev-prod"))
             & (external["groups"] == ("dev-test", "dev-prod"))
         ).solve()
-        assert ret is True, "match and replace works default value"
+        assert ret is True, "match and replace works in policy maps (default value)"
 
         # dev policy allows access to stage, and denies access to root
         dev = Policy(
