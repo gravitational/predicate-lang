@@ -14,6 +14,7 @@ from ..teleport import (
     LoginRule,
     User,
     Node,
+    AccessNode,
     Options,
     OptionsSet,
     Policy,
@@ -32,13 +33,13 @@ class TestTeleport:
         p = Policy(
             name="test",
             allow=Rules(
-                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
             ),
         )
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -49,36 +50,36 @@ class TestTeleport:
         a = Policy(
             name="a",
             allow=Rules(
-                Node((Node.login == "ubuntu") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "prod")),
             ),
         )
 
         b = Policy(
             name="b",
             allow=Rules(
-                Node((Node.login == "root") & (Node.labels["env"] == "stage")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "stage")),
             ),
         )
 
         s = PolicySet([a, b])
         ret, _ = s.check(
-            Node((Node.login == "ubuntu") & (Node.labels["env"] == "prod"))
+            AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "prod"))
         )
         assert ret is True, "check works on a subset"
 
-        ret, _ = s.check(Node((Node.login == "root") & (Node.labels["env"] == "stage")))
+        ret, _ = s.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "stage")))
         assert ret is True, "check works on a subset"
 
-        ret, _ = s.check(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
+        ret, _ = s.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")))
         assert ret is False, "rejects the merge"
 
     def test_deny_policy_set(self):
         a = Policy(
             name="a",
             allow=Rules(
-                Node(
-                    ((Node.login == "root") & (Node.labels["env"] == "prod"))
-                    | ((Node.login == "ubuntu") & (Node.labels["env"] == "prod"))
+                AccessNode(
+                    ((AccessNode.login == "root") & (Node.labels["env"] == "prod"))
+                    | ((AccessNode.login == "ubuntu") & (Node.labels["env"] == "prod"))
                 )
             ),
         )
@@ -86,16 +87,16 @@ class TestTeleport:
         b = Policy(
             name="b",
             deny=Rules(
-                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
             ),
         )
 
         s = PolicySet([a, b])
-        ret, _ = s.check(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
+        ret, _ = s.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")))
         assert ret is False, "deny in a set overrides allow"
 
         ret, _ = s.check(
-            Node((Node.login == "ubuntu") & (Node.labels["env"] == "prod"))
+            AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "prod"))
         )
         assert ret is True, "non-denied part of allow is OK"
 
@@ -129,13 +130,13 @@ class TestTeleport:
                 )
             ),
             allow=Rules(
-                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
             ),
         )
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -160,13 +161,13 @@ class TestTeleport:
             ),
             allow=Rules(
                 # unrelated rules are with comma, related rules are part of the predicate
-                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
             ),
         )
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -180,8 +181,8 @@ class TestTeleport:
         assert ret is True, "options and core predicate matches"
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -202,22 +203,22 @@ class TestTeleport:
                 Options(Options.pin_source_ip == True),
             ),
             allow=Rules(
-                Node((Node.login == "ubuntu") & (Node.labels["env"] == "stage")),
+                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")),
             ),
         )
 
         b = Policy(
             name="b",
             allow=Rules(
-                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
             ),
         )
 
         p = PolicySet([a, b])
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -230,8 +231,8 @@ class TestTeleport:
         assert ret is True, "options and core predicate matches"
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -254,7 +255,7 @@ class TestTeleport:
                 ),
             ),
             allow=Rules(
-                Node((Node.login == "ubuntu") & (Node.labels["env"] == "stage")),
+                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")),
             ),
         )
 
@@ -265,15 +266,15 @@ class TestTeleport:
                 Options(Options.recording_mode == "strict"),
             ),
             allow=Rules(
-                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
             ),
         )
 
         p = PolicySet([a, b])
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -283,8 +284,8 @@ class TestTeleport:
         assert ret is True, "options and core predicate matches"
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "root")
+            AccessNode(
+                (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
@@ -296,8 +297,8 @@ class TestTeleport:
         ), "options fails recording mode restriction from the policy b"
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "ubuntu")
+            AccessNode(
+                (AccessNode.login == "ubuntu")
                 & (Node.labels["env"] == "stage")
                 & (Node.labels["os"] == "Linux")
             )
@@ -307,8 +308,8 @@ class TestTeleport:
         assert ret is True, "options and core predicate matches"
 
         ret, _ = p.check(
-            Node(
-                (Node.login == "ubuntu")
+            AccessNode(
+                (AccessNode.login == "ubuntu")
                 & (Node.labels["env"] == "stage")
                 & (Node.labels["os"] == "Linux")
             )
@@ -489,10 +490,10 @@ class TestTeleport:
         dev = Policy(
             name="dev-stage",
             allow=Rules(
-                Node((Node.login == "ubuntu") & (Node.labels["env"] == "stage")),
+                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")),
             ),
             deny=Rules(
-                Node((Node.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
             ),
         )
 
@@ -504,8 +505,8 @@ class TestTeleport:
                 Options(Options.recording_mode == "strict"),
             ),
             allow=Rules(
-                Node(
-                    (Node.login == traits["login"].first())
+                AccessNode(
+                    (AccessNode.login == traits["login"].first())
                     & (Node.labels["env"] == "prod")
                 ),
             ),
@@ -514,7 +515,7 @@ class TestTeleport:
         p = PolicySet([dev, ext])
 
         # make sure that policy set will never allow access to prod
-        ret, _ = p.check(Node((Node.login == "root") & (Node.labels["env"] == "prod")))
+        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")))
         assert ret is False
 
         policy_names = try_login(
@@ -528,8 +529,8 @@ class TestTeleport:
         # policy set will allow Alice to connect to prod if her
         # email is alice@wonderland.local
         ret, _ = p.check(
-            Node(
-                (Node.login == "alice-wonderland.local")
+            AccessNode(
+                (AccessNode.login == "alice-wonderland.local")
                 & (Node.labels["env"] == "prod")
             )
         )

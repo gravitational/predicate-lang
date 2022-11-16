@@ -1,4 +1,4 @@
-from ..teleport import Node, Policy, Rules, User
+from ..teleport import AccessNode, Node, Policy, Rules, User
 
 
 class TestTeleportGetStarted:
@@ -13,12 +13,12 @@ class TestTeleportGetStarted:
         p = Policy(
             name="everyone",
             allow=Rules(
-                Node((Node.login == "root")),
+                AccessNode((AccessNode.login == "root")),
             ),
         )
 
         # Check if alice can access nodes as root
-        ret, _ = p.check(Node((Node.login == "root") & (User.name == "alice")))
+        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (User.name == "alice")))
         assert ret is True, "everyone can access as root, including alice"
 
         # This is not a very useful policy, because it gives everyone
@@ -27,19 +27,19 @@ class TestTeleportGetStarted:
         p = Policy(
             name="everyone",
             allow=Rules(
-                Node((Node.login == User.name)),
+                AccessNode((AccessNode.login == User.name)),
             ),
         )
 
         # Alice will be able to login to any machine as herself
-        ret, _ = p.check(Node((Node.login == "alice") & (User.name == "alice")))
+        ret, _ = p.check(AccessNode((AccessNode.login == "alice") & (User.name == "alice")))
         assert ret is True, "Alice can login with her user to any node"
 
         # We can verify that a strong invariant holds:
         # Unless a username is root, a user can not access a server as
         # root. This creates a problem though, can we deny access as root
         # altogether?
-        ret, _ = p.check(Node((Node.login == "root") & (User.name != "root")))
+        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (User.name != "root")))
         assert (
             ret is False
         ), "This role does not allow access as root unless a user name is root"
@@ -49,16 +49,16 @@ class TestTeleportGetStarted:
         p = Policy(
             name="everyone",
             allow=Rules(
-                Node(Node.login == User.name),
+                AccessNode(AccessNode.login == User.name),
             ),
-            deny=Rules(Node(Node.login == "root")),
+            deny=Rules(AccessNode(AccessNode.login == "root")),
         )
 
         # Notice the difference between check and query. Query allows to query
         # partial conditions, our predicate requires user to be specified,
         # while this query does not specify any user. Checks require all
         # parameters of the predicate, while queries do not.
-        ret, _ = p.query(Node((Node.login == "root")))
+        ret, _ = p.query(AccessNode((AccessNode.login == "root")))
         assert ret is False, "This role does not allow access as root to anyone"
 
     def test_node_access_multiple_teams(self):
@@ -74,8 +74,8 @@ class TestTeleportGetStarted:
         devs_and_admins = Policy(
             name="devs-and-db-admins",
             allow=Rules(
-                Node(
-                    (Node.login == User.name)
+                AccessNode(
+                    (AccessNode.login == User.name)
                     & User.traits["team"].contains(Node.labels["team"])
                 ),
             ),
@@ -83,10 +83,10 @@ class TestTeleportGetStarted:
 
         # Check if alice can access nodes as root
         ret, _ = devs_and_admins.check(
-            Node(
+            AccessNode(
                 (User.name == "alice")
                 & (User.traits["team"] == ("dev",))
-                & (Node.login == "alice")
+                & (AccessNode.login == "alice")
                 & (Node.labels["team"] == "dev")
             )
         )
@@ -96,10 +96,10 @@ class TestTeleportGetStarted:
 
         # Check if bob can access nodes as root
         ret, _ = devs_and_admins.check(
-            Node(
+            AccessNode(
                 (User.name == "bob")
                 & (User.traits["team"] == ("db-admins",))
-                & (Node.login == "bob")
+                & (AccessNode.login == "bob")
                 & (Node.labels["team"] == "db-admins")
             )
         )
