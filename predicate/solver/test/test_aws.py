@@ -7,43 +7,43 @@ class TestAWS:
     def test_aws_allow_policy(self, mixed_statement_policy):
         p = Predicate(aws.policy(mixed_statement_policy))
 
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (aws.Action.resource == "arn:aws:s3:::example_bucket")
                 & (aws.Action.action == "s3:ListBucket")
             )
         )
-        assert ret is True
+        assert ret.solves is True
 
     def test_aws_policy(self, s3_policy):
         p = Predicate(aws.policy(s3_policy))
 
         # get bucket location on any bucket works
-        ret, d = p.check(
+        ret = p.check(
             Predicate(
                 (aws.Action.resource == "arn:aws:s3:::example_bucket")
                 & (aws.Action.action == "s3:GetBucketLocation")
             )
         )
-        assert ret is True
+        assert ret.solves is True
 
         # listing bucket logs is not allowed
-        ret, d = p.check(
+        ret = p.check(
             Predicate(
                 (aws.Action.resource == "arn:aws:s3:::example_bucket/logs")
                 & (aws.Action.action == "s3:GetObject")
             )
         )
-        assert ret is False
+        assert ret.solves is False
 
         # can get a random doc from a bucket
-        ret, d = p.check(
+        ret = p.check(
             Predicate(
                 (aws.Action.resource == "arn:aws:s3:::carlossalazar/document")
                 & (aws.Action.action == "s3:GetObject")
             )
         )
-        assert ret is True
+        assert ret.solves is True
 
 
 @pytest.fixture

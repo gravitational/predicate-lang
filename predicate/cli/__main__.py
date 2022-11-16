@@ -5,6 +5,8 @@ from types import FunctionType
 import click
 import yaml
 
+from solver.teleport import Policy
+
 
 @click.group()
 def main():
@@ -17,7 +19,7 @@ def export(policy_file):
     module = run_path(policy_file)
 
     # Grabs the class and directly reads the policy since it's a static member.
-    policy = module["Teleport"].p
+    policy: Policy = module["Teleport"].p
 
     # Dump the policy into a Teleport resource and write it to the terminal.
     obj = policy.export()
@@ -31,10 +33,12 @@ def export(policy_file):
 def deploy(policy_file, sudo):
     click.echo("parsing policy...")
     module = run_path(policy_file)
-    policy = module["Teleport"].p
+    policy: Policy = module["Teleport"].p
+
     click.echo("translating policy...")
     obj = policy.export()
     serialized = yaml.dump(obj)
+
     click.echo("deploying policy...")
     args = ["tctl", "create", "-f"]
     if sudo:

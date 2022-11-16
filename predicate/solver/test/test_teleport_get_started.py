@@ -18,8 +18,8 @@ class TestTeleportGetStarted:
         )
 
         # Check if alice can access nodes as root
-        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (User.name == "alice")))
-        assert ret is True, "everyone can access as root, including alice"
+        ret = p.check(AccessNode((AccessNode.login == "root") & (User.name == "alice")))
+        assert ret.solves is True, "everyone can access as root, including alice"
 
         # This is not a very useful policy, because it gives everyone
         # access as root. Let's narrow down this policy to let users
@@ -32,16 +32,18 @@ class TestTeleportGetStarted:
         )
 
         # Alice will be able to login to any machine as herself
-        ret, _ = p.check(AccessNode((AccessNode.login == "alice") & (User.name == "alice")))
-        assert ret is True, "Alice can login with her user to any node"
+        ret = p.check(
+            AccessNode((AccessNode.login == "alice") & (User.name == "alice"))
+        )
+        assert ret.solves is True, "Alice can login with her user to any node"
 
         # We can verify that a strong invariant holds:
         # Unless a username is root, a user can not access a server as
         # root. This creates a problem though, can we deny access as root
         # altogether?
-        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (User.name != "root")))
+        ret = p.check(AccessNode((AccessNode.login == "root") & (User.name != "root")))
         assert (
-            ret is False
+            ret.solves is False
         ), "This role does not allow access as root unless a user name is root"
 
         # Let's prohibit root access altogether. Deny rules always take
@@ -58,8 +60,8 @@ class TestTeleportGetStarted:
         # partial conditions, our predicate requires user to be specified,
         # while this query does not specify any user. Checks require all
         # parameters of the predicate, while queries do not.
-        ret, _ = p.query(AccessNode((AccessNode.login == "root")))
-        assert ret is False, "This role does not allow access as root to anyone"
+        ret = p.query(AccessNode((AccessNode.login == "root")))
+        assert ret.solves is False, "This role does not allow access as root to anyone"
 
     def test_node_access_multiple_teams(self):
         """
@@ -82,7 +84,7 @@ class TestTeleportGetStarted:
         )
 
         # Check if alice can access nodes as root
-        ret, _ = devs_and_admins.check(
+        ret = devs_and_admins.check(
             AccessNode(
                 (User.name == "alice")
                 & (User.traits["team"] == ("dev",))
@@ -91,11 +93,11 @@ class TestTeleportGetStarted:
             )
         )
         assert (
-            ret is True
+            ret.solves is True
         ), "Policy lets Alice to access nodes as her username if nodes are labeled with dev"
 
         # Check if bob can access nodes as root
-        ret, _ = devs_and_admins.check(
+        ret = devs_and_admins.check(
             AccessNode(
                 (User.name == "bob")
                 & (User.traits["team"] == ("db-admins",))
@@ -104,7 +106,7 @@ class TestTeleportGetStarted:
             )
         )
         assert (
-            ret is True
+            ret.solves is True
         ), "Policy lets Bob to access nodes as her username if nodes are labeled with dev"
 
         # The policy

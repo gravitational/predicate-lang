@@ -70,9 +70,8 @@ class TestAst:
         p = Predicate(User.team == "stage")
 
         # This predicate is unsolvable, contradicts our main predicate
-        ret, msg = p.check(Predicate(User.team != "stage"))
-        assert ret is False
-        assert "unsolvable" in msg
+        ret = p.check(Predicate(User.team != "stage"))
+        assert ret.solves is False
 
         # Two predicates are equivalent, if they return the same results,
         # equivalency is not equality, it's more broad.
@@ -92,8 +91,8 @@ class TestAst:
         """
         p = Predicate(Server.env == User.team)
 
-        ret, _ = p.check(Predicate((Server.env == "prod") & (User.team == "prod")))
-        assert ret is True, "this predicate holds when both values match"
+        ret = p.check(Predicate((Server.env == "prod") & (User.team == "prod")))
+        assert ret.solves is True, "this predicate holds when both values match"
 
         # user is not defined in the other predicate the check should fail
         # as we haven't defined all symbols
@@ -119,7 +118,7 @@ class TestAst:
         p = Predicate((Server.env == User.team) & (Server.login == User.name))
 
         # Bob can access server with label prod with his name
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.env == "prod")
                 & (User.team == "prod")
@@ -127,26 +126,26 @@ class TestAst:
                 & (Server.login == "bob")
             )
         )
-        assert ret is True
+        assert ret.solves is True
 
         # Query helps to ask more broad questions, e.g. can bob access servers labeled as "prod"?
-        ret, _ = p.query(
+        ret = p.query(
             Predicate(
                 (Server.env == "prod") & (User.team == "prod") & (User.name == "bob")
             )
         )
-        assert ret is True, "Bob can access servers labeled as prod"
+        assert ret.solves is True, "Bob can access servers labeled as prod"
 
         # Can bob access servers labeled as stage?
-        ret, _ = p.query(
+        ret = p.query(
             Predicate(
                 (Server.env == "stage") & (User.team == "prod") & (User.name == "bob")
             )
         )
-        assert ret is False, "Bob can't access servers labeled as stage"
+        assert ret.solves is False, "Bob can't access servers labeled as stage"
 
         # Bob can't access server prod with someone else's name
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.env == "prod")
                 & (User.team == "prod")
@@ -154,10 +153,10 @@ class TestAst:
                 & (Server.login == "jim")
             )
         )
-        assert ret is False, "Bob can't access prod with someone else's username"
+        assert ret.solves is False, "Bob can't access prod with someone else's username"
 
         # Bob can't access server prod if Bob's team is not valid
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.env == "prod")
                 & (User.team == "stage")
@@ -165,7 +164,7 @@ class TestAst:
                 & (Server.login == "bob")
             )
         )
-        assert ret is False, "Bob can't access servers of not his team"
+        assert ret.solves is False, "Bob can't access servers of not his team"
 
     def test_invariants(self):
         """
@@ -183,7 +182,7 @@ class TestAst:
         p = Predicate(root | general)
 
         # Alice can access prod as root
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.env == "prod")
                 & (User.name == "alice")
@@ -191,10 +190,10 @@ class TestAst:
                 & (User.team == "noop")
             )
         )
-        assert ret is True, "Alice can access prod as root"
+        assert ret.solves is True, "Alice can access prod as root"
 
         # Bob can access stage as his name
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.env == "stage")
                 & (User.name == "bob")
@@ -202,10 +201,10 @@ class TestAst:
                 & (User.team == "stage")
             )
         )
-        assert ret is True, "Bob can access stage with his name"
+        assert ret.solves is True, "Bob can access stage with his name"
 
         # Bob can't access prod as root
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.env == "prod")
                 & (User.name == "bob")
@@ -213,20 +212,20 @@ class TestAst:
                 & (User.team == "prod")
             )
         )
-        assert ret is False, "Bob can't access prod as root"
+        assert ret.solves is False, "Bob can't access prod as root"
 
         # Queries:
-        ret, _ = p.query(Predicate((Server.env == "prod") & (Server.login == "root")))
-        assert ret is True, "Is it possible for someone access prod as root"
+        ret = p.query(Predicate((Server.env == "prod") & (Server.login == "root")))
+        assert ret.solves is True, "Is it possible for someone access prod as root"
 
         # Is it possible for bob to access prod as root?
         # this is invariant we can verify with call to query
-        ret, _ = p.query(
+        ret = p.query(
             Predicate(
                 (Server.env == "prod") & (Server.login == "root") & (User.name == "bob")
             )
         )
-        assert ret is False, "Bob can't access prod as root"
+        assert ret.solves is False, "Bob can't access prod as root"
 
         # This is a more broad, and more strict invariant:
         #
@@ -235,7 +234,7 @@ class TestAst:
         # This could be a linter checker to make sure that whatever rules
         # people define, they can't access as root.
         #
-        ret, _ = p.query(
+        ret = p.query(
             Predicate(
                 (Server.env == "prod")
                 & (Server.login == "root")
@@ -243,7 +242,7 @@ class TestAst:
             )
         )
         assert (
-            ret is False
+            ret.solves is False
         ), "Is it possible for anyone who is not alice to access prod as root?"
 
         # Let's try the case that contradicts the predicate
@@ -256,7 +255,7 @@ class TestAst:
         p = Predicate(root | violation)
 
         # Jim can access prod as root
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.env == "prod")
                 & (User.name == "jim")
@@ -264,38 +263,38 @@ class TestAst:
                 & (User.team == "noop")
             )
         )
-        assert ret is False, "Jim can't access prod as root"
+        assert ret.solves is False, "Jim can't access prod as root"
 
     def test_regex(self):
         p = Predicate(parse_regex("stage-.*").matches(User.team))
 
-        ret, _ = p.check(Predicate(User.team == "stage-test"))
-        assert ret is True, "prefix patterns match"
+        ret = p.check(Predicate(User.team == "stage-test"))
+        assert ret.solves is True, "prefix patterns match"
 
-        ret, _ = p.check(Predicate(User.team == "stage-other"))
-        assert ret is True, "prefix patterns match"
+        ret = p.check(Predicate(User.team == "stage-other"))
+        assert ret.solves is True, "prefix patterns match"
 
-        ret, _ = p.check(Predicate(User.team == "prod-test"))
-        assert ret is False, "prefix pattern mismatch"
+        ret = p.check(Predicate(User.team == "prod-test"))
+        assert ret.solves is False, "prefix pattern mismatch"
 
     def test_concat(self):
         p = Predicate(Server.login == User.name + "-login")
-        ret, _ = p.check(
+        ret = p.check(
             Predicate((Server.login == "alice-login") & (User.name == "alice"))
         )
-        assert ret is True, "pattern matches suffix"
+        assert ret.solves is True, "pattern matches suffix"
 
         p = Predicate(Server.login == "login-" + User.name)
-        ret, _ = p.check(
+        ret = p.check(
             Predicate((Server.login == "login-alice") & (User.name == "alice"))
         )
-        assert ret is True, "pattern matches prefix"
+        assert ret.solves is True, "pattern matches prefix"
 
         p = Predicate(Server.login == "login-" + User.name + "-user")
-        ret, _ = p.check(
+        ret = p.check(
             Predicate((Server.login == "login-alice-user") & (User.name == "alice"))
         )
-        assert ret is True, "pattern matches suffix and prefix"
+        assert ret.solves is True, "pattern matches suffix and prefix"
 
         # TODOs:
         # https://github.com/Z3Prover/z3/blob/9f9543ef698adc77252ed366e6d85cc71e4b8c89/src/ast/rewriter/seq_axioms.cpp#L1044
@@ -306,69 +305,69 @@ class TestAst:
         Test splitting at delimiter.
         """
         p = Predicate(Server.login == User.name.before_delimiter("@"))
-        ret, _ = p.check(
+        ret = p.check(
             Predicate((Server.login == "alice") & (User.name == "alice@example.com"))
         )
-        assert ret is True, "splitting before delimiter works"
+        assert ret.solves is True, "splitting before delimiter works"
 
-        ret, _ = p.check(
+        ret = p.check(
             Predicate((Server.login == "") & (User.name == "alice-example.com"))
         )
-        assert ret is True, "delimiter not present, string renders to empty"
+        assert ret.solves is True, "delimiter not present, string renders to empty"
 
         p = Predicate(Server.login == User.name.after_delimiter("@"))
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.login == "example.com") & (User.name == "alice@example.com")
             )
         )
-        assert ret is True, "splitting after delimiter works"
+        assert ret.solves is True, "splitting after delimiter works"
 
-        ret, _ = p.check(
+        ret = p.check(
             Predicate((Server.login == "") & (User.name == "alice-example.com"))
         )
-        assert ret is True, "delimiter not present, string renders to empty"
+        assert ret.solves is True, "delimiter not present, string renders to empty"
 
     def test_replace(self):
         """
         Test replace string characters.
         """
         p = Predicate(Server.login == User.name.replace("@", "-"))
-        ret, z = p.check(
+        ret = p.check(
             Predicate(
                 (Server.login == "alice-example.com")
                 & (User.name == "alice@example.com")
             )
         )
-        assert ret is True, "replacing works"
+        assert ret.solves is True, "replacing works"
 
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (Server.login == "alice+example.com")
                 & (User.name == "alice+example.com")
             )
         )
-        assert ret is True, "character not present, no effect"
+        assert ret.solves is True, "character not present, no effect"
 
     def test_upper_lower(self):
         """
         Test upper lower case.
         """
         p = Predicate(Server.login == User.name.upper())
-        ret, z = p.check(Predicate((Server.login == "ALICE") & (User.name == "AlicE")))
-        assert ret is True, "uppercase works"
+        ret = p.check(Predicate((Server.login == "ALICE") & (User.name == "AlicE")))
+        assert ret.solves is True, "uppercase works"
 
         p = Predicate(Server.login == User.name.lower())
-        ret, z = p.check(Predicate((Server.login == "alice") & (User.name == "AlicE")))
-        assert ret is True, "lowercase works"
+        ret = p.check(Predicate((Server.login == "alice") & (User.name == "AlicE")))
+        assert ret.solves is True, "lowercase works"
 
     def test_string_list_init(self):
         # filter example - we only keep fruits by copying them over
         fruits = StringList("fruits", ("apple", "strawberry", "banana"))
 
         p = Predicate((fruits == ("apple", "strawberry", "banana")))
-        ret, _ = p.solve()
-        assert ret is True, "values match"
+        ret = p.solve()
+        assert ret.solves is True, "values match"
 
     def test_string_list_with_if(self):
         basket = StringList("basket")
@@ -382,48 +381,44 @@ class TestAst:
             ),
         )
 
-        p = Predicate(
+        ret = Predicate(
             (basket == ("strawberry", "apple", "banana"))
             & (fruits == ("blueberry", "strawberry", "apple", "banana"))
-        )
-        ret, _ = p.solve()
-        assert ret is True, "blueberry was added"
+        ).solve()
+        assert ret.solves is True, "blueberry was added"
 
-        p = Predicate(
+        ret = Predicate(
             (basket == ("apple", "strawberry")) & (fruits == ("apple", "strawberry"))
-        )
-        p.solve()
-        assert ret is True, "blueberry was not added"
+        ).solve()
+        assert ret.solves is True, "blueberry was not added"
 
     def test_string_list_transform_value(self):
         external = StringList("external")
         # transform example - we reference another variable and transform
         traits = StringList("traits", external.replace("@", "-"))
 
-        p = Predicate(
+        ret = Predicate(
             (external == ("alice@wonderland.local",))
             & (traits == ("alice-wonderland.local",))
-        )
-        ret, _ = p.solve()
-        assert ret is True, "transformation has been applied"
+        ).solve()
+        assert ret.solves is True, "transformation has been applied"
 
-        p = Predicate((external == ()) & (traits == ()))
-        ret, _ = p.solve()
-        assert ret is True, "transformation on empty list is empty"
+        ret = Predicate((external == ()) & (traits == ())).solve()
+        assert ret.solves is True, "transformation on empty list is empty"
 
     def test_string_set_map_contains(self):
         traits = StringSetMap("mymap")
         p = Predicate(traits["key"].contains("potato"))
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (traits["key"] == ("apple", "potato", "banana"))
                 | (traits["key"] == ("strawberry",))
             )
         )
-        assert ret is True, "values match"
+        assert ret.solves is True, "values match"
 
-        ret, _ = p.check(Predicate(traits["key"] == ("apple", "banana")))
-        assert ret is False, "values don't match"
+        ret = p.check(Predicate(traits["key"] == ("apple", "banana")))
+        assert ret.solves is False, "values don't match"
 
     def test_string_set_map_contains_regex(self):
         traits = StringSetMap(
@@ -432,9 +427,8 @@ class TestAst:
                 "groups": ("fruit-apple", "veggie-potato", "fruit-banana"),
             },
         )
-        p = Predicate(traits["groups"].contains_regex("fruit-.*"))
-        ret, _ = p.solve()
-        assert ret is True, "values match regular expression"
+        ret = Predicate(traits["groups"].contains_regex("fruit-.*")).solve()
+        assert ret.solves is True, "values match regular expression"
 
         traits = StringSetMap(
             "mymap",
@@ -442,10 +436,8 @@ class TestAst:
                 "groups": ("apple", "potato", "banana"),
             },
         )
-        with pytest.raises(ParameterError) as exc:
-            p = Predicate(traits["groups"].contains_regex("fruit-apple"))
-            ret, _ = p.solve()
-        assert "unsolvable" in str(exc.value)
+        with pytest.raises(ParameterError, match="unsolvable"):
+            _ = Predicate(traits["groups"].contains_regex("fruit-apple")).solve()
 
     def test_string_set_map_len(self):
         traits = StringSetMap(
@@ -454,32 +446,29 @@ class TestAst:
                 "groups": ("fruit-apple", "veggie-potato", "fruit-banana"),
             },
         )
-        p = Predicate(traits["groups"].len() == 3)
-        ret, _ = p.solve()
-        assert ret is True, "counts properly"
+        ret = Predicate(traits["groups"].len() == 3).solve()
+        assert ret.solves is True, "counts properly"
 
-        p = Predicate(traits["missing"].len() == 0)
-        ret, _ = p.solve()
-        assert ret is True, "missing key results in empty count"
+        ret = Predicate(traits["missing"].len() == 0).solve()
+        assert ret.solves is True, "missing key results in empty count"
 
         with pytest.raises(ParameterError):
-            p = Predicate(traits["missing"].len() == 1)
-            ret, _ = p.solve()
+            _ = Predicate(traits["missing"].len() == 1).solve()
 
     def test_string_set_map_len_undefined(self):
         approvals = StringSetMap("mymap")
         p = Predicate(approvals["my-policy"].len() > 2)
-        ret, _ = p.solve()
-        assert ret is True, "predicate solves"
+        ret = p.solve()
+        assert ret.solves is True, "predicate solves"
 
-        ret, _ = p.check(Predicate(approvals["my-policy"].len() == 3))
-        assert ret is True, "predicate solves"
+        ret = p.check(Predicate(approvals["my-policy"].len() == 3))
+        assert ret.solves is True, "predicate solves"
 
-        ret, _ = p.check(Predicate(approvals["my-policy"].len() == 2))
-        assert ret is False, "predicate fails to solve"
+        ret = p.check(Predicate(approvals["my-policy"].len() == 2))
+        assert ret.solves is False, "predicate fails to solve"
 
-        ret, _ = p.query(Predicate(approvals["my-policy"].len() == 2))
-        assert ret is False, "predicate fails to solve with query as well"
+        ret = p.query(Predicate(approvals["my-policy"].len() == 2))
+        assert ret.solves is False, "predicate fails to solve with query as well"
 
     def test_string_set_map_first(self):
         traits = StringSetMap(
@@ -488,9 +477,8 @@ class TestAst:
                 "groups": ("fruit-apple", "veggie-potato", "fruit-banana"),
             },
         )
-        p = Predicate(traits["groups"].first() == "fruit-apple")
-        ret, _ = p.solve()
-        assert ret is True, "gets first value"
+        ret = Predicate(traits["groups"].first() == "fruit-apple").solve()
+        assert ret.solves is True, "gets first value"
 
         traits = StringSetMap(
             "mymap",
@@ -499,9 +487,8 @@ class TestAst:
             },
         )
 
-        p = Predicate(traits["groups"].first() == "potato")
-        ret, _ = p.solve()
-        assert ret is True, "gets first non-empty value"
+        ret = Predicate(traits["groups"].first() == "potato").solve()
+        assert ret.solves is True, "gets first non-empty value"
 
         traits = StringSetMap(
             "mymap",
@@ -510,9 +497,8 @@ class TestAst:
             },
         )
 
-        p = Predicate(traits["groups"].first() == "")
-        ret, _ = p.solve()
-        assert ret is True, "returns empty string if no value"
+        ret = Predicate(traits["groups"].first() == "").solve()
+        assert ret.solves is True, "returns empty string if no value"
 
     def test_string_set_map_add_value(self):
         traits = StringSetMap("mymap")
@@ -520,13 +506,11 @@ class TestAst:
             # this predicate is always true, we always add strawberry
             traits.add_value("fruits", "strawberry")["fruits"].contains("strawberry")
         )
-        ret, _ = p.check(
-            Predicate(traits["fruits"] == ("strawberry", "apple", "banana"))
-        )
-        assert ret is True, "values match with strawberry"
+        ret = p.check(Predicate(traits["fruits"] == ("strawberry", "apple", "banana")))
+        assert ret.solves is True, "values match with strawberry"
 
-        ret, _ = p.check(Predicate(traits["fruits"] == ("apple", "banana")))
-        assert ret is True, "values match even if strawberry is missing"
+        ret = p.check(Predicate(traits["fruits"] == ("apple", "banana")))
+        assert ret.solves is True, "values match even if strawberry is missing"
 
     def test_string_set_map_with_values(self):
         external = StringSetMap("external")
@@ -537,21 +521,18 @@ class TestAst:
                 "our-fruits": external["fruits"],
             },
         )
-        p = Predicate(
+        ret = Predicate(
             (external["fruits"] == ("strawberry", "apple", "banana"))
             & (traits["our-fruits"].contains("strawberry"))
-        )
-        ret, _ = p.solve()
-        assert ret is True, "values match with strawberry"
+        ).solve()
+        assert ret.solves is True, "values match with strawberry"
 
-        with pytest.raises(ParameterError) as exc:
+        with pytest.raises(ParameterError, match="unsolvable"):
             # this predicate is unsolvable
-            p = Predicate(
+            _ = Predicate(
                 (external["fruits"] == ("apple", "banana"))
                 & (traits["our-fruits"].contains("strawberry"))
-            )
-            p.solve()
-        assert "unsolvable" in str(exc.value)
+            ).solve()
 
     def test_string_set_map_list_init(self):
         # filter example - we only keep fruits by copying them over
@@ -562,12 +543,11 @@ class TestAst:
                 "veggies": ("potato",),
             },
         )
-        p = Predicate(
+        ret = Predicate(
             (traits["fruits"] == ("apple", "strawberry", "banana"))
             & (traits["veggies"] == ("potato",))
-        )
-        ret, _ = p.solve()
-        assert ret is True, "values match with strawberry"
+        ).solve()
+        assert ret.solves is True, "values match with strawberry"
 
     def test_string_set_map_remove_keys(self):
         # filter example - we only keep fruits by copying them over
@@ -578,12 +558,11 @@ class TestAst:
                 "veggies": ("potato",),
             },
         ).remove_keys("veggies")
-        p = Predicate(
+        ret = Predicate(
             (traits["fruits"] == ("apple", "strawberry", "banana"))
             & (traits["veggies"] == ())
-        )
-        ret, _ = p.solve()
-        assert ret is True, "veggies is empty"
+        ).solve()
+        assert ret.solves is True, "veggies is empty"
 
     def test_string_set_map_overwrite(self):
         traits = StringSetMap(
@@ -592,12 +571,11 @@ class TestAst:
                 "fruits": ("apple", "strawberry", "banana"),
             },
         ).overwrite({"veggies": ("potato",)})
-        p = Predicate(
+        ret = Predicate(
             (traits["fruits"] == ("apple", "strawberry", "banana"))
             & (traits["veggies"] == ("potato",))
-        )
-        ret, _ = p.solve()
-        assert ret is True, "overwritten with added potato values"
+        ).solve()
+        assert ret.solves is True, "overwritten with added potato values"
 
     def test_string_set_map_with_if(self):
         external = StringSetMap("external")
@@ -612,19 +590,17 @@ class TestAst:
                 )
             },
         )
-        p = Predicate(
+        ret = Predicate(
             (external["fruits"] == ("strawberry", "apple", "banana"))
             & (traits["our-fruits"] == ("blueberry", "strawberry", "apple", "banana"))
-        )
-        ret, _ = p.solve()
-        assert ret is True, "blueberry was added"
+        ).solve()
+        assert ret.solves is True, "blueberry was added"
 
-        p = Predicate(
+        ret = Predicate(
             (external["fruits"] == ("apple", "strawberry"))
             & (traits["our-fruits"] == ("apple", "strawberry"))
-        )
-        p.solve()
-        assert ret is True, "blueberry was not added"
+        ).solve()
+        assert ret.solves is True, "blueberry was not added"
 
     def test_string_set_map_transform_value(self):
         external = StringSetMap("external")
@@ -635,16 +611,14 @@ class TestAst:
                 "login": external["email"].replace("@", "-"),
             },
         )
-        p = Predicate(
+        ret = Predicate(
             (external["email"] == ("alice@wonderland.local",))
             & (traits["login"] == ("alice-wonderland.local",))
-        )
-        ret, _ = p.solve()
-        assert ret is True, "transformation has been applied"
+        ).solve()
+        assert ret.solves is True, "transformation has been applied"
 
-        p = Predicate((external["email"] == ()) & (traits["login"] == ()))
-        ret, _ = p.solve()
-        assert ret is True, "transformation on empty list is empty"
+        ret = Predicate((external["email"] == ()) & (traits["login"] == ())).solve()
+        assert ret.solves is True, "transformation on empty list is empty"
 
     def test_string_map(self):
         """
@@ -655,58 +629,60 @@ class TestAst:
 
         # maps could be part of the predicate
         p = Predicate(m["key"] == "val")
-        ret, _ = p.query(Predicate(m["key"] == "val"))
-        assert ret is True, "values match"
+        ret = p.query(Predicate(m["key"] == "val"))
+        assert ret.solves is True, "values match"
 
-        ret, _ = p.query(Predicate(m["key"] != "val"))
-        assert ret is False, "values don't match"
+        ret = p.query(Predicate(m["key"] != "val"))
+        assert ret.solves is False, "values don't match"
 
         # check raises parameter error because key 'key' is missing
         with pytest.raises(ParameterError):
-            ret, _ = p.check(Predicate(m["missing"] == "potato"))
+            ret = p.check(Predicate(m["missing"] == "potato"))
 
-        ret, _ = p.query(Predicate(m["missing"] == "potato"))
+        ret = p.query(Predicate(m["missing"] == "potato"))
         assert (
-            ret is False
+            ret.solves is False
         ), "query that does not have matching keys should fail, otherwise you would get query match both predicates with keys missing and exact matches"
 
-        ret, _ = p.solves_with(Predicate(m["missing"] == "potato"))
+        ret = p.solves_with(Predicate(m["missing"] == "potato"))
         assert (
-            ret is True
+            ret.solves is True
         ), "contrary to query statement above, this predicate does not contradict the statement m['key'] == 'val', both can be true at the same time"
 
         # multiple key-value checks
         m = StringMap("mymap")
         p = Predicate((m["key"] == "val") & (m["key-2"] == "val-2"))
 
-        ret, _ = p.query(Predicate(m["key"] == "val"))
-        assert ret is True, "query on subset of keys is successful"
+        ret = p.query(Predicate(m["key"] == "val"))
+        assert ret.solves is True, "query on subset of keys is successful"
 
         # check will raise error when there is ambiguity because
         # not all keys have been specified
         with pytest.raises(ParameterError):
-            ret, _ = p.check(Predicate(m["key"] == "val"))
+            _ = p.check(Predicate(m["key"] == "val"))
 
-        ret, _ = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "val-2")))
-        assert ret is True, "check, all keys and values, match"
+        ret = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "val-2")))
+        assert ret.solves is True, "check, all keys and values, match"
 
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (m["key"] == "val") & (m["key-2"] == "val-2") & (m["key-3"] == "val")
             )
         )
-        assert ret is True, "check is OK when the right side has superset of keys"
+        assert (
+            ret.solves is True
+        ), "check is OK when the right side has superset of keys"
 
-        ret, _ = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "wrong")))
-        assert ret is False, "check fails when some values don't match"
+        ret = p.check(Predicate((m["key"] == "val") & (m["key-2"] == "wrong")))
+        assert ret.solves is False, "check fails when some values don't match"
 
-        ret, _ = p.check(
+        ret = p.check(
             Predicate(
                 (m["key"] == "val") & (m["key-2"] == "wrong") & (m["key-3"] == "val")
             )
         )
         assert (
-            ret is False
+            ret.solves is False
         ), "check fails when the right side has superset of keys, but values don't match"
 
     def test_string_enum(self):
@@ -716,17 +692,15 @@ class TestAst:
         e = StringEnum("fruits", set(["banana", "apple", "strawberry"]))
 
         # enums could be part of the predicate
-        p = Predicate(
-            (e == 'apple') | (e == 'banana')
-        )
-        ret, _ = p.query(Predicate(e == "banana"))
-        assert ret is True, "value can be banana"
+        p = Predicate((e == "apple") | (e == "banana"))
+        ret = p.query(Predicate(e == "banana"))
+        assert ret.solves is True, "value can be banana"
 
-        ret, _ = p.query(Predicate((e == "strawberry")))
-        assert ret is False, "value cannot be strawberry"
+        ret = p.query(Predicate((e == "strawberry")))
+        assert ret.solves is False, "value cannot be strawberry"
 
-        ret, _ = p.query(Predicate((e != "apple") & (e != "banana")))
-        assert ret is False, "value must be one of apple and banana"
+        ret = p.query(Predicate((e != "apple") & (e != "banana")))
+        assert ret.solves is False, "value must be one of apple and banana"
 
     def test_string_enum_comparison(self):
         """
@@ -737,17 +711,17 @@ class TestAst:
 
         # enums could be part of the predicate and can provide constraints
         p = Predicate((e > "apple") | (e == "apple"))
-        ret, _ = p.query(Predicate(e == "apple"))
-        assert ret is True, "the value can be apple"
+        ret = p.query(Predicate(e == "apple"))
+        assert ret.solves is True, "the value can be apple"
 
-        ret, _ = p.query(Predicate(e == "watermelon"))
-        assert ret is True, "the value can be watermelon"
+        ret = p.query(Predicate(e == "watermelon"))
+        assert ret.solves is True, "the value can be watermelon"
 
-        ret, _ = p.query(Predicate(e == "strawberry"))
-        assert ret is False, "the value cannot be strawberry"
+        ret = p.query(Predicate(e == "strawberry"))
+        assert ret.solves is False, "the value cannot be strawberry"
 
-        ret, _ = p.query(Predicate((e != "apple") & (e != "watermelon")))
-        assert ret is False, "value must be one of apple and watermelon"
+        ret = p.query(Predicate((e != "apple") & (e != "watermelon")))
+        assert ret.solves is False, "value must be one of apple and watermelon"
 
         # ensure that all inequalities can only be specified using valid enum values
         with pytest.raises(TypeError, match=r"is not one of"):
@@ -769,8 +743,8 @@ class TestAst:
 
         # maps could be part of the predicate
         p = Predicate(parse_regex("env-.*").matches(m["key"]))
-        ret, _ = p.query(Predicate(m["key"] == "env-prod"))
-        assert ret is True
+        ret = p.query(Predicate(m["key"] == "env-prod"))
+        assert ret.solves is True
 
     def test_string_tuple(self):
         """
@@ -778,8 +752,8 @@ class TestAst:
         """
         t = StringTuple(["banana", "potato", "apple"])
         p = Predicate(t.contains("banana"))
-        ret, _ = p.query(Predicate(t.contains("apple")))
-        assert ret is True
+        ret = p.query(Predicate(t.contains("apple")))
+        assert ret.solves is True
 
     def test_regex_tuple(self):
         """
@@ -787,8 +761,8 @@ class TestAst:
         """
         t = regex_tuple(["banana-.*", "potato-.*", "apple-.*"])
         p = Predicate(t.matches("banana-smoothie"))
-        ret, _ = p.query(Predicate(t.matches("apple-smoothie")))
-        assert ret is True
+        ret = p.query(Predicate(t.matches("apple-smoothie")))
+        assert ret.solves is True
 
     def test_int(self):
         """
@@ -796,16 +770,16 @@ class TestAst:
         """
         p = Predicate(Request.approve == 1)
 
-        ret, _ = p.check(Predicate(Request.approve == 1))
-        assert ret is True, "solves with simple equality check"
+        ret = p.check(Predicate(Request.approve == 1))
+        assert ret.solves is True, "solves with simple equality check"
 
         p = Predicate((Request.approve > 1) & (Request.approve < 3))
 
-        ret, _ = p.check(Predicate(Request.approve == 2))
-        assert ret is True, "solves with simple boundary check"
+        ret = p.check(Predicate(Request.approve == 2))
+        assert ret.solves is True, "solves with simple boundary check"
 
-        ret, _ = p.check(Predicate(Request.approve == 5))
-        assert ret is False, "solves with simple boundary check"
+        ret = p.check(Predicate(Request.approve == 5))
+        assert ret.solves is False, "solves with simple boundary check"
 
     def test_duration(self):
         """
@@ -815,19 +789,19 @@ class TestAst:
             Options.ttl == Duration.new(hours=5),
         )
 
-        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=5)))
-        assert ret is True, "solves with simple equality check"
+        ret = p.check(Predicate(Options.ttl == Duration.new(hours=5)))
+        assert ret.solves is True, "solves with simple equality check"
 
         p = Predicate(
             (Options.ttl > Duration.new(seconds=10))
             & (Options.ttl < Duration.new(hours=5))
         )
 
-        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=3)))
-        assert ret is True, "solves with simple boundary check"
+        ret = p.check(Predicate(Options.ttl == Duration.new(hours=3)))
+        assert ret.solves is True, "solves with simple boundary check"
 
-        ret, _ = p.check(Predicate(Options.ttl == Duration.new(hours=6)))
-        assert ret is False, "solves with simple boundary check"
+        ret = p.check(Predicate(Options.ttl == Duration.new(hours=6)))
+        assert ret.solves is False, "solves with simple boundary check"
 
     def test_bool(self):
         """
@@ -837,11 +811,11 @@ class TestAst:
             Options.pin_source_ip == True,
         )
 
-        ret, _ = p.check(Predicate(Options.pin_source_ip == True))
-        assert ret is True, "solves with simple equality check"
+        ret = p.check(Predicate(Options.pin_source_ip == True))
+        assert ret.solves is True, "solves with simple equality check"
 
-        ret, _ = p.check(Predicate(Options.pin_source_ip == False))
-        assert ret is False, "solves with simple boundary check"
+        ret = p.check(Predicate(Options.pin_source_ip == False))
+        assert ret.solves is False, "solves with simple boundary check"
 
     def test_select(self):
         external = StringSetMap("external")
@@ -854,15 +828,15 @@ class TestAst:
             # Case(external['groups'].matches_regexp('test-.*'), (external['groups'].replace('admin-', 'role-').add('bob')))
         )
 
-        ret, _ = Predicate(
+        ret = Predicate(
             (s == ("admin",)) & (external["groups"] == ("admin", "other"))
         ).solve()
-        assert ret is True, "simple match works"
+        assert ret.solves is True, "simple match works"
 
-        ret, _ = Predicate(
+        ret = Predicate(
             (s == ()) & (external["groups"] == ("nomatch", "other"))
         ).solve()
-        assert ret is True, "no match results in default"
+        assert ret.solves is True, "no match results in default"
 
         # once you have a select defined, you can specify set of roles and policies
 
@@ -875,15 +849,15 @@ class TestAst:
             Default(()),
         )
 
-        ret, _ = Predicate(
+        ret = Predicate(
             (s == ("admin",)) & (external["groups"] == ("admin-test", "other"))
         ).solve()
-        assert ret is True, "simple match works"
+        assert ret.solves is True, "simple match works"
 
-        ret, _ = Predicate(
+        ret = Predicate(
             (s == ()) & (external["groups"] == ("nomatch", "other"))
         ).solve()
-        assert ret is True, "no match results in default"
+        assert ret.solves is True, "no match results in default"
 
     def test_select_regex_replace(self):
         external = StringSetMap("external")
@@ -897,14 +871,14 @@ class TestAst:
             Default(external["groups"]),
         )
 
-        ret, _ = Predicate(
+        ret = Predicate(
             (s == ("ext-test", "ext-prod"))
             & (external["groups"] == ("admin-test", "admin-prod"))
         ).solve()
-        assert ret is True, "match and replace works"
+        assert ret.solves is True, "match and replace works"
 
-        ret, _ = Predicate(
+        ret = Predicate(
             (s == ("dev-test", "dev-prod"))
             & (external["groups"] == ("dev-test", "dev-prod"))
         ).solve()
-        assert ret is True, "match and replace works default value"
+        assert ret.solves is True, "match and replace works default value"

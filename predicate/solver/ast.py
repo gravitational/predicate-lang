@@ -20,6 +20,10 @@ limitations under the License.
 # * book https://theory.stanford.edu/~nikolaj/programmingz3.html
 # * reference https://z3prover.github.io/api/html/namespacez3py.html
 
+# To allow using class type inside class:
+# https://github.com/python/mypy/issues/3661#issuecomment-647945042
+from __future__ import annotations
+
 import functools
 import operator
 import sre_constants
@@ -350,6 +354,11 @@ class DurationLiteral:
     def __str__(self):
         return "`{}`".format(self.V)
 
+    def __eq__(self, other):
+        if isinstance(other, DurationLiteral):
+            return self.V == other.V
+        return False
+
 
 class BoolLiteral:
     """
@@ -410,7 +419,7 @@ class IntMixin:
 
 class Int(IntMixin):
     """
-    Int is integer variable, e.g. count = Int('count')
+    Int is an integer variable, e.g. count = Int('count')
     """
 
     def __init__(self, name: str):
@@ -426,9 +435,10 @@ class Int(IntMixin):
     def __str__(self):
         return "int({})".format(self.name)
 
-class LtDuration:
+
+class Duration:
     """
-    LtDuration is a duration that only allows < inequalities.
+    Duration is a duration variable, e.g. ttl = Duration('ttl')
     """
 
     def __init__(self, name: str):
@@ -440,18 +450,6 @@ class LtDuration:
 
     def walk(self, fn):
         fn(self)
-
-    def __str__(self):
-        return "ltduration({})".format(self.name)
-
-    def __lt__(self, val: DurationLiteral):
-        return Lt(self, val)
-
-
-class Duration(LtDuration):
-    """
-    Duration is a duration that allows <, >, == and != inequalities.
-    """
 
     @staticmethod
     def new(
@@ -474,14 +472,28 @@ class Duration(LtDuration):
     def __str__(self):
         return "duration({})".format(self.name)
 
-    def __eq__(self, val: DurationLiteral):
+    def __eq__(self, val):
+        self.check_value_is_valid(val)
         return Eq(self, val)
 
-    def __ne__(self, val: DurationLiteral):
+    def __ne__(self, val):
+        self.check_value_is_valid(val)
         return Not(Eq(self, val))
 
-    def __gt__(self, val: DurationLiteral):
+    def __lt__(self, val):
+        self.check_value_is_valid(val)
+        return Lt(self, val)
+
+    def __gt__(self, val):
+        self.check_value_is_valid(val)
         return Gt(self, val)
+
+    def check_value_is_valid(self, val):
+        if isinstance(val, DurationLiteral):
+            return
+        raise TypeError(
+            "unsupported type {}, supported duration literals only".format(type(val))
+        )
 
 
 class Bool:
@@ -861,9 +873,7 @@ class StringEnum:
 
         # raise type error if `val` is not one of the enum values
         raise TypeError(
-            "value {} is not one of: {}".format(
-                val, [v for v in self.values]
-            )
+            "value {} is not one of: {}".format(val, [v for v in self.values])
         )
 
     def __str__(self):
@@ -1206,7 +1216,7 @@ class StringMap:
         self.name = name
         self.fn_map = z3.Function(self.name, z3.StringSort(), z3.StringSort())
 
-    def __getitem__(self, key: String):
+    def __getitem__(self, key: str | String):
         """
         getitem used to build an expression, for example m[key] == "val"
         """
@@ -1221,7 +1231,7 @@ class StringMap:
 
 
 class MapIndex(LogicMixin):
-    def __init__(self, m: StringMap, key: String):
+    def __init__(self, m: StringMap, key: str | String):
         self.m = m
         self.key = key
 
@@ -1612,17 +1622,17 @@ class StringSetMap:
                 self.fn_map, [arg_key], iff(arg_key, iter(values.items()))
             )
 
-    def __getitem__(self, key: String):
+    def __getitem__(self, key: str | String):
         """
         getitem used to build an expression, for example m[key].contains("val")
         """
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
-    def add_value(self, key: String, val: String):
+    def add_value(self, key: str | String, val: str | String):
         return StringSetMapAddValue(self, key, val)
 
-    def remove_keys(self, *keys: String):
+    def remove_keys(self, *keys):
         return StringSetMapRemoveKeys(self, keys)
 
     def overwrite(self, values: typing.Dict):
@@ -1681,19 +1691,19 @@ class StringSetMapOverwrite(StringSetMap):
     def traverse(self):
         return self.fn_map
 
-    def __getitem__(self, key: String):
+    def __getitem__(self, key: str | String):
         """
         getitem used to build an expression, for example m[key].contains("val")
         """
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
-    def add_value(self, key: String, val: String):
+    def add_value(self, key: str | String, val: str | String):
         return StringSetMapAddValue(self, key, val)
 
 
 class StringSetMapAddValue(StringSetMap):
-    def __init__(self, m: StringSetMap, key, val):
+    def __init__(self, m: StringSetMap, key: str | String, val: str | String):
         self.m = m
         self.name = m.name + "_add_value"
         self.K = key
@@ -1728,14 +1738,14 @@ class StringSetMapAddValue(StringSetMap):
     def traverse(self):
         return self.fn_map
 
-    def __getitem__(self, key: String):
+    def __getitem__(self, key: str | String):
         """
         getitem used to build an expression, for example m[key].contains("val")
         """
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
-    def add_value(self, key: String, val: String):
+    def add_value(self, key: str | String, val: str | String):
         return StringSetMapAddValue(self, key, val)
 
 
@@ -1771,19 +1781,19 @@ class StringSetMapRemoveKeys(StringSetMap):
     def traverse(self):
         return self.fn_map
 
-    def __getitem__(self, key: String):
+    def __getitem__(self, key: str | String):
         """
         getitem used to build an expression, for example m[key].contains("val")
         """
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
-    def add_value(self, key: String, val: String):
+    def add_value(self, key: str | String, val: str | String):
         return StringSetMapAddValue(self, key, val)
 
 
 class StringSetMapIndex:
-    def __init__(self, m: StringSetMap, key: String):
+    def __init__(self, m: StringSetMap, key: str | String):
         self.m = m
         self.key = key
 
@@ -1979,18 +1989,17 @@ class StringSetMapIndexEquals(LogicMixin):
         return self.E.m.fn_map(z3.StringVal(self.E.key)) == self.V.traverse()
 
 
-def collect_symbols(s, expr):
-    if isinstance(expr, (String, Int, LtDuration, Duration, Bool, StringEnum)):
+def collect_symbols(s: set[str], expr):
+    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
         s.add(expr.name)
     if isinstance(expr, MapIndex):
         s.add(expr.m.name + "." + expr.key)
 
 
-def collect_names(s, expr):
-    if isinstance(expr, (String, Int, LtDuration, Duration, Bool, StringEnum)):
-        s.add(expr.name)
-    if isinstance(expr, MapIndex):
-        s.add(expr.m.name)
+class SolverResult:
+    def __init__(self, solves, model=None):
+        self.solves = solves
+        self.model = model
 
 
 class Predicate:
@@ -2006,19 +2015,14 @@ class Predicate:
     def walk(self, fn):
         self.expr.walk(fn)
 
-    def verify(self):
-        solver = z3.Solver()
-        solver.add(self.expr.traverse())
-        if solver.check() == z3.unsat:
-            raise ParameterError("our own predicate is unsolvable")
-
-    def check(self, other):
+    def check(self, other: Predicate) -> SolverResult:
         """
         check checks the predicate against conditions specified in
         another predicate. Both predicates should define
         """
         # sanity check - to check two predicates, they should
         # define the same sets of symbols
+        # TODO: this is not checking for equality
         if not self.symbols.issubset(other.symbols):
             diff = self.symbols.difference(other.symbols)
             raise ParameterError(
@@ -2029,23 +2033,24 @@ class Predicate:
 
         return self.solves_with(other)
 
-    def query(self, other):
+    def query(self, other: Predicate) -> SolverResult:
         """
         Query can only succeed if symbols in the query are a strict subset
         of all symbols used in the predicate being queried
         Query behaves like SQL, e.g. select * from users where name like 'a%';
         """
         if not other.symbols.issubset(self.symbols):
-            diff = self.symbols.difference(other.symbols)
-            return (
-                False,
-                """check can not resolve ambiguity, query uses symbols %s that are not present in predicate %s, diff: %s,
-                query must be a subset of symbols of the predicate"""
-                % (self.symbols, other.symbols, diff),
-            )
+            _ = self.symbols.difference(other.symbols)
+            # TODO: this should raise a ParameterError, like in check
+            # raise ParameterError(
+            # """query can not resolve ambiguity, query uses symbols %s that are not present in predicate %s, diff: %s,
+            # query must be a subset of symbols of the predicate"""
+            # % (self.symbols, other.symbols, diff),
+            # )
+            return SolverResult(False)
         return self.solves_with(other)
 
-    def solve(self):
+    def solve(self) -> SolverResult:
         """
         Solve solves predicate against itself
         """
@@ -2053,13 +2058,13 @@ class Predicate:
         e = self.expr.traverse()
         if self.loud:
             print("OUR EXPR: {}".format(e))
-        solver.add(self.expr.traverse())
+        solver.add(e)
 
         if solver.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
-        return (True, solver.model())
+        return SolverResult(True, model=solver.model())
 
-    def solves_with(self, other):
+    def solves_with(self, other: Predicate) -> SolverResult:
         """
         solves_with returns true if the predicate can be true with another
         predicate being true at the same time.
@@ -2077,15 +2082,11 @@ class Predicate:
             print("THEIR EXPR: {}".format(o))
         solver.add(o)
 
-        # TODO do a second pass to build a key checking function
-        # for both predicates!
-        self.expr.walk(functools.partial(collect_symbols, self.symbols))
-
         if solver.check() == z3.unsat:
-            return (False, "predicate is unsolvable against %s" % (other.expr,))
-        return (True, solver.model())
+            return SolverResult(False)
+        return SolverResult(True, model=solver.model())
 
-    def equivalent(self, other):
+    def equivalent(self, other: Predicate):
         solver = z3.Solver()
         solver.add(z3.Distinct(self.expr.traverse(), other.expr.traverse()))
         result = solver.check()
@@ -2106,8 +2107,8 @@ class Predicate:
         then it removes the redundant one.
         """
 
-        def split(vals, expr):
-            if type(expr) == And or type(expr) == Or:
+        def split(vals: list, expr):
+            if isinstance(expr, (And, Or)):
                 vals.append(expr.L)
                 vals.append(expr.R)
 

@@ -31,52 +31,52 @@ class TestTeleportAccessRequests:
         )
 
         # Can devs request access to stage?
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 (RequestPolicy.names == ("access-stage",))
                 & (RequestPolicy.approvals["access-stage"].len() > 0)
             )
         )
-        assert ret is True, "Devs can request access to stage"
+        assert ret.solves is True, "Devs can request access to stage"
 
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 (RequestPolicy.names == ("access-prod",))
                 & (RequestPolicy.approvals["access-prod"].len() > 0)
             )
         )
-        assert ret is False, "Devs can't request access to prod"
+        assert ret.solves is False, "Devs can't request access to prod"
 
         # Can devs review access to prod?
-        ret, _ = devs.query(
+        ret = devs.query(
             Review(
                 RequestPolicy.names.contains(
                     "access-stage",
                 )
             )
         )
-        assert ret is True, "Devs can review other folks access to stage"
+        assert ret.solves is True, "Devs can review other folks access to stage"
 
         # Can user with these policies review a role?
-        ret, _ = devs.query(
+        ret = devs.query(
             Review(
                 RequestPolicy.names.contains(
                     "access-prod",
                 )
             )
         )
-        assert ret is False, "can't review role that is not listed in the policy"
+        assert ret.solves is False, "can't review role that is not listed in the policy"
 
         # TODO: how to bind to roles?
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 (RequestPolicy.names == ("access-stage",))
                 & (RequestPolicy.approvals["access-stage"] == ("alice", "bob"))
             )
         )
-        assert ret is True, "two folks have approved the request"
+        assert ret.solves is True, "two folks have approved the request"
 
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 (RequestPolicy.names == ("access-stage",))
                 & (RequestPolicy.approvals["access-stage"] == ("alice", "bob"))
@@ -84,7 +84,7 @@ class TestTeleportAccessRequests:
             )
         )
         assert (
-            ret is False
+            ret.solves is False
         ), "two folks have approved the request, but one person denied it"
 
     def test_access_requests_review_expression(self):
@@ -114,7 +114,7 @@ class TestTeleportAccessRequests:
         )
 
         request = RequestPolicy.names == ("access-stage",)
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 request
                 & (
@@ -123,10 +123,10 @@ class TestTeleportAccessRequests:
                 )
             )
         )
-        assert ret is True, "one person have approved the request"
+        assert ret.solves is True, "one person have approved the request"
 
         request = RequestPolicy.names == ("access-stage",)
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 request
                 & (
@@ -135,7 +135,7 @@ class TestTeleportAccessRequests:
                 ),
             )
         )
-        assert ret is False, "one person has denied the request"
+        assert ret.solves is False, "one person has denied the request"
 
     def test_access_requests_review_limits(self):
         """
@@ -165,7 +165,7 @@ class TestTeleportAccessRequests:
         )
 
         # Can devs review access to stage?
-        ret, _ = devs.check(
+        ret = devs.check(
             Review(
                 (RequestPolicy.names == ("access-stage",))
                 & (RequestPolicy.approvals["access-stage"].len() > 0)
@@ -173,10 +173,12 @@ class TestTeleportAccessRequests:
                 & (Node.labels["env"] == "sre")
             )
         )
-        assert ret is True, "Devs can request access to stage for nodes in their env"
+        assert (
+            ret.solves is True
+        ), "Devs can request access to stage for nodes in their env"
 
         # Can devs review access to stage?
-        ret, _ = devs.check(
+        ret = devs.check(
             Review(
                 (RequestPolicy.names == ("access-stage",))
                 & (RequestPolicy.approvals["access-stage"].len() > 0)
@@ -185,7 +187,7 @@ class TestTeleportAccessRequests:
             )
         )
         assert (
-            ret is False
+            ret.solves is False
         ), "Devs can't request access to stage for nodes not in their env"
 
     def test_access_requests_multi(self):
@@ -229,26 +231,26 @@ class TestTeleportAccessRequests:
         )
 
         # Can devs request access to stage?
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 (RequestPolicy.names.contains("access-stage"))
                 & (RequestPolicy.approvals["access-stage"].len() > 0)
             )
         )
-        assert ret is True, "Devs can request access to stage"
+        assert ret.solves is True, "Devs can request access to stage"
 
         # Can devs request access to stage and prod at the same time?
-        ret, _ = devs.query(
+        ret = devs.query(
             Request(
                 (RequestPolicy.names == ("access-stage", "access-prod"))
                 & (RequestPolicy.approvals["access-stage"].len() > 0)
             )
         )
-        assert ret is True, "Devs can request access to stage and prod"
+        assert ret.solves is True, "Devs can request access to stage and prod"
 
         # With multi-roles, both roles have to be requested
         request = RequestPolicy.names == ("access-stage",)
-        ret, _ = devs.check(
+        ret = devs.check(
             Request(
                 request
                 & (
@@ -258,11 +260,11 @@ class TestTeleportAccessRequests:
             )
         )
         assert (
-            ret is False
+            ret.solves is False
         ), "one person have approved the request, but the request fails because both roles have to be requested"
 
         # Request for two policies got approved
-        ret, model = devs.check(
+        ret = devs.check(
             Request(
                 (RequestPolicy.names == ("access-stage", "access-prod"))
                 & (
@@ -283,7 +285,7 @@ class TestTeleportAccessRequests:
             )
         )
         assert (
-            ret is True
+            ret.solves is True
         ), "request is approved with two approvals for prod and one for stage"
 
     def test_access_requests_todo(self):

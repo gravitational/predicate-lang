@@ -17,4 +17,6 @@ jobs:
           pip install poetry
           poetry install
       - name: Run tests
-        run: 'poetry run make test'
+        run: poetry run make test
+      - name: Run linter
+        run: poetry run make lint-check

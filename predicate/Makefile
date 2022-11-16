@@ -1,16 +1,15 @@
-all:
+all: lint test
 
 .PHONY: test-%
 test-%:
-	mypy solver/test/test_$*.py
 	pytest --pyargs solver/test/test_$*.py
 
 .PHONY: lint
 lint:
 	lint-python
 
-.PHONY: check
-check:
+.PHONY: lint-check
+lint-check:
 	lint-python --check
 
 .PHONY: test

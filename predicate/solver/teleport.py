@@ -14,51 +14,126 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+# To allow using class type inside class:
+# https://github.com/python/mypy/issues/3661#issuecomment-647945042
+from __future__ import annotations
+
 import functools
 import operator
+import re
+import typing
 from collections.abc import Iterable
+from enum import Enum
 
 import z3
-import re
 
 from . import ast
 from .errors import ParameterError
 
 
 def scoped(cls):
-    cls.scope = re.sub(r"([a-z])([A-Z])", r'\1_\2', cls.__name__).lower()
+    cls.scope = re.sub(r"([a-z])([A-Z])", r"\1_\2", cls.__name__).lower()
     return cls
 
 
-class Options(ast.Predicate):
+class SourceIp(Enum):
     """
-    Options apply to some allow rules if they match
-    """
-
-    max_session_ttl = ast.LtDuration("options.max_session_ttl")
-
-    pin_source_ip = ast.Bool("options.pin_source_ip")
-
-    recording_mode = ast.StringEnum(
-        "options.recording_mode", set([(0, "best_effort"), (1, "strict")])
-    )
-
-    def __init__(self, expr):
-        ast.Predicate.__init__(self, expr)
-
-
-class OptionsSet:
-    """
-    OptionsSet is a set of option expressions
+    SourceIp defines the possible values for the source_ip option.
+    The values are ordered in increasing permissiveness.
     """
 
-    def __init__(self, *options: Options):
-        self.options = options
+    PINNED = (0, "pinned")
+    UNPINNED = (1, "unpinned")
 
-    def collect_like(self, other: ast.Predicate):
-        return [
-            o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0
-        ]
+    def __lt__(self, other):
+        if isinstance(other, SourceIp):
+            return self.value[0] < other.value[0]
+        raise TypeError(
+            "unsupported type {}, supported source ip only".format(type(other))
+        )
+
+
+class RecordingMode(Enum):
+    """
+    RecordingMode defines the possible values for the recording_mode option.
+    The values are ordered in increasing permissiveness.
+    """
+
+    STRICT = (0, "strict")
+    BEST_EFFORT = (1, "best_effort")
+
+    def __lt__(self, other):
+        if isinstance(other, RecordingMode):
+            return self.value[0] < other.value[0]
+        raise TypeError(
+            "unsupported type {}, supported recording mode only".format(type(other))
+        )
+
+
+class Options:
+    """
+    Options specifies a list of Teleport options.
+    """
+
+    # TODO: ensure user cannot set invalid option values
+    # type checker is not doing its job ATM
+    def __init__(
+        self,
+        max_session_ttl: typing.Optional[ast.DurationLiteral] = None,
+        source_ip: typing.Optional[SourceIp] = None,
+        recording_mode: typing.Optional[RecordingMode] = None,
+    ):
+        self.max_session_ttl = max_session_ttl
+        self.source_ip = source_ip
+        self.recording_mode = recording_mode
+
+    def __str__(self):
+        return "options(max_session_ttl={}, source_ip={}, recording_mode={})".format(
+            self.max_session_ttl, self.source_ip, self.recording_mode
+        )
+
+    def empty(self) -> bool:
+        """
+        empty returns true if all options are set to None.
+        """
+        return functools.reduce(
+            operator.__and__,
+            map(
+                lambda o: not o,
+                [self.max_session_ttl, self.source_ip, self.recording_mode],
+            ),
+        )
+
+    @staticmethod
+    def combine(left: Options, right: Options) -> Options:
+        """
+        combines combines two sets of options.
+        If the two sets are conflicting (e.g. one option has `ttl=10` and the other had `ttl=3`),
+        the least permissive option is picked (`ttl=3` in this case).
+        """
+
+        def combine_fun(left, right, fun):
+            if left and right:
+                return fun(left, right)
+            if left:
+                return left
+            if right:
+                return right
+            else:
+                return None
+
+        def min_duration(
+            left: ast.DurationLiteral, right: ast.DurationLiteral
+        ) -> ast.DurationLiteral:
+            return ast.DurationLiteral(min(left.V, right.V))
+
+        return Options(
+            max_session_ttl=combine_fun(
+                left.max_session_ttl, right.max_session_ttl, min_duration
+            ),
+            source_ip=combine_fun(left.source_ip, right.source_ip, min),
+            recording_mode=combine_fun(left.recording_mode, right.recording_mode, min),
+        )
 
 
 @scoped
@@ -72,14 +147,6 @@ class AccessNode(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
         # TODO check that the predicate is complete, has listed logins
-
-    def __and__(self, options: Options):
-        """
-        This is a somewhat special case, options define max session TTL,
-        so this operator constructs a node predicate that contains options
-        that are relevant to node.
-        """
-        return AccessNode(self.expr & options.expr)
 
 
 class Node:
@@ -121,8 +188,8 @@ def PolicyMap(expr):
 
 def try_login(policy_map_expr, traits_expr):
     p = ast.Predicate(policy_map_expr != ast.StringTuple(()))
-    ret, model = p.check(ast.Predicate(traits_expr))
-    if not ret:
+    ret = p.check(ast.Predicate(traits_expr))
+    if not ret.solves:
         return ()
     out = []
 
@@ -131,7 +198,7 @@ def try_login(policy_map_expr, traits_expr):
         for i in range(depth):
             vals = ast.StringListSort.cdr(vals)
         expr = ast.fn_string_list_first(vals)
-        return model.eval(expr).as_string()
+        return ret.model.eval(expr).as_string()
 
     depth = 0
     while True:
@@ -203,6 +270,7 @@ class JoinSession(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
+
 class Session:
     """
     Session is a Teleport session.
@@ -246,8 +314,14 @@ class Rules:
     Rules are allow or deny rules
     """
 
-    def __init__(self, *rules):
-        self.rules = rules or []
+    def __init__(self, *rules: ast.Predicate):
+        self.rules = rules
+
+    def empty(self) -> bool:
+        """
+        empty returns true if the set of rules is empty.
+        """
+        return len(self.rules) == 0
 
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
@@ -277,7 +351,6 @@ def t_expr(predicate):
         predicate,
         (
             ast.String,
-            ast.LtDuration,
             ast.Duration,
             ast.StringList,
             ast.StringEnum,
@@ -352,29 +425,47 @@ def t_expr(predicate):
         raise Exception(f"unknown predicate type: {type(predicate)}")
 
 
+class TeleportSolverResult:
+    """
+    TeleportSolverResult contains the following fields:
+    - solves: indicates whether the solver was able to solve the predicate(s)
+    - model: contains the Z3 model in case `solves == True`
+    - options: contains all options (from a policy set) combined
+    """
+
+    # TODO: can this be done with class inheritance?
+    def __init__(self, solver_result: ast.SolverResult, options: Options):
+        self.solves = solver_result.solves
+        self.model = solver_result.model
+        self.options = options
+
+
 class Policy:
     def __init__(
         self,
         name: str,
-        options: OptionsSet = None,
-        allow: Rules = None,
-        deny: Rules = None,
+        options: Options = Options(),
+        allow: Rules = Rules(),
+        deny: Rules = Rules(),
         loud: bool = True,
     ):
-        self.name = name
         if name == "":
-            raise ast.ParameterError("supply a valid name")
-        if allow is None and deny is None:
-            raise ast.ParameterError("provide either allow or deny")
-        self.allow = allow or Rules()
-        self.deny = deny or Rules()
-        self.options = options or OptionsSet()
+            raise ast.ParameterError("policy name cannot be empty")
+        if options.empty() and allow.empty() and deny.empty():
+            raise ast.ParameterError(
+                "policy must contain either options, allow or deny rules"
+            )
+
+        self.name = name
+        self.allow = allow
+        self.deny = deny
+        self.options = options
         self.loud = loud
 
-    def check(self, other: ast.Predicate):
+    def check(self, other: ast.Predicate) -> TeleportSolverResult:
         return PolicySet([self], self.loud).check(other)
 
-    def query(self, other: ast.Predicate):
+    def query(self, other: ast.Predicate) -> TeleportSolverResult:
         return PolicySet([self], self.loud).query(other)
 
     def build_predicate(self, other: ast.Predicate):
@@ -391,7 +482,7 @@ class Policy:
         }
 
         def group_rules(operator, rules):
-            scopes = {}
+            scopes: dict[str, list] = {}
             for rule in rules:
                 if rule.scope not in scopes:
                     scopes[rule.scope] = []
@@ -404,9 +495,15 @@ class Policy:
 
             return scopes
 
-        if self.options.options:
-            options_rules = functools.reduce(operator.and_, self.options.options)
-            out["spec"]["options"] = t_expr(options_rules)
+        if self.options:
+            options = {}
+            if self.options.max_session_ttl:
+                options["max_session_ttl"] = self.options.max_session_ttl.V
+            if self.options.source_ip:
+                options["source_ip"] = self.options.source_ip.value[1]
+            if self.options.recording_mode:
+                options["recording_mode"] = self.options.recording_mode.value[1]
+            out["spec"]["options"] = options
 
         if self.allow.rules:
             out["spec"]["allow"] = group_rules(operator.or_, self.allow.rules)
@@ -430,53 +527,31 @@ class PolicySet:
     def build_predicate(self, other: ast.Predicate) -> ast.Predicate:
         allow = []
         deny = []
-        options = []
         for p in self.policies:
             allow.extend([e.expr for e in p.allow.collect_like(other)])
-            # here we collect options from our policies that are mentioned in the predicate
-            # we are checking against, so our options are "sticky"
-            options.extend([o.expr for o in p.options.collect_like(other)])
             deny.extend([ast.Not(e.expr) for e in p.deny.collect_like(other)])
 
-        # all options should match
-        # TODO: how to deal with Teleport options logic that returns min out of two?
-        # probably < equation will solve this problem
-        allow_expr = None
-        options_expr = None
-        # if option predicates are present, apply them as mandatory
-        # to the allow expression, so allow is matching only if options
-        # match as well.
-        if options:
-            options_expr = functools.reduce(operator.and_, options)
-        if allow:
+        if allow and deny:
             allow_expr = functools.reduce(operator.or_, allow)
-            if options:
-                allow_expr = allow_expr & options_expr
-        if deny:
             deny_expr = functools.reduce(operator.and_, deny)
-
-        if not allow and not deny:
-            raise ast.ParameterError("policy set is empty {}")
-        pr = None
-        if not deny:
-            pr = ast.Predicate(allow_expr, self.loud)
-        elif not allow_expr:
-            pr = ast.Predicate(deny_expr, self.loud)
+            return ast.Predicate(allow_expr & deny_expr, self.loud)
+        elif allow:
+            allow_expr = functools.reduce(operator.or_, allow)
+            return ast.Predicate(allow_expr, self.loud)
+        elif deny:
+            deny_expr = functools.reduce(operator.and_, deny)
+            return ast.Predicate(deny_expr, self.loud)
         else:
-            pr = ast.Predicate(allow_expr & deny_expr, self.loud)
-        return pr
+            raise ast.ParameterError("policy set is empty")
 
-    def check(self, other: ast.Predicate):
-        return self.build_predicate(other).check(other)
+    def combine_options(self) -> Options:
+        options = [p.options for p in self.policies]
+        return functools.reduce(Options.combine, options, Options())
 
-    def query(self, other: ast.Predicate):
-        return self.build_predicate(other).query(other)
+    def check(self, other: ast.Predicate) -> TeleportSolverResult:
+        ret = self.build_predicate(other).check(other)
+        return TeleportSolverResult(ret, self.combine_options())
 
-    def names(self):
-        """
-        Names returns names in the policy set
-        """
-        s = set()
-        for p in self.policies:
-            s.add(p.name)
-        return s
+    def query(self, other: ast.Predicate) -> TeleportSolverResult:
+        ret = self.build_predicate(other).query(other)
+        return TeleportSolverResult(ret, self.combine_options())
