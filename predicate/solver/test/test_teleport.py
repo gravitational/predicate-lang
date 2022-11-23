@@ -16,13 +16,12 @@ from ..teleport import (
     LoginRule,
     Node,
     Options,
+    Option,
     Policy,
     PolicyMap,
     PolicySet,
-    RecordingMode,
     Rules,
     Session,
-    SourceIp,
     User,
     map_policies,
     try_login,
@@ -157,93 +156,26 @@ class TestTeleport:
             Rules(AccessNode(AccessNode.login == "root")).empty() is False
         ), "non empty rules are non empty"
 
-    def test_options_init(self):
-        # TODO add tests ensuring that users cannot set invalid option values
-        # for example, the next test should fail and doesn't
-        _ = Options(
-            max_session_ttl=Duration.new(hours=10),
-            recording_mode=Duration.new(hours=10),
-            source_ip=Node.labels["env"] == "prod",
-        )
+    # TODO: test defaults
 
     def test_options_combine(self):
-        result = Options.combine(
-            Options(),
-            Options(),
-        )
-        assert result.max_session_ttl is None
-        assert result.source_ip is None
-        assert result.recording_mode is None
+        predicate = Options(Option.session_ttl <= Duration.new(hours=10)).build_predicate() & Options(Option.session_ttl <= Duration(hours=3)).build_predicate()
+        assert predicate.query(Options(Option.session_ttl == 3)).solves
+        assert not predicate.query(Options(Option.session_ttl == 4)).solves
 
-        result = Options.combine(
-            Options(max_session_ttl=Duration.new(hours=10)),
-            Options(),
-        )
-        assert result.max_session_ttl == Duration.new(hours=10)
-        assert result.source_ip is None
-        assert result.recording_mode is None
+        predicate = Options(Option.session_recording_mode <= "strict").build_predicate() & Options(Option.session_recording_mode <= "best_effort").build_predicate()
+        assert predicate.query(Options(Option.session_recording_mode == "strict")).solves
+        assert predicate.query(Options(Option.session_recording_mode == "best_effort")).solves
 
-        result = Options.combine(
-            Options(),
-            Options(max_session_ttl=Duration.new(hours=3)),
-        )
-        assert result.max_session_ttl == Duration.new(hours=3)
-        assert result.source_ip is None
-        assert result.recording_mode is None
-
-        result = Options.combine(
-            Options(max_session_ttl=Duration.new(hours=10)),
-            Options(max_session_ttl=Duration.new(hours=3)),
-        )
-        assert result.max_session_ttl == Duration.new(hours=3)
-        assert result.source_ip is None
-        assert result.recording_mode is None
-
-        result = Options.combine(
-            Options(max_session_ttl=Duration.new(hours=3)),
-            Options(max_session_ttl=Duration.new(hours=10)),
-        )
-        assert result.max_session_ttl == Duration.new(hours=3)
-        assert result.source_ip is None
-        assert result.recording_mode is None
-
-        result = Options.combine(
-            Options(source_ip=SourceIp.PINNED),
-            Options(source_ip=SourceIp.UNPINNED),
-        )
-        assert result.max_session_ttl is None
-        assert result.source_ip == SourceIp.PINNED
-        assert result.recording_mode is None
-
-        result = Options.combine(
-            Options(source_ip=SourceIp.UNPINNED),
-            Options(source_ip=SourceIp.PINNED),
-        )
-        assert result.max_session_ttl is None
-        assert result.source_ip == SourceIp.PINNED
-        assert result.recording_mode is None
-
-        result = Options.combine(
-            Options(recording_mode=RecordingMode.BEST_EFFORT),
-            Options(recording_mode=RecordingMode.STRICT),
-        )
-        assert result.max_session_ttl is None
-        assert result.source_ip is None
-        assert result.recording_mode == RecordingMode.STRICT
-
-        result = Options.combine(
-            Options(recording_mode=RecordingMode.STRICT),
-            Options(recording_mode=RecordingMode.BEST_EFFORT),
-        )
-        assert result.max_session_ttl is None
-        assert result.source_ip is None
-        assert result.recording_mode == RecordingMode.STRICT
+        predicate = Options(Option.allow_agent_forwarding == True).build_predicate() & Options(Option.allow_agent_forwarding == False).build_predicate()
+        assert predicate.query(Options(Option.allow_agent_forwarding == False)).solves
+        assert predicate.query(Options(Option.allow_agent_forwarding == True)).solves
 
     def test_options(self):
         p = Policy(
             name="b",
             options=Options(
-                max_session_ttl=Duration.new(hours=10),
+                Option.session_ttl <= Duration.new(hours=10),
             ),
             allow=Rules(
                 AccessNode(
@@ -257,10 +189,12 @@ class TestTeleport:
                 (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
-            )
+            ),
+            Options(
+                Option.session_ttl <= Duration.new(hours=10),
+            ),
         )
         assert ret.solves is True, "options and core predicate matches"
-        assert ret.options.max_session_ttl == Duration.new(hours=10)
 
     def test_options_extra(self):
         """
@@ -269,8 +203,8 @@ class TestTeleport:
         p = Policy(
             name="p",
             options=Options(
-                max_session_ttl=Duration.new(hours=10),
-                source_ip=SourceIp.PINNED,
+                Option.session_ttl <= Duration.new(hours=10),
+                Option.session_recording_mode <= "strict",
             ),
             allow=Rules(
                 # unrelated rules are with comma, related rules are part of the predicate
@@ -285,20 +219,22 @@ class TestTeleport:
                 (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
-            )
+            ),
+            Options(
+                Option.session_ttl <= Duration.new(hours=10),
+                Option.session_recording_mode <= "strict",
+            ),
         )
 
         assert ret.solves is True
-        assert ret.options.max_session_ttl == Duration.new(hours=10)
-        assert ret.options.source_ip == SourceIp.PINNED
 
     def test_options_policy_set(self):
         a = Policy(
             name="a",
             options=Options(
-                max_session_ttl=Duration.new(hours=10),
-                source_ip=SourceIp.PINNED,
-                recording_mode=RecordingMode.BEST_EFFORT,
+                Option.session_ttl <= Duration.new(hours=10),
+                Option.session_recording_mode <= "strict",
+                Option.allow_agent_forwarding == True,
             ),
             allow=Rules(
                 AccessNode(
@@ -310,9 +246,9 @@ class TestTeleport:
         b = Policy(
             name="b",
             options=Options(
-                max_session_ttl=Duration.new(hours=3),
-                source_ip=SourceIp.UNPINNED,
-                recording_mode=RecordingMode.STRICT,
+                Option.session_ttl <= Duration.new(hours=3),
+                Option.session_recording_mode <= "best_effort",
+                Option.allow_agent_forwarding == False,
             ),
             allow=Rules(
                 AccessNode(
@@ -328,20 +264,20 @@ class TestTeleport:
                 (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
-            )
+            ),
+            Options(
+                Option.session_ttl <= Duration.new(hours=3),
+                Option.session_recording_mode <= "strict",
+                Option.allow_agent_forwarding == False,
+            ),
         )
-
-        assert ret.solves is True, "options and core predicate matches"
-        assert ret.options.max_session_ttl == Duration.new(hours=3)
-        assert ret.options.source_ip == SourceIp.PINNED
-        assert ret.options.recording_mode == RecordingMode.STRICT
 
     def test_options_policy_set_enum(self):
         # policy a requires best effort
         a = Policy(
             name="a",
             options=Options(
-                recording_mode=RecordingMode.BEST_EFFORT,
+                Option.session_recording_mode <= "best_effort",
             ),
             allow=Rules(
                 AccessNode(
@@ -354,7 +290,7 @@ class TestTeleport:
         b = Policy(
             name="b",
             options=Options(
-                recording_mode=RecordingMode.STRICT,
+                Option.session_recording_mode <= "strict",
             ),
             allow=Rules(
                 AccessNode(
@@ -370,22 +306,26 @@ class TestTeleport:
                 (AccessNode.login == "root")
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
-            )
+            ),
+            Options(
+                Option.session_recording_mode == "strict",
+            ),
         )
 
         assert ret.solves is True, "options and core predicate matches"
-        assert ret.options.recording_mode == RecordingMode.STRICT
 
         ret = p.check(
             AccessNode(
                 (AccessNode.login == "ubuntu")
                 & (Node.labels["env"] == "stage")
                 & (Node.labels["os"] == "Linux")
-            )
+            ),
+            options=Options(
+                Option.session_recording_mode == "strict",
+            ),
         )
 
         assert ret.solves is True, "options and core predicate matches"
-        assert ret.options.recording_mode == RecordingMode.STRICT
 
     def test_join_session(self):
         p = Policy(
@@ -581,7 +521,7 @@ class TestTeleport:
         ext = Policy(
             name="ext-stage",
             options=Options(
-                recording_mode=RecordingMode.STRICT,
+                Option.session_recording_mode <= "strict",
             ),
             allow=Rules(
                 AccessNode(
@@ -595,7 +535,10 @@ class TestTeleport:
 
         # make sure that policy set will never allow access to prod
         ret = p.check(
-            AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod"))
+            AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+            Options(
+                Option.session_recording_mode <= "strict",
+            ),
         )
         assert ret.solves is False
 
@@ -619,3 +562,80 @@ class TestTeleport:
 
         # TODO: How to simplify testing and make it shorter?
         # TODO: How to connect policy mappings and
+
+    def test_access_example(self):
+        p = Policy(
+            name="access",
+            loud=True,
+            options=Options(
+                Option.session_ttl <= Duration.new(hours=10),
+                Option.session_recording_mode <= "strict",
+                Option.allow_agent_forwarding == True,
+            ),
+            allow=Rules(
+                AccessNode(
+                    ((AccessNode.login == User.name) & (User.name != "root"))
+                    | (User.traits["team"] == ("admins",))
+                ),
+            ),
+            deny=Rules(
+                AccessNode(
+                    (AccessNode.login == "mike")
+                    | (AccessNode.login == "jester")
+                    | (Node.labels["env"] == "prod")
+                ),
+            ),
+        )
+        # Alice will be able to login as herself to env=dev machines
+        ret = p.check(
+            AccessNode(
+                (AccessNode.login == "alice")
+                & (User.name == "alice")
+                & (Node.labels["env"] == "dev")
+            ),
+            Options(
+                Option.session_ttl <= Duration.new(hours=10),
+                Option.session_recording_mode <= "strict",
+                Option.allow_agent_forwarding == True,
+            ),
+        )
+        assert ret.solves is True, "This policy allows access to env=dev machines as alice"
+
+        # No one is permitted to login as mike
+        ret = p.query(
+            AccessNode(
+                (AccessNode.login == "mike")
+            )
+        )
+        assert ret.solves is False, "This policy does not allow access as mike"
+
+        # No one is permitted to access env=prod machines
+        ret = p.query(
+            AccessNode(
+                (Node.labels["env"] == "prod")
+            )
+        )
+        assert ret.solves is False, "This policy does not allow access to env=prod machines"
+
+        print("00000000000000000000")
+        # Alice is permitted to login as herself
+        ret = p.query(
+            AccessNode(
+                (AccessNode.login == "alice")
+            )
+        )
+        print(ret.model)
+        assert ret.solves is True, "This policy allows access as alice"
+
+        print("AAAAAA")
+        # Alice is not permitted to login as herself without strict session recording
+        ret = p.query(
+            AccessNode(
+                (AccessNode.login == "alice")
+            ),
+            Options(
+                Option.session_recording_mode == "best_effort"
+            )
+        )
+        print(ret.model)
+        assert ret.solves is False, "This policy does not allows access as alice without strict session recording"

@@ -8,7 +8,7 @@ from .ast import (
     Predicate,
     Select,
     String,
-    StringEnum,
+    OrderedEnum,
     StringList,
     StringLiteral,
     StringMap,

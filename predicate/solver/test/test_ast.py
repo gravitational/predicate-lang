@@ -11,7 +11,7 @@ from .. import (
     Predicate,
     Select,
     String,
-    StringEnum,
+    OrderedEnum,
     StringList,
     StringMap,
     StringSetMap,
@@ -689,7 +689,7 @@ class TestAst:
         """
         StringEnum are predefined values
         """
-        e = StringEnum("fruits", set(["banana", "apple", "strawberry"]))
+        e = OrderedEnum("fruits", set(["banana", "apple", "strawberry"]))
 
         # enums could be part of the predicate
         p = Predicate((e == "apple") | (e == "banana"))
@@ -707,7 +707,7 @@ class TestAst:
         StringEnum are predefined values
         """
         # fruits by size
-        e = StringEnum("fruits", [(0, "strawberry"), (1, "apple"), (2, "watermelon")])
+        e = OrderedEnum("fruits", [(0, "strawberry"), (1, "apple"), (2, "watermelon")])
 
         # enums could be part of the predicate and can provide constraints
         p = Predicate((e > "apple") | (e == "apple"))

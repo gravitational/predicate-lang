@@ -354,11 +354,6 @@ class DurationLiteral:
     def __str__(self):
         return "`{}`".format(self.V)
 
-    def __eq__(self, other):
-        if isinstance(other, DurationLiteral):
-            return self.V == other.V
-        return False
-
 
 class BoolLiteral:
     """
@@ -435,10 +430,9 @@ class Int(IntMixin):
     def __str__(self):
         return "int({})".format(self.name)
 
-
-class Duration:
+class LeqDuration:
     """
-    Duration is a duration variable, e.g. ttl = Duration('ttl')
+    LeqDuration is a duration that only allows ==, < and <= inequalities.
     """
 
     def __init__(self, name: str):
@@ -450,6 +444,34 @@ class Duration:
 
     def walk(self, fn):
         fn(self)
+
+    def __str__(self):
+        return "leq_duration({})".format(self.name)
+
+    def __eq__(self, val):
+        self.check_value_is_valid(val)
+        return Eq(self, val)
+
+    def __lt__(self, val):
+        self.check_value_is_valid(val)
+        return Lt(self, val)
+
+    def __le__(self, val):
+        self.check_value_is_valid(val)
+        return Le(self, val)
+
+    def check_value_is_valid(self, val):
+        if isinstance(val, DurationLiteral):
+            return
+        raise TypeError(
+            "unsupported type {}, supported duration literals only".format(type(val))
+        )
+
+
+class Duration(LeqDuration):
+    """
+    Duration is a duration that allows ==, <, <=, !=, > and >= inequalities.
+    """
 
     @staticmethod
     def new(
@@ -472,28 +494,16 @@ class Duration:
     def __str__(self):
         return "duration({})".format(self.name)
 
-    def __eq__(self, val):
-        self.check_value_is_valid(val)
-        return Eq(self, val)
-
     def __ne__(self, val):
-        self.check_value_is_valid(val)
-        return Not(Eq(self, val))
-
-    def __lt__(self, val):
-        self.check_value_is_valid(val)
-        return Lt(self, val)
+        return Not(self.__eq__(val))
 
     def __gt__(self, val):
         self.check_value_is_valid(val)
         return Gt(self, val)
 
-    def check_value_is_valid(self, val):
-        if isinstance(val, DurationLiteral):
-            return
-        raise TypeError(
-            "unsupported type {}, supported duration literals only".format(type(val))
-        )
+    def __ge__(self, val):
+        self.check_value_is_valid(val)
+        return Ge(self, val)
 
 
 class Bool:
@@ -799,26 +809,11 @@ class StringListEquals(LogicMixin):
         return self.E.fn_map(z3.StringVal(self.E.name)) == string_list(self.V.vals)
 
 
-def define_enum_fn(fn_map, fn_key, kv: typing.Dict[String, Int]):
+class LeqOrderedEnum:
     """
-    Define enum fn defines a key value map using recursive Z3 function,
-    essentially converting {'a': 1} into if x == 'a' then 1 else ...
-    """
-
-    def iff(iterator):
-        try:
-            key, val = next(iterator)
-        except StopIteration:
-            return z3.IntVal(-1)
-        else:
-            return z3.If(fn_key == z3.StringVal(key), z3.IntVal(val), iff(iterator))
-
-    z3.RecAddDefinition(fn_map, [fn_key], iff(iter(kv.items())))
-
-
-class StringEnum:
-    """
-    StringEnum is an ordered enum with strings as values.
+    LeqOrdered Enum is an ordered enum with strings as values
+    that only allows ==, < and <= inequalities.
+    TODO: we should be able to support any value type, not just strings.
     """
 
     def __init__(self, name, values):
@@ -833,74 +828,60 @@ class StringEnum:
                     raise ParameterError("unsupported enum value: {}".format(v))
             return out
 
-        self.values: typing.Dict[String, Int] = transform_values()
+        self.enum_values: typing.Dict[str, int] = transform_values()
         self.name = name
-        self.fn = z3.RecFunction(self.name, z3.StringSort(), z3.IntSort())
-        self.fn_key = z3.RecFunction(
-            self.name + "_keys", z3.StringSort(), z3.BoolSort()
-        )
-        self.fn_key_arg = z3.String(self.name + "_key_arg")
+        self.val = z3.Int(self.name)
 
-        required_key = z3.String(self.name + "_required_key")
-        z3.RecAddDefinition(
-            self.fn_key,
-            [required_key],
-            z3.BoolVal(False)
-            if len(values) == 0
-            else z3.Or([required_key == z3.StringVal(key) for key in self.values]),
-        )
-        define_enum_fn(self.fn, z3.String(self.name + "_arg"), self.values)
-
-    def __eq__(self, val):
-        self.check_value_is_valid(val)
-        return Eq(self, StringLiteral(val))
-
-    def __ne__(self, val):
-        self.check_value_is_valid(val)
-        return Not(Eq(self, StringLiteral(val)))
-
-    def __lt__(self, val):
-        self.check_value_is_valid(val)
-        return Lt(self, StringLiteral(val))
-
-    def __gt__(self, val):
-        self.check_value_is_valid(val)
-        return Gt(self, StringLiteral(val))
-
-    def check_value_is_valid(self, val):
-        if isinstance(val, str) and val in self.values:
-            return
-
-        # raise type error if `val` is not one of the enum values
-        raise TypeError(
-            "value {} is not one of: {}".format(val, [v for v in self.values])
-        )
-
-    def __str__(self):
-        return "enum({})".format(self.name)
-
-    def compare(self, op, other):
-        # we always convert enum to the following function call spec:
-        #
-        # enum("apple") = 1
-        # enum("banana") = 2
-        #
-        # This converts expression
-        # enum > "apple"
-        #
-        # to
-        #
-        # enum(x) > enum("apple") & enum_key["apple"] == True
-        #
-        # where x is just a free variable associated with the function
-        #
-        return z3.And(
-            op(self.fn(self.fn_key_arg), self.fn(other)),
-            self.fn_key(other) == z3.BoolVal(True),
-        )
+    def traverse(self):
+        return self.val
 
     def walk(self, fn):
         fn(self)
+
+    def __eq__(self, val):
+        val = self.check_value_is_valid(val)
+        return Eq(self, val)
+
+    def __lt__(self, val):
+        val = self.check_value_is_valid(val)
+        return Lt(self, val)
+
+    def __le__(self, val):
+        val = self.check_value_is_valid(val)
+        return Le(self, val)
+
+    def check_value_is_valid(self, val) -> IntLiteral:
+        if isinstance(val, str) and val in self.enum_values:
+            return IntLiteral(self.enum_values[val])
+
+        # raise type error if `val` is not one of the enum values
+        raise TypeError(
+            "value {} is not one of: {}".format(val, [v for v in self.enum_values])
+        )
+
+    def __str__(self):
+        return "leq_enum({})".format(self.name)
+
+class OrderedEnum(LeqOrderedEnum):
+    """
+    OrderedEnum is an ordered enum with strings as values
+    that allows ==, <, <=, !=, > and >= inequalities.
+    """
+
+    def __ne__(self, val):
+        return Not(self.__eq__(val))
+
+
+    def __gt__(self, val):
+        val = self.check_value_is_valid(val)
+        return Gt(self, val)
+
+    def __ge__(self, val):
+        val = self.check_value_is_valid(val)
+        return Ge(self, val)
+
+    def __str__(self):
+        return "enum({})".format(self.name)
 
 
 class IterableContains(LogicMixin):
@@ -970,7 +951,7 @@ class Not(LogicMixin):
         self.V = v
 
     def __str__(self):
-        return "^({})".format(self.V)
+        return "!({})".format(self.V)
 
     def walk(self, fn):
         fn(self)
@@ -994,13 +975,7 @@ class Eq(LogicMixin):
         return """({} == {})""".format(self.L, self.R)
 
     def traverse(self):
-        # some object's compare is not trivial,
-        # they might define their own compare
-        compare = getattr(self.L, "compare", None)
-        if compare:
-            return compare(operator.eq, self.R.traverse())
-        else:
-            return self.L.traverse() == self.R.traverse()
+        return self.L.traverse() == self.R.traverse()
 
 
 class Or(LogicMixin):
@@ -1179,13 +1154,23 @@ class Lt(LogicMixin):
         return """({} < {})""".format(self.L, self.R)
 
     def traverse(self):
-        # some object's compare is not trivial,
-        # they might define their own compare
-        compare = getattr(self.L, "compare", None)
-        if compare:
-            return compare(operator.lt, self.R.traverse())
-        else:
-            return self.L.traverse() < self.R.traverse()
+        return self.L.traverse() < self.R.traverse()
+
+class Le(LogicMixin):
+    def __init__(self, left, right):
+        self.L = left
+        self.R = right
+
+    def walk(self, fn):
+        fn(self)
+        self.L.walk(fn)
+        self.R.walk(fn)
+
+    def __str__(self):
+        return """({} <= {})""".format(self.L, self.R)
+
+    def traverse(self):
+        return self.L.traverse() <= self.R.traverse()
 
 
 class Gt(LogicMixin):
@@ -1202,13 +1187,24 @@ class Gt(LogicMixin):
         return """({} > {})""".format(self.L, self.R)
 
     def traverse(self):
-        # some object's compare is not trivial,
-        # they might define their own compare
-        compare = getattr(self.L, "compare", None)
-        if compare:
-            return compare(operator.gt, self.R.traverse())
-        else:
-            return self.L.traverse() > self.R.traverse()
+        return self.L.traverse() > self.R.traverse()
+
+
+class Ge(LogicMixin):
+    def __init__(self, left, right):
+        self.L = left
+        self.R = right
+
+    def walk(self, fn):
+        fn(self)
+        self.L.walk(fn)
+        self.R.walk(fn)
+
+    def __str__(self):
+        return """({} >= {})""".format(self.L, self.R)
+
+    def traverse(self):
+        return self.L.traverse() >= self.R.traverse()
 
 
 class StringMap:
@@ -1990,7 +1986,7 @@ class StringSetMapIndexEquals(LogicMixin):
 
 
 def collect_symbols(s: set[str], expr):
-    if isinstance(expr, (String, Int, Duration, Bool, StringEnum)):
+    if isinstance(expr, (String, Int, LeqDuration, Duration, Bool, LeqOrderedEnum, OrderedEnum)):
         s.add(expr.name)
     if isinstance(expr, MapIndex):
         s.add(expr.m.name + "." + expr.key)
@@ -2003,7 +1999,7 @@ class SolverResult:
 
 
 class Predicate:
-    def __init__(self, expr, loud=True):
+    def __init__(self, expr, loud=False):
         self.symbols = set()
         self.expr = expr
         self.expr.walk(functools.partial(collect_symbols, self.symbols))
@@ -2015,16 +2011,18 @@ class Predicate:
     def walk(self, fn):
         self.expr.walk(fn)
 
-    def check(self, other: Predicate) -> SolverResult:
+    def check(self, other: Predicate, symbols_ignore: typing.Callable[[str], bool] = lambda _: False) -> SolverResult:
         """
         check checks the predicate against conditions specified in
         another predicate. Both predicates should define
         """
+        self_symbols = set([s for s in self.symbols if not symbols_ignore(s)])
         # sanity check - to check two predicates, they should
         # define the same sets of symbols
         # TODO: this is not checking for equality
-        if not self.symbols.issubset(other.symbols):
-            diff = self.symbols.difference(other.symbols)
+        # TODO: maybe check should work on a superset, based on the `test_node` test
+        if not self_symbols.issubset(other.symbols):
+            diff = self_symbols.difference(other.symbols)
             raise ParameterError(
                 """check can not resolve ambiguity, predicates use different symbols %s and %s, diff: %s,
                 add missing symbols in the predicate checked against to proceed with check"""
@@ -2124,3 +2122,6 @@ class Predicate:
                 expr = left
             else:
                 return Predicate(expr)
+
+    def __and__(self, other: Predicate) -> Predicate:
+        return Predicate(self.expr & other.expr, loud=self.loud or other.loud)
