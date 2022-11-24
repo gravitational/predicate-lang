@@ -1,5 +1,5 @@
 from solver.ast import StringTuple
-from solver.teleport import Node, Policy, Resource, Rules
+from solver.teleport import AccessNode, Policy, Resource, Rules
 
 
 class Teleport:
@@ -12,6 +12,6 @@ class Teleport:
                 & (Resource.kind == "node")
                 & StringTuple(("list", "read")).contains(Resource.verb)
             ),
-            Node((Node.login == "root")),
+            AccessNode((AccessNode.login == "root")),
         ),
     )
