@@ -16,17 +16,17 @@ limitations under the License.
 
 import functools
 import operator
+import re
 from collections.abc import Iterable
 
 import z3
-import re
 
 from . import ast
 from .errors import ParameterError
 
 
 def scoped(cls):
-    cls.scope = re.sub(r"([a-z])([A-Z])", r'\1_\2', cls.__name__).lower()
+    cls.scope = re.sub(r"([a-z])([A-Z])", r"\1_\2", cls.__name__).lower()
     return cls
 
 
@@ -223,6 +223,7 @@ class JoinSession(ast.Predicate):
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
+
 
 class Session:
     """

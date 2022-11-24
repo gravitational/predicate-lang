@@ -426,6 +426,7 @@ class Int(IntMixin):
     def __str__(self):
         return "int({})".format(self.name)
 
+
 class LtDuration:
     """
     LtDuration is a duration that only allows < inequalities.
@@ -861,9 +862,7 @@ class StringEnum:
 
         # raise type error if `val` is not one of the enum values
         raise TypeError(
-            "value {} is not one of: {}".format(
-                val, [v for v in self.values]
-            )
+            "value {} is not one of: {}".format(val, [v for v in self.values])
         )
 
     def __str__(self):

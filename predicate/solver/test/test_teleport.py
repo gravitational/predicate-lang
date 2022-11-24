@@ -12,10 +12,10 @@ from .. import (
     StringTuple,
 )
 from ..teleport import (
-    LoginRule,
-    User,
-    Node,
     AccessNode,
+    JoinSession,
+    LoginRule,
+    Node,
     Options,
     OptionsSet,
     Policy,
@@ -23,8 +23,8 @@ from ..teleport import (
     PolicySet,
     Resource,
     Rules,
-    JoinSession,
     Session,
+    User,
     map_policies,
     try_login,
 )
@@ -35,7 +35,9 @@ class TestTeleport:
         p = Policy(
             name="test",
             allow=Rules(
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
@@ -98,14 +100,18 @@ class TestTeleport:
         a = Policy(
             name="a",
             allow=Rules(
-                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "ubuntu") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
         b = Policy(
             name="b",
             allow=Rules(
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "stage")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "stage")
+                ),
             ),
         )
 
@@ -115,10 +121,14 @@ class TestTeleport:
         )
         assert ret is True, "check works on a subset"
 
-        ret, _ = s.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "stage")))
+        ret, _ = s.check(
+            AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "stage"))
+        )
         assert ret is True, "check works on a subset"
 
-        ret, _ = s.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")))
+        ret, _ = s.check(
+            AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod"))
+        )
         assert ret is False, "rejects the merge"
 
     def test_deny_policy_set(self):
@@ -135,12 +145,16 @@ class TestTeleport:
         b = Policy(
             name="b",
             deny=Rules(
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
         s = PolicySet([a, b])
-        ret, _ = s.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")))
+        ret, _ = s.check(
+            AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod"))
+        )
         assert ret is False, "deny in a set overrides allow"
 
         ret, _ = s.check(
@@ -178,7 +192,9 @@ class TestTeleport:
                 )
             ),
             allow=Rules(
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
@@ -202,14 +218,14 @@ class TestTeleport:
         p = Policy(
             name="p",
             options=OptionsSet(
-                Options(
-                    (Options.max_session_ttl < Duration.new(hours=10))
-                ),
+                Options((Options.max_session_ttl < Duration.new(hours=10))),
                 Options(Options.pin_source_ip == True),
             ),
             allow=Rules(
                 # unrelated rules are with comma, related rules are part of the predicate
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
@@ -245,20 +261,22 @@ class TestTeleport:
         a = Policy(
             name="a",
             options=OptionsSet(
-                Options(
-                    (Options.max_session_ttl < Duration.new(hours=10))
-                ),
+                Options((Options.max_session_ttl < Duration.new(hours=10))),
                 Options(Options.pin_source_ip == True),
             ),
             allow=Rules(
-                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")),
+                AccessNode(
+                    (AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")
+                ),
             ),
         )
 
         b = Policy(
             name="b",
             allow=Rules(
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
@@ -303,7 +321,9 @@ class TestTeleport:
                 ),
             ),
             allow=Rules(
-                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")),
+                AccessNode(
+                    (AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")
+                ),
             ),
         )
 
@@ -314,7 +334,9 @@ class TestTeleport:
                 Options(Options.recording_mode == "strict"),
             ),
             allow=Rules(
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
@@ -373,53 +395,60 @@ class TestTeleport:
             name="join_session",
             allow=Rules(
                 JoinSession(
-                    (User.traits["team"].contains("dev")) &
-                    ((JoinSession.mode == "observer") | (JoinSession.mode == "peer")) &
-                    ((Session.owner.traits["team"].contains("dev")) | (Session.owner.traits["team"].contains("intern")))
+                    (User.traits["team"].contains("dev"))
+                    & ((JoinSession.mode == "observer") | (JoinSession.mode == "peer"))
+                    & (
+                        (Session.owner.traits["team"].contains("dev"))
+                        | (Session.owner.traits["team"].contains("intern"))
+                    )
                 ),
             ),
-            deny=Rules(
-                JoinSession(
-                    User.traits["team"].contains("intern")
-                )
-            )
+            deny=Rules(JoinSession(User.traits["team"].contains("intern"))),
         )
 
         ret, _ = p.check(
             JoinSession(
-                (User.traits["team"] == ("dev",)) &
-                (JoinSession.mode == "observer") &
-                (Session.owner.traits["team"] == ("intern",))
+                (User.traits["team"] == ("dev",))
+                & (JoinSession.mode == "observer")
+                & (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is True, "a dev user can join a session from an intern user as an observer"
+        assert (
+            ret is True
+        ), "a dev user can join a session from an intern user as an observer"
 
         ret, _ = p.check(
             JoinSession(
-                (User.traits["team"] == ("marketing",)) &
-                (JoinSession.mode == "observer") &
-                (Session.owner.traits["team"] == ("intern",))
+                (User.traits["team"] == ("marketing",))
+                & (JoinSession.mode == "observer")
+                & (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "a marketing user cannot join a session from an intern user as an observer"
+        assert (
+            ret is False
+        ), "a marketing user cannot join a session from an intern user as an observer"
 
         ret, _ = p.check(
             JoinSession(
-                (User.traits["team"] == ("dev",)) &
-                (JoinSession.mode == "moderator") &
-                (Session.owner.traits["team"] == ("intern",))
+                (User.traits["team"] == ("dev",))
+                & (JoinSession.mode == "moderator")
+                & (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "a dev user cannot join a session from an intern user as a moderator"
+        assert (
+            ret is False
+        ), "a dev user cannot join a session from an intern user as a moderator"
 
         ret, _ = p.check(
             JoinSession(
-                (User.traits["team"] == ("dev", "intern")) &
-                (JoinSession.mode == "observer") &
-                (Session.owner.traits["team"] == ("intern",))
+                (User.traits["team"] == ("dev", "intern"))
+                & (JoinSession.mode == "observer")
+                & (Session.owner.traits["team"] == ("intern",))
             )
         )
-        assert ret is False, "a dev intern user cannot join a session from an intern user as an observer"
+        assert (
+            ret is False
+        ), "a dev intern user cannot join a session from an intern user as an observer"
 
     def test_login_rules(self):
         """
@@ -538,10 +567,14 @@ class TestTeleport:
         dev = Policy(
             name="dev-stage",
             allow=Rules(
-                AccessNode((AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")),
+                AccessNode(
+                    (AccessNode.login == "ubuntu") & (Node.labels["env"] == "stage")
+                ),
             ),
             deny=Rules(
-                AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")),
+                AccessNode(
+                    (AccessNode.login == "root") & (Node.labels["env"] == "prod")
+                ),
             ),
         )
 
@@ -563,7 +596,9 @@ class TestTeleport:
         p = PolicySet([dev, ext])
 
         # make sure that policy set will never allow access to prod
-        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod")))
+        ret, _ = p.check(
+            AccessNode((AccessNode.login == "root") & (Node.labels["env"] == "prod"))
+        )
         assert ret is False
 
         policy_names = try_login(
