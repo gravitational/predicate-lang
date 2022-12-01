@@ -2,6 +2,9 @@ import subprocess
 from runpy import run_path
 from types import FunctionType
 
+from .template import create_default_policy
+
+
 import click
 import yaml
 
@@ -69,6 +72,12 @@ def test(policy_file):
 
         click.echo(f"  - {name}: {out}")
 
+@main.command()
+def new():
+    value = click.prompt('Please enter a policy name', type=str)
+    click.echo("creating policy...")
+    create_default_policy(value)
+    click.echo(f'policy "{value}" created.')
 
 if __name__ == "__main__":
     main()

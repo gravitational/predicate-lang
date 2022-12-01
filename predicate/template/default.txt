@@ -1,0 +1,29 @@
+from solver.teleport import AccessNode, Options, OptionsSet, Policy, Rules
+
+
+class {{ policyclass }}:
+    p = Policy(
+        name= "{{ policyname }}",
+        loud=False,
+        allow=Rules(
+            AccessNode()
+        ),
+        options=OptionsSet(Options()),
+        deny=Rules(
+            AccessNode(),
+        ),
+    )
+
+    def {{ testname }}(self):
+        # Test allowed policy 
+        ret, _ = self.p.check(
+            AccessNode()
+        )
+        assert ret is True, "{{ policyname }} can login to specified node"
+
+        # Test denied policy 
+        ret, _ = self.p.check(
+            AccessNode()
+        )
+        assert ret is False, "{{ policyname }} should not login to specified node"
+
