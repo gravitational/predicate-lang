@@ -3,11 +3,11 @@ name: "CodeQL"
 on:
   push:
     branches:
-      - master
+      - main
       - sasha/python
   pull_request:
     branches:
-      - master
+      - main
       - sasha/python
 
 jobs:
