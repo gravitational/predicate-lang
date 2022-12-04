@@ -1,4 +1,6 @@
-from ..ast import StringSetMap
+import pytest
+
+from ..ast import ParameterError, StringSetMap
 from ..teleport import Node, Policy, Request, RequestPolicy, Review, Rules, reviews
 
 
@@ -7,7 +9,7 @@ class TestTeleportAccessRequests:
     This test suite covers and explains access requests feature set.
     """
 
-    def test_access_requests(self):
+    def test_access_requests_single(self):
         """
         Access requests lets users to request access to resources - policies
         and nodes they don't have. Other team members review or deny access
@@ -22,8 +24,8 @@ class TestTeleportAccessRequests:
                 Request(
                     (
                         (RequestPolicy.names == ("access-stage",))
-                        & (RequestPolicy.approvals["access-stage"].len() > 1)
-                        & (RequestPolicy.denials["access-stage"].len() < 1)
+                        & (RequestPolicy.approvals.for_each_key().len() > 1)
+                        & (RequestPolicy.denials.for_each_key().len() < 1)
                     )
                 ),
                 Review(RequestPolicy.names == ("access-stage",)),
@@ -57,7 +59,7 @@ class TestTeleportAccessRequests:
         )
         assert ret is True, "Devs can review other folks access to stage"
 
-        # Can user with these policies review a role?
+        # Can user with these policies review a policy?
         ret, _ = devs.query(
             Review(
                 RequestPolicy.names.contains(
@@ -65,9 +67,8 @@ class TestTeleportAccessRequests:
                 )
             )
         )
-        assert ret is False, "can't review role that is not listed in the policy"
+        assert ret is False, "can't review policy that is not listed in the policy"
 
-        # TODO: how to bind to roles?
         ret, _ = devs.query(
             Request(
                 (RequestPolicy.names == ("access-stage",))
@@ -87,6 +88,91 @@ class TestTeleportAccessRequests:
             ret is False
         ), "two folks have approved the request, but one person denied it"
 
+    def test_access_requests_defaults(self):
+        """
+        Tests that at least one approval by default is required to proceed.
+        """
+        devs = Policy(
+            name="devs",
+            allow=Rules(
+                Request(((RequestPolicy.names == ("access-stage",)))),
+                Review(RequestPolicy.names == ("access-stage",)),
+            ),
+        )
+
+        request = RequestPolicy.names == ("access-stage",)
+        ret, _ = devs.query(
+            Request(request & (RequestPolicy.approvals["access-stage"] == reviews()))
+        )
+        assert ret is False, "misses implicit minimum required approver"
+
+        ret, _ = devs.query(
+            Request(
+                request
+                & (RequestPolicy.approvals["access-stage"] == reviews((devs, request)))
+                & (RequestPolicy.denials["access-stage"] == reviews((devs, request)))
+            )
+        )
+        assert (
+            ret is False
+        ), "one person denied, access request is denied due to implicit deny default"
+
+        devs = Policy(
+            name="devs",
+            allow=Rules(
+                Request(
+                    (
+                        (RequestPolicy.names == ("access-stage",))
+                        & (
+                            RequestPolicy.approvals["access-stage"].len() < 0
+                        )  # error in the sign
+                    )
+                ),
+                Review(RequestPolicy.names == ("access-stage",)),
+            ),
+        )
+
+        with pytest.raises(ParameterError) as exc:
+            request = RequestPolicy.names == ("access-stage",)
+            ret, _ = devs.query(
+                Request(
+                    request & (RequestPolicy.approvals["access-stage"] == reviews())
+                )
+            )
+        assert "unsolvable" in str(exc.value)
+
+        devs = Policy(
+            name="devs",
+            allow=Rules(
+                Request(
+                    (
+                        # When there are two policies in the list, both
+                        # have to pass their thresholds to be approved,
+                        # and any policy denied will result in denial for all
+                        (RequestPolicy.names == ("access-stage", "access-prod"))
+                    )
+                ),
+                Review(
+                    (RequestPolicy.names == ("access-stage",))
+                    | (RequestPolicy.names == ("access-prod",))
+                ),
+            ),
+        )
+
+        request = RequestPolicy.names == ("access-stage", "access-prod")
+        ret, _ = devs.check(
+            Request(
+                request
+                & (
+                    RequestPolicy.approvals["access-stage"]
+                    == reviews((devs, Request(request)))
+                )
+            )
+        )
+        assert (
+            ret is False
+        ), "one person have approved the request, but the request fails because both roles have to be approved"
+
     def test_access_requests_review_expression(self):
         """
         Model the approve / request scenario using review expression
@@ -95,13 +181,7 @@ class TestTeleportAccessRequests:
         devs = Policy(
             name="devs",
             allow=Rules(
-                Request(
-                    (
-                        (RequestPolicy.names == ("access-stage",))
-                        & (RequestPolicy.approvals["access-stage"].len() > 0)
-                        & (RequestPolicy.denials["access-stage"].len() < 1)
-                    )
-                ),
+                Request(((RequestPolicy.names == ("access-stage",)))),
             ),
         )
 
@@ -123,7 +203,7 @@ class TestTeleportAccessRequests:
                 )
             )
         )
-        assert ret is True, "one person have approved the request"
+        assert ret is True, "one person has approved the request"
 
         request = RequestPolicy.names == ("access-stage",)
         ret, _ = devs.query(
@@ -151,8 +231,7 @@ class TestTeleportAccessRequests:
                 Request(
                     (
                         (RequestPolicy.names == ("access-stage",))
-                        & (RequestPolicy.approvals["access-stage"].len() > 1)
-                        & (RequestPolicy.denials["access-stage"].len() < 1)
+                        & (RequestPolicy.approvals.for_each_key().len() > 1)
                     )
                 ),
                 Review(
@@ -206,12 +285,6 @@ class TestTeleportAccessRequests:
                         # have to pass their thresholds to be approved,
                         # and any policy denied will result in denial for all
                         (RequestPolicy.names == ("access-stage", "access-prod"))
-                        # At least one approval for stage
-                        & (RequestPolicy.approvals["access-stage"].len() > 0)
-                        & (RequestPolicy.denials["access-stage"].len() < 1)
-                        # At least two approvals for prod
-                        & (RequestPolicy.approvals["access-prod"].len() > 1)
-                        & (RequestPolicy.denials["access-prod"].len() < 1)
                     )
                 ),
             ),
@@ -239,10 +312,7 @@ class TestTeleportAccessRequests:
 
         # Can devs request access to stage and prod at the same time?
         ret, _ = devs.query(
-            Request(
-                (RequestPolicy.names == ("access-stage", "access-prod"))
-                & (RequestPolicy.approvals["access-stage"].len() > 0)
-            )
+            Request((RequestPolicy.names == ("access-stage", "access-prod")))
         )
         assert ret is True, "Devs can request access to stage and prod"
 
@@ -266,10 +336,9 @@ class TestTeleportAccessRequests:
             Request(
                 (RequestPolicy.names == ("access-stage", "access-prod"))
                 & (
-                    # two approvals for prod
+                    # one approval for prod
                     RequestPolicy.approvals["access-prod"]
                     == reviews(
-                        (sre, Request(RequestPolicy.names.contains("access-prod"))),
                         (sre, Request(RequestPolicy.names.contains("access-prod"))),
                     )
                 )
@@ -286,14 +355,44 @@ class TestTeleportAccessRequests:
             ret is True
         ), "request is approved with two approvals for prod and one for stage"
 
+        # Request for two policies got approved, but one person has denied the request
+        ret, model = devs.check(
+            Request(
+                (RequestPolicy.names == ("access-stage", "access-prod"))
+                & (
+                    # one approval for prod
+                    RequestPolicy.approvals["access-prod"]
+                    == reviews(
+                        (sre, Request(RequestPolicy.names.contains("access-prod"))),
+                    )
+                )
+                & (
+                    # one approval for staging
+                    RequestPolicy.approvals["access-stage"]
+                    == reviews(
+                        (sre, Request(RequestPolicy.names.contains("access-stage")))
+                    )
+                )
+                & (
+                    # one denial for prod
+                    RequestPolicy.denials["access-prod"]
+                    == reviews(
+                        (sre, Request(RequestPolicy.names.contains("access-prod")))
+                    )
+                )
+            )
+        )
+        assert ret is False, "request is denied regardless of any extra approvals"
+
     def test_access_requests_todo(self):
         """
-        * More tests with access request failures?
-        * How to model search_as access requests properly?
-        * How to test that users cant review own requests.
-        * Static role can't be escaped - if you got role "a" and got role "b"
-        approved, you get both "a" and "b" in policy set
-        * The access requests syntax is a bit clumsy
-        * What happens if you miss thresholds?
-        * Implement permission boundaries (AWS-style)
+        * Check that default denials < 1 is not added if other expression is specified
+        * Add more tests with access request failures.
+        * How to distinguish query when people forgot to add reviews vs legitimate query?
+        * Model search_as access requests and resource based access requests.
+        * Add invariant that users cant review their own requests.
+        * Model invariant that a static policy can't be escaped -
+        if you got policy "a" and got policy "b" approved, you get both "a" and "b" in policy set
+        * Model reviews where reviewer is authorized and reviews
+        just a part of access request (partial approval)
         """

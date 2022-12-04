@@ -18,7 +18,9 @@ class TestTeleportGetStarted:
         )
 
         # Check if alice can access nodes as root
-        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (User.name == "alice")))
+        ret, _ = p.check(
+            AccessNode((AccessNode.login == "root") & (User.name == "alice"))
+        )
         assert ret is True, "everyone can access as root, including alice"
 
         # This is not a very useful policy, because it gives everyone
@@ -32,14 +34,18 @@ class TestTeleportGetStarted:
         )
 
         # Alice will be able to login to any machine as herself
-        ret, _ = p.check(AccessNode((AccessNode.login == "alice") & (User.name == "alice")))
+        ret, _ = p.check(
+            AccessNode((AccessNode.login == "alice") & (User.name == "alice"))
+        )
         assert ret is True, "Alice can login with her user to any node"
 
         # We can verify that a strong invariant holds:
         # Unless a username is root, a user can not access a server as
         # root. This creates a problem though, can we deny access as root
         # altogether?
-        ret, _ = p.check(AccessNode((AccessNode.login == "root") & (User.name != "root")))
+        ret, _ = p.check(
+            AccessNode((AccessNode.login == "root") & (User.name != "root"))
+        )
         assert (
             ret is False
         ), "This role does not allow access as root unless a user name is root"

@@ -716,9 +716,7 @@ class TestAst:
         e = StringEnum("fruits", set(["banana", "apple", "strawberry"]))
 
         # enums could be part of the predicate
-        p = Predicate(
-            (e == 'apple') | (e == 'banana')
-        )
+        p = Predicate((e == "apple") | (e == "banana"))
         ret, _ = p.query(Predicate(e == "banana"))
         assert ret is True, "value can be banana"
 

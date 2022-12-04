@@ -20,6 +20,7 @@ limitations under the License.
 # * book https://theory.stanford.edu/~nikolaj/programmingz3.html
 # * reference https://z3prover.github.io/api/html/namespacez3py.html
 
+
 import functools
 import operator
 import sre_constants
@@ -31,6 +32,9 @@ from dataclasses import dataclass
 import z3
 
 from .errors import ParameterError
+
+# To add debugging verbose mode of Z3 itself, uncomment this line
+# z3.set_option(verbose=10)
 
 
 class LogicMixin:
@@ -426,6 +430,7 @@ class Int(IntMixin):
     def __str__(self):
         return "int({})".format(self.name)
 
+
 class LtDuration:
     """
     LtDuration is a duration that only allows < inequalities.
@@ -474,10 +479,16 @@ class Duration(LtDuration):
     def __str__(self):
         return "duration({})".format(self.name)
 
-    def __eq__(self, val: DurationLiteral):
+    def __eq__(self, val: object):
+        # Python recommends to make eq generic
+        # https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+        if not isinstance(val, DurationLiteral):
+            return NotImplemented
         return Eq(self, val)
 
-    def __ne__(self, val: DurationLiteral):
+    def __ne__(self, val: object):
+        if not isinstance(val, DurationLiteral):
+            return NotImplemented
         return Not(Eq(self, val))
 
     def __gt__(self, val: DurationLiteral):
@@ -861,9 +872,7 @@ class StringEnum:
 
         # raise type error if `val` is not one of the enum values
         raise TypeError(
-            "value {} is not one of: {}".format(
-                val, [v for v in self.values]
-            )
+            "value {} is not one of: {}".format(val, [v for v in self.values])
         )
 
     def __str__(self):
@@ -1619,6 +1628,12 @@ class StringSetMap:
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
+    def for_each_key(self):
+        """
+        For each key creates an expression that should hold true for each key.
+        """
+        return StringSetMapForEachKeyConstraint(self)
+
     def add_value(self, key: String, val: String):
         return StringSetMapAddValue(self, key, val)
 
@@ -1636,6 +1651,62 @@ class StringSetMap:
 
     def traverse(self):
         return self.fn_map
+
+
+class StringSetMapForEachKeyConstraint(StringSetMap):
+    def __init__(self, m: StringSetMap):
+        self.m = m
+
+    def walk(self, fn):
+        fn(self)
+
+    def len(self):
+        return StringSetMapForEachKeyConstraintLen(self.m)
+
+    def __str__(self):
+        return """({}.for_each_key())""".format(self.m.name)
+
+
+class StringSetMapForEachKeyConstraintLen(StringSetMap):
+    def __init__(self, m: StringSetMap):
+        self.m = m
+
+    def walk(self, fn):
+        fn(self)
+
+    def __str__(self):
+        return """({}.for_each_key().len())""".format(self.m.name)
+
+    def __gt__(self, val):
+        if isinstance(val, int):
+            return Gt(self, IntLiteral(val))
+        if isinstance(val, (Int,)):
+            return Gt(self, val)
+        raise TypeError(
+            "unsupported type {}, supported integers only".format(type(val))
+        )
+
+    def __lt__(self, val):
+        if isinstance(val, int):
+            return Lt(self, IntLiteral(val))
+        if isinstance(val, (Int,)):
+            return Lt(self, val)
+        raise TypeError(
+            "unsupported type {}, supported integers only".format(type(val))
+        )
+
+    def compare(self, op, other):
+        # Quantifiers
+        # https://microsoft.github.io/z3guide/docs/logic/Quantifiers/
+        arg_key = z3.String(self.m.name + "_any_key")
+        return z3.ForAll(
+            [arg_key],
+            op(fn_string_list_len(self.m.fn_map(arg_key)), other),
+            patterns=[fn_string_list_len(self.m.fn_map(arg_key))],
+        )
+
+    def traverse(self):
+        raise ParameterError("should not be called")
 
 
 class StringSetMapOverwrite(StringSetMap):
@@ -2054,7 +2125,6 @@ class Predicate:
         if self.loud:
             print("OUR EXPR: {}".format(e))
         solver.add(self.expr.traverse())
-
         if solver.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
         return (True, solver.model())
@@ -2069,14 +2139,12 @@ class Predicate:
         if self.loud:
             print("OUR EXPR: {}".format(e))
         solver.add(e)
-
         if solver.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
         o = other.expr.traverse()
         if self.loud:
             print("THEIR EXPR: {}".format(o))
         solver.add(o)
-
         # TODO do a second pass to build a key checking function
         # for both predicates!
         self.expr.walk(functools.partial(collect_symbols, self.symbols))

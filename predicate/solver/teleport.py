@@ -16,17 +16,17 @@ limitations under the License.
 
 import functools
 import operator
+import re
 from collections.abc import Iterable
 
 import z3
-import re
 
 from . import ast
 from .errors import ParameterError
 
 
 def scoped(cls):
-    cls.scope = re.sub(r"([a-z])([A-Z])", r'\1_\2', cls.__name__).lower()
+    cls.scope = re.sub(r"([a-z])([A-Z])", r"\1_\2", cls.__name__).lower()
     return cls
 
 
@@ -203,6 +203,7 @@ class JoinSession(ast.Predicate):
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
 
+
 class Session:
     """
     Session is a Teleport session.
@@ -229,6 +230,18 @@ class RequestPolicy:
 @scoped
 class Request(ast.Predicate):
     def __init__(self, expr):
+        has_denials = False
+
+        def review(x):
+            global has_denials
+            if isinstance(x, RequestPolicy.denials.for_each_key().len().__class__):
+                if x.m.name == RequestPolicy.denials.name:
+                    has_denials = True
+
+        expr.walk(review)
+        expr = expr & (RequestPolicy.approvals.for_each_key().len() > 0)
+        if not has_denials:
+            expr = expr & (RequestPolicy.denials.for_each_key().len() < 1)
         ast.Predicate.__init__(self, expr)
 
     def traverse(self):
