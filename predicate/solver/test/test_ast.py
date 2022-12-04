@@ -370,6 +370,26 @@ class TestAst:
         ret, _ = p.solve()
         assert ret is True, "values match"
 
+    def test_string_list_for_each(self):
+        # filter example - we only keep fruits by copying them over
+        fruits = StringList("fruits", ("apple", "strawberry", "banana"))
+
+        p = Predicate(fruits.for_each(lambda x: x != "potato"))
+        ret, _ = p.solve()
+        assert ret is True, "no potatoes in our fruits basket"
+
+        with pytest.raises(ParameterError) as exc:
+            p = Predicate(fruits.for_each(lambda x: x == "apple"))
+            ret, _ = p.solve()
+            assert ret is True, "not all fruits are apples in our fruit basket"
+        assert "unsolvable" in str(exc.value)
+
+        fruits = StringList("fruits", ("apple", "apple"))
+
+        p = Predicate(fruits.for_each(lambda x: x == "apple"))
+        ret, _ = p.solve()
+        assert ret is True, "only apples in our fruit basket"
+
     def test_string_list_with_if(self):
         basket = StringList("basket")
         # filter example - we only keep fruits by copying them over
@@ -424,6 +444,56 @@ class TestAst:
 
         ret, _ = p.check(Predicate(traits["key"] == ("apple", "banana")))
         assert ret is False, "values don't match"
+
+    def test_string_set_map_contains_join(self):
+        traits = StringSetMap("mymap")
+        p = Predicate(traits[User.name].contains("sre"))
+
+        ret, _ = p.check(
+            Predicate((traits["alice"] == ("sre", "dev")) & (User.name == "alice"))
+        )
+        assert ret is True, "values match"
+
+        ret, _ = p.check(
+            Predicate(
+                (traits == StringSetMap("mymap", {"alice": ("sre", "dev")}))
+                & (User.name == "alice")
+            )
+        )
+        assert ret is True, "values match for alice with bound traits"
+
+        ret, _ = p.check(
+            Predicate((traits["alice"] == ("sre", "dev")) & (User.name == "alice"))
+        )
+        assert ret is True, "values match"
+
+        ret, _ = p.check(
+            Predicate((traits["alice"] == ("prod", "dev")) & (User.name == "alice"))
+        )
+        assert ret is False, "values don't match for alice"
+
+        ret, _ = p.check(
+            Predicate(
+                (traits == StringSetMap("mymap", {"alice": ("prod", "dev")}))
+                & (User.name == "alice")
+            )
+        )
+        assert ret is False, "values don't match for alice with bound traits"
+
+        ret, _ = p.check(
+            Predicate(
+                # here alice is unconnected to both expressions:
+                # traits[User.name].contains("sre")
+                # traits["alice"] == ("sre", "dev")
+                # User.name == "bob"
+                # could be true at the same time.
+                # (traits["alice"] == ("prod", "dev"))
+                # TODO: what if we use concrete map here?
+                (traits == StringSetMap("mymap", {"alice": ("prod", "dev")}))
+                & (User.name == "bob")
+            )
+        )
+        assert ret is False, "values don't match for bob"
 
     def test_string_set_map_contains_regex(self):
         traits = StringSetMap(
@@ -527,6 +597,17 @@ class TestAst:
 
         ret, _ = p.check(Predicate(traits["fruits"] == ("apple", "banana")))
         assert ret is True, "values match even if strawberry is missing"
+
+        traits = StringSetMap(
+            "traits",
+            {
+                "fruits": ("strawberry", "banana", "apple"),
+            },
+        ).add_value("fruits", "strawberry")
+        ret, _ = p.check(
+            Predicate(traits["fruits"] == ("strawberry", "banana", "apple"))
+        )
+        assert ret is True, "strawberry is present only once"
 
     def test_string_set_map_with_values(self):
         external = StringSetMap("external")
@@ -645,6 +726,24 @@ class TestAst:
         p = Predicate((external["email"] == ()) & (traits["login"] == ()))
         ret, _ = p.solve()
         assert ret is True, "transformation on empty list is empty"
+
+    def test_string_set_map_duplicates(self):
+        traits = StringSetMap(
+            "traits",
+            {
+                "fruits": ("apple", "apple"),
+            },
+        )
+
+        traits_no_duplicates = StringSetMap(
+            "traits-no-duplicates",
+            {
+                "fruits": ("apple",),
+            },
+        )
+        p = Predicate(traits == traits_no_duplicates)
+        ret, _ = p.solve()
+        assert ret is True, "duplicates are ignored"
 
     def test_string_map(self):
         """

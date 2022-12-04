@@ -1,8 +1,14 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
-from cli.policy_utils import create_policy_from_template, get_policy, normalize_policy_name, create_policy_file
+from cli.policy_utils import (
+    create_policy_file,
+    create_policy_from_template,
+    get_policy,
+    normalize_policy_name,
+)
 from solver.teleport import Policy, Rules
+
 
 def test_create_policy_file():
     policy_name = " test file_name-master Dev master "
@@ -18,7 +24,7 @@ def test_create_policy_file():
 def test_create_policy_from_template():
     """
     For policy name 'developer", the class name should be "Developer, name should be "developer"
-    and the test function should be "test_developer". 
+    and the test function should be "test_developer".
     """
     sample = """
 from solver.teleport import Policy, AccessNode, User, Rules
@@ -52,11 +58,12 @@ def test_get_policy():
     assert (class_name == "Developer") & isinstance(policy, Policy) is True
 
 
-
 def test_normalize_policy_name():
     name = " test policy_name-test"
 
     class_name = normalize_policy_name(name, "class")
     file_name = normalize_policy_name(name, "file")
 
-    assert (class_name == "TestPolicyNameTest") & (file_name == "test_policy_name_test") is True
+    assert (class_name == "TestPolicyNameTest") & (
+        file_name == "test_policy_name_test"
+    ) is True
