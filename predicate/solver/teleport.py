@@ -62,7 +62,7 @@ class OptionsSet:
 
 
 @scoped
-class AccessResource(ast.Predicate):
+class Resource(ast.Predicate):
     """
     Resource defines read/list/write access to a resource.
     """
@@ -81,7 +81,7 @@ class AccessResource(ast.Predicate):
 
     # the unique ID of the resource
     id = ast.Int("resource.id")
-    
+
     # the type of access that is attempted, such as read, write or list
     verb = ast.String("resource.verb")
 
@@ -119,7 +119,7 @@ class Node:
     hostname = ast.String("node.hostname")
 
     # uuid of the node
-    uuid = ast.String("node.uuid")  
+    uuid = ast.String("node.uuid")
 
     # address is the public address reported by the node
     address = ast.String("node.address")
