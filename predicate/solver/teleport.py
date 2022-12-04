@@ -67,7 +67,6 @@ class Resource(ast.Predicate):
     Resource defines read/list/write access to a resource.
     """
 
-    namespace = ast.String("resource.namespace")
     kind = ast.String("resource.kind")
     labels = ast.StringMap("resource.labels")
     verb = ast.String("resource.verb")
@@ -101,6 +100,15 @@ class Node:
     """
     Node is an SSH node.
     """
+
+    # hostname of the node
+    hostname = ast.String("node.hostname")
+
+    # uuid of the node
+    uuid = ast.String("node.uuid")  
+
+    # address is the public address reported by the node
+    address = ast.String("node.address")
 
     # labels are the node labels
     labels = ast.StringMap("node.labels")
@@ -198,9 +206,6 @@ class User:
 
     # policies is a list of access policies assigned to the user
     polices = ast.StringList("user.policies")
-
-    # roles is a list of roles assigned to the user
-    roles = ast.StringList("user.roles")
 
     # traits is a map of user traits
     traits = ast.StringSetMap("user.traits")
