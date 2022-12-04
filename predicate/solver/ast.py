@@ -517,7 +517,6 @@ class Bool:
     def __str__(self):
         return "bool({})".format(self.name)
 
-
 class String:
     def __init__(self, name: str):
         self.name = name

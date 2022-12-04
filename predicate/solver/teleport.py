@@ -62,13 +62,27 @@ class OptionsSet:
 
 
 @scoped
-class Resource(ast.Predicate):
+class AccessResource(ast.Predicate):
     """
     Resource defines read/list/write access to a resource.
     """
 
+    # the kind of the resource, such as session_tracker or user
     kind = ast.String("resource.kind")
-    labels = ast.StringMap("resource.labels")
+
+    # the subkind of the resource
+    subkind = ast.String("resource.subkind")
+
+    # the version of the resource
+    version = ast.String("resource.version")
+
+    # the name of the resource
+    name = ast.String("resource.name")
+
+    # the unique ID of the resource
+    id = ast.Int("resource.id")
+    
+    # the type of access that is attempted, such as read, write or list
     verb = ast.String("resource.verb")
 
     def __init__(self, expr):
