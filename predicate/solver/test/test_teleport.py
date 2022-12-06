@@ -55,45 +55,28 @@ class TestTeleport:
             name="test",
             allow=Rules(
                 Resource(
-                    (Resource.namespace == "default")
-                    & (Resource.kind == "session_tracker")
+                    (Resource.kind == "session_tracker")
                     & StringTuple(("list", "read")).contains(Resource.verb)
                 ),
             ),
         )
 
         ret, _ = p.check(
-            Resource(
-                (Resource.namespace == "default")
-                & (Resource.kind == "session_tracker")
-                & (Resource.verb == "read")
-            )
+            Resource((Resource.kind == "session_tracker") & (Resource.verb == "read"))
         )
         assert ret is True, "can read resource"
 
         ret, _ = p.check(
-            Resource(
-                (Resource.namespace == "default")
-                & (Resource.kind == "session_tracker")
-                & (Resource.verb == "list")
-            )
+            Resource((Resource.kind == "session_tracker") & (Resource.verb == "list"))
         )
         assert ret is True, "can list resource"
 
         ret, _ = p.check(
-            Resource(
-                (Resource.namespace == "default")
-                & (Resource.kind == "session_tracker")
-                & (Resource.verb == "write")
-            )
+            Resource((Resource.kind == "session_tracker") & (Resource.verb == "write"))
         )
         assert ret is False, "can write resource"
 
-        ret, _ = p.query(
-            Resource(
-                (Resource.namespace == "default") & (Resource.kind == "saml_connector")
-            )
-        )
+        ret, _ = p.query(Resource((Resource.kind == "saml_connector")))
         assert ret is False, "cannot access wrong resource"
 
     def test_allow_policy_set(self):
