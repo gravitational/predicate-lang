@@ -16,17 +16,17 @@ limitations under the License.
 
 import functools
 import operator
+import re
 from collections.abc import Iterable
 
 import z3
-import re
 
 from . import ast
 from .errors import ParameterError
 
 
 def scoped(cls):
-    cls.scope = re.sub(r"([a-z])([A-Z])", r'\1_\2', cls.__name__).lower()
+    cls.scope = re.sub(r"([a-z])([A-Z])", r"\1_\2", cls.__name__).lower()
     return cls
 
 
@@ -62,6 +62,34 @@ class OptionsSet:
 
 
 @scoped
+class Resource(ast.Predicate):
+    """
+    Resource defines read/list/write access to a resource.
+    """
+
+    # the kind of the resource, such as session_tracker or user
+    kind = ast.String("resource.kind")
+
+    # the subkind of the resource
+    subkind = ast.String("resource.subkind")
+
+    # the version of the resource
+    version = ast.String("resource.version")
+
+    # the name of the resource
+    name = ast.String("resource.name")
+
+    # the unique ID of the resource
+    id = ast.Int("resource.id")
+
+    # the type of access that is attempted, such as read, write or list
+    verb = ast.String("resource.verb")
+
+    def __init__(self, expr):
+        ast.Predicate.__init__(self, expr)
+
+
+@scoped
 class AccessNode(ast.Predicate):
     """
     AccessNode defines the permission to access an SSH node.
@@ -86,6 +114,15 @@ class Node:
     """
     Node is an SSH node.
     """
+
+    # hostname of the node
+    hostname = ast.String("node.hostname")
+
+    # uuid of the node
+    uuid = ast.String("node.uuid")
+
+    # address is the public address reported by the node
+    address = ast.String("node.address")
 
     # labels are the node labels
     labels = ast.StringMap("node.labels")
@@ -181,6 +218,9 @@ class User:
     # name is username
     name = ast.String("user.name")
 
+    # policies is a list of access policies assigned to the user
+    polices = ast.StringList("user.policies")
+
     # traits is a map of user traits
     traits = ast.StringSetMap("user.traits")
 
@@ -202,6 +242,7 @@ class JoinSession(ast.Predicate):
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
+
 
 class Session:
     """
@@ -264,7 +305,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.And):
         return f"({t_expr(predicate.L)} && {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Xor):
-        return f"({t_expr(predicate.L)} ^ {t_expr(predicate.R)})"
+        return f"xor({t_expr(predicate.L)}, {t_expr(predicate.R)})"
     elif isinstance(predicate, ast.Not):
         return f"(!{t_expr(predicate.V)})"
     elif isinstance(predicate, ast.Lt):
@@ -292,7 +333,7 @@ def t_expr(predicate):
     elif isinstance(predicate, str):
         return f'"{predicate}"'
     elif isinstance(predicate, tuple):
-        return f"[{', '.join(t_expr(p) for p in predicate)}]"
+        return f"array({', '.join(t_expr(p) for p in predicate)})"
     elif isinstance(predicate, (ast.BoolLiteral, ast.IntLiteral, ast.DurationLiteral)):
         return f"{predicate.V}"
     elif isinstance(predicate, ast.Concat):
@@ -300,7 +341,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.Split):
         return f"split({t_expr(predicate.val)}, {t_expr(predicate.sep)})"
     elif isinstance(predicate, ast.StringTuple):
-        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+        return f"array({', '.join(t_expr(p) for p in predicate.vals)})"
     elif isinstance(predicate, ast.Upper):
         return f"upper({t_expr(predicate.val)})"
     elif isinstance(predicate, ast.Lower):
@@ -313,9 +354,9 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.StringListFirst):
         return f"first({t_expr(predicate.E)})"
     elif isinstance(predicate, (ast.StringListAdd, ast.StringSetMapIndexAdd)):
-        return f"add({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+        return f"append({t_expr(predicate.E)}, {t_expr(predicate.V)})"
     elif isinstance(predicate, (ast.StringListEquals, ast.StringSetMapIndexEquals)):
-        return f"equals({t_expr(predicate.E)}, {t_expr(predicate.V)})"
+        return f"({t_expr(predicate.E)} == {t_expr(predicate.V)})"
     elif isinstance(
         predicate, (ast.Replace, ast.StringListReplace, ast.StringSetMapIndexReplace)
     ):
@@ -323,7 +364,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.RegexConstraint):
         return f"regex({t_expr(predicate.expr)})"
     elif isinstance(predicate, ast.RegexTuple):
-        return f"[{', '.join(t_expr(p) for p in predicate.vals)}]"
+        return f"array({', '.join(t_expr(p) for p in predicate.vals)})"
     elif isinstance(predicate, (ast.Matches, ast.IterableMatches)):
         return f"matches({t_expr(predicate.E)}, {t_expr(predicate.V)})"
     elif isinstance(
@@ -345,7 +386,7 @@ def t_expr(predicate):
     elif isinstance(predicate, ast.StringSetMapIndexFirst):
         return f"first({t_expr(predicate.E)})"
     elif isinstance(predicate, ast.StringSetMapAddValue):
-        return f"map_add({t_expr(predicate.m.name)}, {t_expr(predicate.K)}, {t_expr(predicate.V)})"
+        return f"map_insert({t_expr(predicate.m.name)}, {t_expr(predicate.K)}, {t_expr(predicate.V)})"
     elif isinstance(predicate, ast.StringSetMapRemoveKeys):
         return f"map_remove({t_expr(predicate.m.name)}, {t_expr(predicate.K)})"
     else:
@@ -382,7 +423,7 @@ class Policy:
 
     def export(self):
         out = {
-            "kind": "policy",
+            "kind": "access_policy",
             "version": "v1",
             "metadata": {
                 "name": self.name,
@@ -403,10 +444,6 @@ class Policy:
                 scopes[scope] = t_expr(expr)
 
             return scopes
-
-        if self.options.options:
-            options_rules = functools.reduce(operator.and_, self.options.options)
-            out["spec"]["options"] = t_expr(options_rules)
 
         if self.allow.rules:
             out["spec"]["allow"] = group_rules(operator.or_, self.allow.rules)
