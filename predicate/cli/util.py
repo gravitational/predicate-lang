@@ -15,8 +15,8 @@ limitations under the License.
 """
 
 import ast
-import os
 from jinja2 import FileSystemLoader, Environment, select_autoescape
+from pathlib import Path
 
 
 def get_classname(policyfile: str):
@@ -39,13 +39,23 @@ def parse_classname(policy: str):
     return ""
 
 
-def create_dir_if_not_exist(path: str):
+def create_policy_file(name: str, path: str):
     """
-    Create policies directory
+    Create policy file
     """
-    does_exist = os.path.exists(path)
-    if not does_exist:
-        os.makedirs(path)
+    # keeping "policies" as a default directory
+    default_path = "policies"
+    if path != "":
+        default_path = path
+
+    Path(default_path).mkdir(parents=True, exist_ok=True)
+
+    policy = create_policy_from_template(name)
+
+    # keeping "policies" as a default directory
+    file_name = normalize_policy_name(name, "")
+    with open(f"{default_path}/{file_name}.py", 'w', encoding="utf-8") as file:
+        file.write(policy)
 
 
 def create_policy_from_template(name: str):

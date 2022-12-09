@@ -5,7 +5,7 @@ from types import FunctionType
 import click
 import yaml
 
-from .util import create_policy_from_template, create_dir_if_not_exist, get_classname, normalize_policy_name
+from .util import create_policy_file, get_classname
 
 
 @click.group()
@@ -94,14 +94,9 @@ def new(policy):
     if policy:
         value = click.prompt('Please enter a policy name', type=str)
         click.echo("creating policy...")
-        policy = create_policy_from_template(value)
         # keeping "policies" as a default directory
-        create_dir_if_not_exist("policies")
-        file_name = normalize_policy_name(value, "")
-        file = open(f"policies/{file_name}.py", 'w', encoding="utf-8")
-        file.write(policy)
-        file.close()
-        click.echo(f'policy "{file_name}" created.')
+        create_policy_file(value, "")
+        click.echo(f'policy "{value}" created.')
 
 
 if __name__ == "__main__":

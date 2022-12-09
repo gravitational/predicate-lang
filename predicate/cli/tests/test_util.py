@@ -1,15 +1,15 @@
-import os
+from pathlib import Path
+import shutil
 
-from ..util import create_dir_if_not_exist, create_policy_from_template, parse_classname, normalize_policy_name
-
-TEST_DIR_PATH = "testpath"
-TEST_POLICY = "devOps"
+from ..util import create_policy_from_template, parse_classname, normalize_policy_name, create_policy_file
 
 
-def test_create_dir_if_not_exist():
-    create_dir_if_not_exist(TEST_DIR_PATH)
-    assert (os.path.exists(TEST_DIR_PATH)) is True
-    os.rmdir(TEST_DIR_PATH)
+def test_create_policy_file():
+    policy_name = " test file_name-master Dev master "
+    final_name = normalize_policy_name(policy_name, "")
+    create_policy_file(policy_name, "policytestdir")
+    assert (Path(f"policytestdir/{final_name}.py").exists()) is True
+    shutil.rmtree("policytestdir")
 
 
 # We should ideally test for if the template creates a valid python file.
