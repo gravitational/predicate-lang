@@ -21,25 +21,26 @@ def test_create_policy_from_template():
     and the test function should be "test_developer". 
     """
     sample = """
-from solver.teleport import AccessNode, Options, OptionsSet, Policy, Rules
+from solver.teleport import Policy, AccessNode, User, Rules
 
 class Developer:
     p = Policy(
         name= "developer",
         loud=False,
-        allow=Rules(AccessNode()),
-        options=OptionsSet(Options()),
-        deny=Rules( AccessNode()),
+        allow=Rules(AccessNode((AccessNode.login == "developer"))),
+        # options=OptionsSet(Options()),
+        # deny=Rules(AccessNode()),
     )
 
     def test_developer(self):
         # Test allowed policy 
-        # ret, _ = self.p.check(AccessNode())
-        # assert ret is True, "developer can login to specified node"
+        ret, _ = self.p.check(AccessNode(AccessNode.login == "developer"))
+        assert ret is True, "developer can login to specified node"
 
         # Test denied policy 
         # ret, _ = self.p.check(AccessNode())
         # assert ret is False, "developer should not login to specified node"
+
     """
     policy_name = "developer"
     policy = create_policy_from_template(policy_name)
