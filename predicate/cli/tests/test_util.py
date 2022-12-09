@@ -1,6 +1,6 @@
 import os
 
-from ..util import create_dir_if_not_exist, create_policy_from_template, parse_classname
+from ..util import create_dir_if_not_exist, create_policy_from_template, parse_classname, normalize_policy_name
 
 TEST_DIR_PATH = "testpath"
 TEST_POLICY = "devOps"
@@ -95,3 +95,12 @@ class Developer:
 
     class_name = parse_classname(policy1)
     assert (class_name == "Developer") is True
+
+
+def test_normalize_policy_name():
+    name = " test policy_name-test"
+
+    class_name = normalize_policy_name(name, "class")
+    file_name = normalize_policy_name(name, "file")
+
+    assert (class_name == "TestPolicyNameTest") & (file_name == "test_policy_name_test") is True

@@ -18,12 +18,14 @@ import ast
 import os
 from jinja2 import FileSystemLoader, Environment, select_autoescape
 
+
 def get_classname(policyfile: str):
     """
     Get class name from policy file.
     """
     with open(policyfile, 'r', encoding="utf-8") as file:
         return parse_classname(file.read())
+
 
 def parse_classname(policy: str):
     """
@@ -35,6 +37,7 @@ def parse_classname(policy: str):
         if isinstance(node, ast.ClassDef):
             return node.name
     return ""
+
 
 def create_dir_if_not_exist(path: str):
     """
@@ -49,10 +52,12 @@ def create_policy_from_template(name: str):
     """
     updates name to fit class naming convention
     """
+    class_name = normalize_policy_name(name, "class")
+    policy_name = normalize_policy_name(name, "")
     values = {
-        "policyclass": name.capitalize(),
-        "policyname": name.lower(),
-        "testname": f"test_{name.lower()}"
+        "policyclass": class_name,
+        "policyname": policy_name,
+        "testname": f"test_{policy_name}"
     }
 
     template_loader = FileSystemLoader(searchpath="./")
@@ -61,3 +66,13 @@ def create_policy_from_template(name: str):
     policy_file = template.render(values)
 
     return policy_file
+
+
+def normalize_policy_name(name: str, name_type: str):
+    """
+    Transform whitespace, underscore and hyphen to CamelCase for classname and snake_case as default.
+    """
+    if name_type == "class":
+        return name.strip().title().replace(" ", "").replace("-", "").replace("_", "")
+    else:
+        return name.strip().lower().replace(" ", "_").replace("-", "_")
