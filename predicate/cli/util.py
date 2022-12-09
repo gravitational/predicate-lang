@@ -18,11 +18,17 @@ import ast
 import os
 from jinja2 import FileSystemLoader, Environment, select_autoescape
 
-def get_classname(policy: str):
+def get_classname(policyfile: str):
     """
-    Get class name from policy file. Expects one class per poliy file.
+    Get class name from policy file.
     """
+    with open(policyfile, 'r', encoding="utf-8") as file:
+        return parse_classname(file.read())
 
+def parse_classname(policy: str):
+    """
+    Parse class name using ast. Expects one class per poliy file.
+    """
     parsed = ast.parse(policy)
     nodes = ast.walk(parsed)
     for node in nodes:

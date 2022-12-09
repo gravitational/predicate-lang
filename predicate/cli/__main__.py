@@ -21,17 +21,16 @@ def export(policy_file):
     """
     Export to YAML compatible policy.
     """
-    with open(policy_file, 'r', encoding="utf-8") as file:
-        class_name = get_classname(file.read())
+    class_name = get_classname(policy_file)
 
-        # Grabs the class and directly reads the policy since it's a static member.
-        module = run_path(policy_file)
-        policy = module[class_name].p
+    # Grabs the class and directly reads the policy since it's a static member.
+    module = run_path(policy_file)
+    policy = module[class_name].p
 
-        # Dump the policy into a Teleport resource and write it to the terminal.
-        obj = policy.export()
-        serialized = yaml.dump(obj)
-        click.echo(serialized)
+    # Dump the policy into a Teleport resource and write it to the terminal.
+    obj = policy.export()
+    serialized = yaml.dump(obj)
+    click.echo(serialized)
 
 
 @main.command()
@@ -42,20 +41,20 @@ def deploy(policy_file, sudo):
     Export to YAML compatible policy and deploy to Teleport.
     """
     click.echo("parsing policy...")
-    with open(policy_file, 'r', encoding="utf-8") as file:
-        class_name = get_classname(file.read())
-        module = run_path(policy_file)
-        policy = module[class_name].p
-        click.echo("translating policy...")
-        obj = policy.export()
-        serialized = yaml.dump(obj)
-        click.echo("deploying policy...")
-        args = ["tctl", "create", "-f"]
-        if sudo:
-            args.insert(0, "sudo")
+    class_name = get_classname(policy_file)
+    module = run_path(policy_file)
+    policy = module[class_name].p
+    click.echo("translating policy...")
+    obj = policy.export()
+    serialized = yaml.dump(obj)
 
-        subprocess.run(args, text=True, input=serialized, check=True)
-        click.echo(f'policy deployed as resource "{policy.name}"')
+    click.echo("deploying policy...")
+    args = ["tctl", "create", "-f"]
+    if sudo:
+        args.insert(0, "sudo")
+
+    subprocess.run(args, text=True, input=serialized, check=True)
+    click.echo(f'policy deployed as resource "{policy.name}"')
 
 
 @main.command()
@@ -66,27 +65,26 @@ def test(policy_file):
     """
 
     # Extract the defined policy class and filter out all test functions
-    with open(policy_file, 'r', encoding="utf-8") as file:
-        class_name = get_classname(file.read())
-        module = run_path(policy_file)
-        policy_class = module[class_name]
-        fns = {
-            x: y
-            for x, y in policy_class.__dict__.items()
-            if isinstance(y, FunctionType) and x.startswith("test_")
-        }
+    class_name = get_classname(policy_file)
+    module = run_path(policy_file)
+    policy_class = module[class_name]
+    fns = {
+        x: y
+        for x, y in policy_class.__dict__.items()
+        if isinstance(y, FunctionType) and x.startswith("test_")
+    }
 
-        # Run all the tests, catching any exceptions and reporting success/failure accordingly
-        click.echo(f"Running {len(fns)} tests:")
-        for name, functions in fns.items():
-            try:
-                functions(policy_class)
-            except Exception as err:
-                out = f"error -> {err}"
-            else:
-                out = "ok"
+    # Run all the tests, catching any exceptions and reporting success/failure accordingly
+    click.echo(f"Running {len(fns)} tests:")
+    for name, functions in fns.items():
+        try:
+            functions(policy_class)
+        except Exception as err:
+            out = f"error -> {err}"
+        else:
+            out = "ok"
 
-            click.echo(f"  - {name}: {out}")
+        click.echo(f"  - {name}: {out}")
 
 
 @main.command()
