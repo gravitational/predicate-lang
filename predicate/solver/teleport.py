@@ -67,6 +67,7 @@ class SSHOptions:
     # Disconnect clients after this amount of time of inactivity.
     client_idle_timeout = ast.LtDuration("options.ssh.client_idle_timeout")
 
+
 class Options(ast.Predicate):
     """
     Options apply to some allow rules if they match
@@ -336,50 +337,59 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+
 optionsPrefix = "options."
 
-# option_optimize optimizes the option literal towards it's preferred value.
+# option_optimize optimizes the option literal towards it's preferred value and returns a z3 reference to the optimized value.
 def option_optimize(optimizer, literal):
     match literal.name:
-        case Options.session_ttl.name:
+        case Options.session_ttl.name | Options.ssh.max_connections | Options.ssh.max_sessions_per_connection | Options.ssh.client_idle_timeout:
             ref = literal.val
             optimizer.maximize(ref)
             return ref
-        case Options.locking_mode.name:
+        case Options.locking_mode.name | Options.session_mfa.name | Options.ssh.session_recording_mode.name:
+            # string enums are tricky, the gist of it is that they are a fn(string) -> int
+            # and we want to minimize their output and then return the matching input string
             ref = literal.fn(literal.fn_key_arg)
             optimizer.minimize(ref)
             return literal.fn_key_arg
         case _:
             raise Exception("failed to optimize unknown option")
 
-# point_evaluate options evaluates options set and returns a map of options values suitable for export.
+
+# point_evaluate evaluates a options set and returns a map of options values suitable for export.
 def point_evaluate_options(set: OptionsSet):
+    optimizer = z3.Optimize()
     options = {}
+    pairs = []
 
     for option_clause in set.options:
         literal = option_search_unknown(option_clause.expr)
         if literal is None:
             raise ParameterError("unknown option not found")
 
-        optimizer = z3.Optimize()
         optimizer.add(option_clause.expr.traverse())
-        val = option_optimize(optimizer, literal)
-        if optimizer.check() == z3.unsat:
-            raise ParameterError("our own predicate is unsolvable")
+        ref = option_optimize(optimizer, literal)
+        pairs.append((ref, literal))
 
-        export_name = literal.name[len(optionsPrefix):]
-        options[export_name] = optimizer.model()[val].__str__()
+    if optimizer.check() == z3.unsat:
+        raise ParameterError("cannot optimize options, no solution found")
+
+    for (ref, literal) in pairs:
+        export_name = literal.name[len(optionsPrefix) :]
+        options[export_name] = str(optimizer.model()[ref])
 
     return options
 
+
 # option_search_unknown searches for unknown option identifiers in the predicate.
 def option_search_unknown(predicate):
-    if isinstance(predicate, (ast.StringEnum,ast.Bool,ast.LtInt,ast.LtDuration)):
+    if isinstance(predicate, (ast.StringEnum, ast.Bool, ast.LtInt, ast.LtDuration)):
         if not predicate.name.startswith(optionsPrefix):
             return None
 
         return predicate
-    elif isinstance(predicate, (ast.And, ast.Or,ast.Eq,ast.Lt)):
+    elif isinstance(predicate, (ast.And, ast.Or, ast.Eq, ast.Lt)):
         return option_search_unknown(predicate.L) or option_search_unknown(predicate.R)
     elif isinstance(predicate, ast.Not):
         return option_search_unknown(predicate.expr)
@@ -548,6 +558,7 @@ class Policy:
             out["spec"]["options"] = point_evaluate_options(self.options)
 
         return out
+
 
 class PolicySet:
     """

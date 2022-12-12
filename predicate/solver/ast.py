@@ -426,6 +426,7 @@ class Int(IntMixin):
     def __str__(self):
         return "int({})".format(self.name)
 
+
 class LtInt:
     """
     LtInt is an int that only allows < inequalities.
@@ -453,6 +454,7 @@ class LtInt:
             "unsupported type {}, supported integers only".format(type(val))
         )
 
+
 class LtDuration:
     """
     LtDuration is a duration that only allows < inequalities.
@@ -473,6 +475,7 @@ class LtDuration:
 
     def __lt__(self, val: DurationLiteral):
         return Lt(self, val)
+
 
 class Duration(LtDuration):
     """
