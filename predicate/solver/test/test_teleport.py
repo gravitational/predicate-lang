@@ -209,7 +209,7 @@ class TestTeleport:
             name="p",
             options=OptionsSet(
                 Options((Options.session_ttl < Duration.new(hours=10))),
-                Options(Options.ssh.allow_source_ip_unpinned == False),
+                Options(Options.ssh.pin_source_ip == False),
             ),
             allow=Rules(
                 # unrelated rules are with comma, related rules are part of the predicate
@@ -228,7 +228,7 @@ class TestTeleport:
             & Options(
                 (Options.session_ttl < Duration.new(hours=3))
                 # TODO: `check` doesn't require that `pin_source_ip` is defined here, but should!?.
-                & (Options.ssh.allow_source_ip_unpinned == False)
+                & (Options.ssh.pin_source_ip == False)
             )
         )
 
@@ -242,7 +242,7 @@ class TestTeleport:
             )
             & Options(
                 (Options.session_ttl < Duration.new(hours=3))
-                & (Options.ssh.allow_source_ip_unpinned == True)
+                & (Options.ssh.pin_source_ip == True)
             )
         )
         assert ret is False, "options fails restriction when contradiction is specified"
@@ -252,7 +252,7 @@ class TestTeleport:
             name="a",
             options=OptionsSet(
                 Options((Options.session_ttl < Duration.new(hours=10))),
-                Options(Options.ssh.allow_source_ip_unpinned == False),
+                Options(Options.ssh.pin_source_ip == False),
             ),
             allow=Rules(
                 AccessNode(
@@ -280,7 +280,7 @@ class TestTeleport:
             )
             & Options(
                 (Options.session_ttl < Duration.new(hours=3))
-                & (Options.ssh.allow_source_ip_unpinned == False)
+                & (Options.ssh.pin_source_ip == False)
             )
         )
 
@@ -294,7 +294,7 @@ class TestTeleport:
             )
             & Options(
                 (Options.session_ttl < Duration.new(hours=3))
-                & (Options.ssh.allow_source_ip_unpinned == True)
+                & (Options.ssh.pin_source_ip == True)
             )
         )
 
