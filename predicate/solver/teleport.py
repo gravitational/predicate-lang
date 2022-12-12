@@ -46,6 +46,9 @@ class SSHOptions:
     # Whether to allow port forwarding.
     allow_port_forwarding = ast.Bool("options.ssh.allow_port_forwarding")
 
+    # Whether to allow X11 forwarding.
+    allow_x11_forwarding = ast.Bool("options.ssh.allow_x11_forwarding")
+
     # Whether to allow file copying.
     allow_file_copying = ast.Bool("options.ssh.allow_file_copying")
 
@@ -79,6 +82,9 @@ class Options(ast.Predicate):
     locking_mode = ast.StringEnum(
         "options.locking_mode", set([(0, "best_effort"), (1, "strict")])
     )
+
+    # Enforce per-session MFA or PIV-hardware key restrictions on user login sessions.
+    session_mfa = ast.StringEnum("options.session_mfa", set([(0, "no"), (1, "yes")]))
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
