@@ -30,17 +30,54 @@ def scoped(cls):
     return cls
 
 
+class SSHOptions:
+    """
+    SSHOptions defines SSH specific options.
+    """
+
+    # The mode used for recording SSH sessions.
+    session_recording_mode = ast.StringEnum(
+        "options.ssh.session_recording_mode", set([(0, "best_effort"), (1, "strict")])
+    )
+
+    # Whether to allow agent forwarding.
+    allow_agent_forwarding = ast.Bool("options.ssh.allow_agent_forwarding")
+
+    # Whether to allow port forwarding.
+    allow_port_forwarding = ast.Bool("options.ssh.allow_port_forwarding")
+
+    # Whether to allow file copying.
+    allow_file_copying = ast.Bool("options.ssh.allow_file_copying")
+
+    # If false, terminates live sessions when the certificate expires.
+    allow_expired_cert = ast.Bool("options.ssh.allow_expired_cert")
+
+    # If true, do not enforce IP pinning.
+    allow_source_ip_unpinned = ast.Bool("options.ssh.allow_source_ip_unpinned")
+
+    # The max concurrent SSH connections a user can have.
+    max_connections = ast.LtInt("options.ssh.max_connections")
+
+    # The max concurrent SSH channels a user can have per connection.
+    max_sessions_per_connection = ast.LtInt("options.ssh.max_sessions_per_connection")
+
+    # Disconnect clients after this amount of time of inactivity.
+    client_idle_timeout = ast.LtDuration("options.ssh.client_idle_timeout")
+
 class Options(ast.Predicate):
     """
     Options apply to some allow rules if they match
     """
 
-    max_session_ttl = ast.LtDuration("options.max_session_ttl")
+    # SSH specific options
+    ssh = SSHOptions
 
-    pin_source_ip = ast.Bool("options.pin_source_ip")
+    # Max TTL for issued certificates.
+    session_ttl = ast.LtDuration("options.session_ttl")
 
-    recording_mode = ast.StringEnum(
-        "options.recording_mode", set([(0, "best_effort"), (1, "strict")])
+    # The locking mode used.
+    locking_mode = ast.StringEnum(
+        "options.locking_mode", set([(0, "best_effort"), (1, "strict")])
     )
 
     def __init__(self, expr):
@@ -293,6 +330,17 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+def point_evaluate_options(set: OptionsSet):
+    options = {}
+
+    for option_clause in set.options:
+        pass
+
+    return options
+
+def option_search_unknown(predicate):
+    if isinstance(predicate, (ast.String,ast.Bool,ast.StringEnum)):
+        pass
 
 # t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
 def t_expr(predicate):
@@ -452,7 +500,6 @@ class Policy:
             out["spec"]["deny"] = group_rules(operator.and_, self.deny.rules)
 
         return out
-
 
 class PolicySet:
     """
