@@ -516,7 +516,7 @@ class Duration(LtDuration):
 class Bool:
     def __init__(self, name: str):
         self.name = name
-        self.val = z3.Int(self.name)
+        self.val = z3.Bool(self.name)
 
     def __eq__(self, val):
         if isinstance(val, bool):

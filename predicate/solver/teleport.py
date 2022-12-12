@@ -55,8 +55,8 @@ class SSHOptions:
     # If false, terminates live sessions when the certificate expires.
     allow_expired_cert = ast.Bool("options.ssh.allow_expired_cert")
 
-    # If true, do not enforce IP pinning.
-    allow_source_ip_unpinned = ast.Bool("options.ssh.allow_source_ip_unpinned")
+    # If false, do not enforce IP pinning.
+    pin_source_ip = ast.Bool("options.ssh.pin_source_ip")
 
     # The max concurrent SSH connections a user can have.
     max_connections = ast.LtInt("options.ssh.max_connections")
@@ -340,8 +340,33 @@ class Rules:
 
 optionsPrefix = "options."
 
+bool_int_map_fn = z3.RecFunction("bool_int_map", z3.BoolSort(), z3.IntSort())
+
+
+def define_bool_int_map():
+    b = z3.Bool("bool_int_map_b")
+    z3.RecAddDefinition(
+        bool_int_map_fn,
+        [b],
+        z3.If(b, z3.IntVal(1), z3.IntVal(0)),
+    )
+
+
+define_bool_int_map()
+
 # option_optimize optimizes the option literal towards it's preferred value and returns a z3 reference to the optimized value.
 def option_optimize(optimizer, literal):
+    boolean_false = [
+        Options.ssh.allow_agent_forwarding.name,
+        Options.ssh.allow_x11_forwarding.name,
+        Options.ssh.pin_source_ip.name,
+    ]
+    boolean_true = [
+        Options.ssh.allow_port_forwarding.name,
+        Options.ssh.allow_file_copying.name,
+        Options.ssh.allow_expired_cert.name,
+    ]
+
     match literal.name:
         case Options.session_ttl.name | Options.ssh.max_connections | Options.ssh.max_sessions_per_connection | Options.ssh.client_idle_timeout:
             ref = literal.val
@@ -353,6 +378,14 @@ def option_optimize(optimizer, literal):
             ref = literal.fn(literal.fn_key_arg)
             optimizer.minimize(ref)
             return literal.fn_key_arg
+        case opt if opt in boolean_false:
+            ref = bool_int_map_fn(literal.val)
+            optimizer.minimize(ref)
+            return literal.val
+        case opt if opt in boolean_true:
+            ref = bool_int_map_fn(literal.val)
+            optimizer.maximize(ref)
+            return literal.val
         case _:
             raise Exception("failed to optimize unknown option")
 
