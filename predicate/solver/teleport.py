@@ -342,7 +342,13 @@ optionsPrefix = "options."
 def option_optimize(optimizer, literal):
     match literal.name:
         case Options.session_ttl.name:
-            return optimizer.maximize(literal.val)
+            ref = literal.val
+            optimizer.maximize(ref)
+            return ref
+        case Options.locking_mode.name:
+            ref = literal.fn(literal.fn_key_arg)
+            optimizer.minimize(ref)
+            return literal.fn_key_arg
         case _:
             raise Exception("failed to optimize unknown option")
 
@@ -357,12 +363,12 @@ def point_evaluate_options(set: OptionsSet):
 
         optimizer = z3.Optimize()
         optimizer.add(option_clause.expr.traverse())
-        option_optimize(optimizer, literal)
+        val = option_optimize(optimizer, literal)
         if optimizer.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
 
         export_name = literal.name[len(optionsPrefix):]
-        options[export_name] = optimizer.model()[literal.val].__str__()
+        options[export_name] = optimizer.model()[val].__str__()
 
     return options
 
