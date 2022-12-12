@@ -336,17 +336,50 @@ class Rules:
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
 
+optionsPrefix = "options."
+
+# option_optimize optimizes the option literal towards it's preferred value.
+def option_optimize(optimizer, literal):
+    match literal.name:
+        case Options.session_ttl.name:
+            return optimizer.maximize(literal.val)
+        case _:
+            raise Exception("failed to optimize unknown option")
+
+# point_evaluate options evaluates options set and returns a map of options values suitable for export.
 def point_evaluate_options(set: OptionsSet):
     options = {}
 
     for option_clause in set.options:
-        pass
+        literal = option_search_unknown(option_clause.expr)
+        if literal is None:
+            raise ParameterError("unknown option not found")
+
+        optimizer = z3.Optimize()
+        optimizer.add(option_clause.expr.traverse())
+        option_optimize(optimizer, literal)
+        if optimizer.check() == z3.unsat:
+            raise ParameterError("our own predicate is unsolvable")
+
+        export_name = literal.name[len(optionsPrefix):]
+        options[export_name] = optimizer.model()[literal.val].__str__()
 
     return options
 
+# option_search_unknown searches for unknown option identifiers in the predicate.
 def option_search_unknown(predicate):
-    if isinstance(predicate, (ast.String,ast.Bool,ast.StringEnum)):
-        pass
+    if isinstance(predicate, (ast.StringEnum,ast.Bool,ast.LtInt,ast.LtDuration)):
+        if not predicate.name.startswith(optionsPrefix):
+            return None
+
+        return predicate
+    elif isinstance(predicate, (ast.And, ast.Or,ast.Eq,ast.Lt)):
+        return option_search_unknown(predicate.L) or option_search_unknown(predicate.R)
+    elif isinstance(predicate, ast.Not):
+        return option_search_unknown(predicate.expr)
+    else:
+        return None
+
 
 # t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
 def t_expr(predicate):
@@ -504,6 +537,9 @@ class Policy:
 
         if self.deny.rules:
             out["spec"]["deny"] = group_rules(operator.and_, self.deny.rules)
+
+        if self.options:
+            out["spec"]["options"] = point_evaluate_options(self.options)
 
         return out
 
