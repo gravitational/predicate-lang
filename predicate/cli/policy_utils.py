@@ -17,6 +17,7 @@ limitations under the License.
 import ast
 from jinja2 import FileSystemLoader, Environment, select_autoescape
 from pathlib import Path
+from solver.teleport import Policy
 
 
 def get_classname(policyfile: str):
@@ -26,16 +27,21 @@ def get_classname(policyfile: str):
     with open(policyfile, 'r', encoding="utf-8") as file:
         return parse_classname(file.read())
 
-
+                
 def parse_classname(policy: str):
     """
     Parse class name using ast. Expects one class per poliy file.
     """
     parsed = ast.parse(policy)
     nodes = ast.walk(parsed)
+
     for node in nodes:
         if isinstance(node, ast.ClassDef):
-            return node.name
+            for n in node.body:
+                if isinstance(n, ast.Assign):
+                    for k in n.targets:
+                        if k.id == "p":
+                            return node.name
     return ""
 
 

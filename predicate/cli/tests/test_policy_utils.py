@@ -1,7 +1,7 @@
 from pathlib import Path
 import shutil
 
-from ..util import create_policy_from_template, parse_classname, normalize_policy_name, create_policy_file
+from ..policy_utils import create_policy_from_template, parse_classname, normalize_policy_name, create_policy_file
 
 
 def test_create_policy_file():

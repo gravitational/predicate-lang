@@ -5,7 +5,7 @@ from types import FunctionType
 import click
 import yaml
 
-from .util import create_policy_file, get_classname
+from .policy_utils import create_policy_file, get_classname
 
 
 @click.group()
