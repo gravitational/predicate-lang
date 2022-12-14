@@ -5,7 +5,7 @@ from types import FunctionType
 import click
 import yaml
 
-from .policy_utils import create_policy_file, get_classname
+from cli.policy_utils import create_policy_file, get_policy
 
 
 @click.group()
@@ -19,11 +19,7 @@ def export(policy_file):
     """
     Export to YAML compatible policy.
     """
-    class_name = get_classname(policy_file)
-
-    # Grabs the class and directly reads the policy since it's a static member.
-    module = run_path(policy_file)
-    policy = module[class_name].p
+    _, policy = get_policy(policy_file)
 
     # Dump the policy into a Teleport resource and write it to the terminal.
     obj = policy.export()
@@ -39,9 +35,8 @@ def deploy(policy_file, sudo):
     Export to YAML compatible policy and deploy to Teleport.
     """
     click.echo("parsing policy...")
-    class_name = get_classname(policy_file)
-    module = run_path(policy_file)
-    policy = module[class_name].p
+    _, policy = get_policy(policy_file)
+
     click.echo("translating policy...")
     obj = policy.export()
     serialized = yaml.dump(obj)
@@ -63,7 +58,7 @@ def test(policy_file):
     """
 
     # Extract the defined policy class and filter out all test functions
-    class_name = get_classname(policy_file)
+    class_name, _ = get_policy(policy_file)
     module = run_path(policy_file)
     policy_class = module[class_name]
     fns = {

@@ -14,35 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import ast
-from jinja2 import FileSystemLoader, Environment, select_autoescape
+from typing import Any
+from typing import Tuple
 from pathlib import Path
+from runpy import run_path
+from jinja2 import FileSystemLoader, Environment, select_autoescape
 from solver.teleport import Policy
 
 
-def get_classname(policyfile: str):
+def get_policy(policy_file: str) -> Tuple[str, dict[str, Any]]:
     """
-    Get class name from policy file.
+    Return classname and policy from given file
     """
-    with open(policyfile, 'r', encoding="utf-8") as file:
-        return parse_classname(file.read())
+    module = run_path(policy_file)
 
-                
-def parse_classname(policy: str):
-    """
-    Parse class name using ast. Expects one class per poliy file.
-    """
-    parsed = ast.parse(policy)
-    nodes = ast.walk(parsed)
+    class_name = ""
+    for key, value in module.items():
+        # Grabs 'p' of Policy class
+        if hasattr(value, 'p') and isinstance(value.p, Policy):
+            class_name = key
+    
+    return class_name, module[class_name].p
 
-    for node in nodes:
-        if isinstance(node, ast.ClassDef):
-            for n in node.body:
-                if isinstance(n, ast.Assign):
-                    for k in n.targets:
-                        if k.id == "p":
-                            return node.name
-    return ""
 
 
 def create_policy_file(name: str, path: str):

@@ -1,8 +1,8 @@
 from pathlib import Path
 import shutil
 
-from ..policy_utils import create_policy_from_template, parse_classname, normalize_policy_name, create_policy_file
-
+from cli.policy_utils import create_policy_from_template, get_policy, normalize_policy_name, create_policy_file
+from solver.teleport import Policy, Rules
 
 def test_create_policy_file():
     policy_name = " test file_name-master Dev master "
@@ -47,55 +47,10 @@ class Developer:
     assert (sample.strip() == policy.strip()) is True
 
 
-def test_parse_classname():
-    policy1 = """
-from solver.ast import Duration
-from solver.teleport import AccessNode, Node, Options, OptionsSet, Policy, Rules, User
+def test_get_policy():
+    class_name, policy = get_policy("cli/tests/mock_policy.py")
+    assert (class_name == "Developer") & isinstance(policy, Policy) is True
 
-
-class Developer:
-    p = Policy(
-        name="developer",
-        loud=False,
-        allow=Rules(
-            AccessNode(
-                ((AccessNode.login == User.name) & (User.name != "root"))
-                | (User.traits["team"] == ("admins",))
-            ),
-        ),
-        options=OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
-        deny=Rules(
-            AccessNode(
-                (AccessNode.login == "mike")
-                | (AccessNode.login == "jester")
-                | (Node.labels["env"] == "prod")
-            ),
-        ),
-    )
-
-    def test_developer(self):
-        # Alice will be able to login to any machine as herself
-        ret, _ = self.p.check(
-            AccessNode(
-                (AccessNode.login == "alice")
-                & (User.name == "alice")
-                & (Node.labels["env"] == "dev")
-            )
-        )
-        assert ret is True, "Alice can login with her user to any node"
-
-        # No one is permitted to login as mike
-        ret, _ = self.p.query(AccessNode((AccessNode.login == "mike")))
-        assert ret is False, "This role does not allow access as mike"
-
-        # No one is permitted to login as jester
-        ret, _ = self.p.query(AccessNode((AccessNode.login == "jester")))
-        assert ret is False, "This role does not allow access as jester"
-
-        """
-
-    class_name = parse_classname(policy1)
-    assert (class_name == "Developer") is True
 
 
 def test_normalize_policy_name():
