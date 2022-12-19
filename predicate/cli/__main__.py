@@ -6,6 +6,7 @@ import click
 import yaml
 
 from cli.policy_utils import create_policy_file, get_policy
+from lint.linter import linter
 
 
 @click.group()
@@ -92,6 +93,16 @@ def new(policy):
         # keeping "policies" as a default directory
         create_policy_file(value, "")
         click.echo(f'policy "{value}" created.')
+
+@main.command()
+@click.argument("policy-file")
+def lint(policy_file):
+    """
+    Run Predicate linter on given file
+    """
+    lint_result = linter(policy_file)
+    
+    click.echo(f"Found violating rule: \n {lint_result}")
 
 
 if __name__ == "__main__":
