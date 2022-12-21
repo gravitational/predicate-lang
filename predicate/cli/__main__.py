@@ -101,8 +101,10 @@ def lint(policy_file):
     Run Predicate linter on given file
     """
     lint_result = linter(policy_file)
-    
-    click.echo(f"Found violating rule: \n {lint_result}")
+    click.echo()
+    click.secho(f"Found {len(lint_result)} rule violations: \n", fg='red' if len(lint_result) >=1 else 'green')
+    for report in lint_result:
+        click.echo(f"{report}")
 
 
 if __name__ == "__main__":

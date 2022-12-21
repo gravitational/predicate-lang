@@ -427,7 +427,7 @@ class Policy:
     def query(self, other: ast.Predicate):
         return PolicySet([self], self.loud).query(other)
 
-    def build_predicate(self, other: ast.Predicate, rule_scope ):
+    def build_predicate(self, other: ast.Predicate, rule_scope: RULESCOPE = "all" ):
         return PolicySet([self], self.loud).build_predicate(other, rule_scope)
 
     def export(self):
