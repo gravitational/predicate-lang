@@ -15,9 +15,6 @@ limitations under the License.
 """
 
 import ast
-from io import TextIOWrapper
-
-
 
 class AllowVisitor(ast.NodeVisitor):
     """Collect start and end line number for allow rules"""
@@ -43,6 +40,3 @@ def get_ast_tree(code_buf: str):
     return ast.parse(code_buf)
 
 
-def get_code_snippet(file: TextIOWrapper, lineno, end_lineno)-> str:
-    """Return code snippet from policy file"""
-    return ' '.join(file.readlines()[lineno:end_lineno])

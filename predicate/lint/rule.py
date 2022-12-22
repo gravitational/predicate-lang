@@ -13,47 +13,36 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
-from lint.ast import AllowVisitor, get_ast_tree, get_code_snippet
-from lint.report import LinterMessage
-
+from runpy import run_path
+import traceback
 
 
-class ForbidAllow():
+class NoAllow():
     """Checks if Policy contains spcefic rules denied by administrator"""
-    def __init__(self, class_name, description):
-        self.lineno = 0
-        self.end_lineno = 0
-        self.class_name = class_name
-        self.description = description
 
-
-    def check(self, rule, policy, file_name ):
+    def check(self, rule, policy):
         """check predicate"""
         check = None
         try:
             check = policy.equivalent(rule, "allow")
-            return check[0], self.get_report(file_name)
-        except Exception as err:
-            return False, err
-          
-    def get_report(self, file_name):
-        """ Collect start and end line, along with code snippet using AST """
-        with open(file_name, 'r', encoding="utf-8") as file:
-            data = file.read()
-            tree = get_ast_tree(data)
-            visitor = AllowVisitor(self.class_name)
-            visitor.visit(tree)
-            self.lineno, self.end_lineno = visitor.lineno, visitor.end_lineno
-
-            file.seek(0)
-            code_snippet = get_code_snippet(file, self.lineno, self.end_lineno)
-
-            return LinterMessage(
-                        line_number = self.lineno,
-                        code_snippet= f"{code_snippet}",
-                        description= self.description,
-                        file_name = file_name
-                    )
+            if check is not None:
+                return check[0]
+        except Exception:
+            return False
+        else:
+            return False
 
 
+def get_rules(path: str, name: str):
+    """Returns linter rules"""
+    try:
+        module = run_path(path)
+        return module[name]
+    except AttributeError:
+        # TODO: replace traceback once structured logging is implemented?
+        traceback.print_exc()
+        print(f"Invalid rule found in {path}")
+        return None
+
+
+    

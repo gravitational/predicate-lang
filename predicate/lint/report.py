@@ -14,21 +14,49 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-class LinterMessage:
-    """ Defines reporting variables"""
+from lint.ast import get_ast_tree, AllowVisitor
+from io import TextIOWrapper
+from lint.constants import RuleCategory
+
+
+def get_code_snippet(file: TextIOWrapper, lineno, end_lineno) -> str:
+    """Return code snippet from policy file.
+    We want (lineno - 1) to get full Rule snippet
+    """
+    # TODO: Policy file will always be more than 2 lines of python code?
+    return ' '.join(file.readlines()[lineno - 1:end_lineno])
+
+
+class Report:
+    """Reports linter result"""
+
     def __init__(
         self,
-        line_number: str,
-        code_snippet: str,
-        description=str,
-        file_name= str,
-        ):
-        self.line_number = line_number
-        self.code_snippet = code_snippet
+        rule_category: str,
+        description: str,
+        file_name: str,
+        class_name: str,
+    ):
+        self.rule_category = rule_category
         self.description = description
         self.file_name = file_name
+        self.class_name = class_name
+        self.lineno = 0
+        self.end_lineno = 0
+        self.code_snippet = ""
 
-    def __str__(self):
-        return f"File: {self.file_name}, Line number: {self.line_number} \nDescription: {self.description} \nCode: \n {self.code_snippet}"
+    def get_report(self, file_name):
+        """ Collect start and end line, along with code snippet using AST """
+        with open(file_name, 'r', encoding="utf-8") as file:
+            data = file.read()
+            tree = get_ast_tree(data)
+            visitor = None
+            if self.rule_category == RuleCategory.NO_ALLOW:
+                visitor = AllowVisitor(self.class_name)
+            visitor.visit(tree)
+            self.lineno, self.end_lineno = visitor.lineno, visitor.end_lineno
 
+            file.seek(0)
+            self.code_snippet = get_code_snippet(file, self.lineno, self.end_lineno)
 
+            return f"Rule Category: {self.rule_category} \nFile: {self.file_name}, Line number: {self.lineno} \nDescription: {self.description} \nCode: \n {self.code_snippet}"

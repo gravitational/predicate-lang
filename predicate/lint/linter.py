@@ -14,43 +14,41 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from runpy import run_path
+
 import yaml
-
 from cli.policy_utils import get_policy
-from lint.rule import ForbidAllow
-from lint.report import LinterMessage
-
+from lint.rule import NoAllow, get_rules
+from lint.report import Report
+from lint.constants import RuleCategory
 
 
 def get_lint_config():
     """Returns linter config file"""
-    #TODO: remove hardcoded config file location 
+    # TODO: remove hardcoded config file location.
     with open("predicatelint.yml", "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
-def get_rule_file():
-    """Returns linter rule files"""
-    #TODO: should return different rule files for different linter types
-    config = get_lint_config()
-    module = run_path(config["config_files"]["disallow_rules"])
-    rules = module['forbid_allow_rules']
-    return rules
-    
+
 def linter(policy_file):
     """Run linter on a given file"""
-    reports: list[LinterMessage] = []
+    reports = []
     class_name, policy = get_policy(policy_file)
 
-    rules = get_rule_file()
+    config = get_lint_config()
+    active_rules = config['linter']['active_rules']
 
-    for rule_description, rule in rules.items():
-        report = ForbidAllow(class_name, rule_description).check(rule, policy, policy_file)
-        if report[0]:
-            reports.append(report[1])
-  
+    for rule_type in active_rules:
+        if rule_type == RuleCategory.NO_ALLOW:
+            rules = get_rules(config['rule_files'][RuleCategory.NO_ALLOW], RuleCategory.NO_ALLOW)
+            if rules is not None:
+                for rule_description, rule in rules.items():
+                    result = NoAllow().check(rule, policy)
+                    if result:
+                        reports.append(Report(
+                            RuleCategory.NO_ALLOW,
+                            rule_description,
+                            policy_file,
+                            class_name
+                        ).get_report(policy_file))
+
     return reports
-
-
-
-

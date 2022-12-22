@@ -1,10 +1,9 @@
 linter:
     # only run following linter rules
-    active_linters:
-        - base
-        - disallow_rules
+    active_rules:
+        - no_allow
 
 
 # location of rule files
-config_files:
-    disallow_rules: lint/rules/forbid_allow.py
+rule_files:
+    no_allow: lint/rules/no_allow.py
