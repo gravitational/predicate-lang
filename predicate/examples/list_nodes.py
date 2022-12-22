@@ -8,8 +8,7 @@ class Teleport:
         loud=False,
         allow=Rules(
             Resource(
-                (Resource.namespace == "default")
-                & (Resource.kind == "node")
+                (Resource.kind == "node")
                 & StringTuple(("list", "read")).contains(Resource.verb)
             ),
             AccessNode((AccessNode.login == "root")),

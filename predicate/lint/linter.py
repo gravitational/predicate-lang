@@ -21,34 +21,57 @@ from lint.rule import NoAllow, get_rules
 from lint.report import Report
 from lint.constants import RuleCategory
 
-
-def get_lint_config():
-    """Returns linter config file"""
-    # TODO: remove hardcoded config file location.
-    with open("predicatelint.yml", "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+from pathlib import Path
 
 
-def linter(policy_file):
-    """Run linter on a given file"""
-    reports = []
-    class_name, policy = get_policy(policy_file)
+class Linter:
+    """Linter tests given file or directory agains various linter rules"""
 
-    config = get_lint_config()
-    active_rules = config['linter']['active_rules']
+    def __init__(self, policy_file_path: str):
+        self.policy_file_path = policy_file_path
+        self.config = self.get_lint_config()
+        self.policies_path = []
 
-    for rule_type in active_rules:
-        if rule_type == RuleCategory.NO_ALLOW:
-            rules = get_rules(config['rule_files'][RuleCategory.NO_ALLOW], RuleCategory.NO_ALLOW)
-            if rules is not None:
-                for rule_description, rule in rules.items():
-                    result = NoAllow().check(rule, policy)
-                    if result:
-                        reports.append(Report(
-                            RuleCategory.NO_ALLOW,
-                            rule_description,
-                            policy_file,
-                            class_name
-                        ).get_report(policy_file))
+        self.collect_policies(policy_file_path)
 
-    return reports
+    def collect_policies(self, policy_file_path):
+        """Collect all policy files if directory is given"""
+        file_or_dir = Path(policy_file_path)
+        if file_or_dir.is_dir():
+            for file in Path(file_or_dir).glob("*.py"):
+                # collect policy files except the ones that trails with __
+                # filters files or directories such as __init__, __pycache__ etc.
+                if "__" not in file.stem:
+                    self.policies_path.append(str(file))
+        else:
+            self.policies_path.append(policy_file_path)
+
+    def get_lint_config(self):
+        """Returns linter config file"""
+        # TODO: remove hardcoded config file location.
+        with open("predicatelint.yml", "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    def run(self):
+        """Main linter runner"""
+        reports = []
+
+        for policy_path in self.policies_path:
+            class_name, policy = get_policy(policy_path)
+
+            active_rules = self.config['linter']['active_rules']
+
+            for rule_type in active_rules:
+                if rule_type == RuleCategory.NO_ALLOW:
+                    lint_rules = get_rules(self.config['rule_files'][RuleCategory.NO_ALLOW], RuleCategory.NO_ALLOW)
+                    if lint_rules is not None:
+                        for rule_description, rule in lint_rules.items():
+                            result = NoAllow().check(rule, policy)
+                            if result:
+                                reports.append(Report(
+                                    RuleCategory.NO_ALLOW,
+                                    rule_description,
+                                    class_name
+                                ).get_report(policy_path))
+
+        return reports

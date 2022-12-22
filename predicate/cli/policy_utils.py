@@ -32,12 +32,11 @@ def get_policy(policy_file: str) -> Tuple[str, dict[str, Any]]:
     for key, value in module.items():
         if hasattr(value, 'p') and isinstance(value.p, Policy):
             class_name = key
-    
+
     if class_name == "":
         raise ValueError(f"No instance of Policy found in {policy_file}")
-    
-    return class_name, module[class_name].p
 
+    return class_name, module[class_name].p
 
 
 def create_policy_file(name: str, path: str):

@@ -43,6 +43,3 @@ def get_rules(path: str, name: str):
         traceback.print_exc()
         print(f"Invalid rule found in {path}")
         return None
-
-
-    

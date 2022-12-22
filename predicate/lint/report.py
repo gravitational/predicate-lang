@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from lint.ast import get_ast_tree, AllowVisitor
 from io import TextIOWrapper
+from lint.ast import get_ast_tree, AllowVisitor
 from lint.constants import RuleCategory
 
 
@@ -34,12 +34,10 @@ class Report:
         self,
         rule_category: str,
         description: str,
-        file_name: str,
         class_name: str,
     ):
         self.rule_category = rule_category
         self.description = description
-        self.file_name = file_name
         self.class_name = class_name
         self.lineno = 0
         self.end_lineno = 0
@@ -59,4 +57,4 @@ class Report:
             file.seek(0)
             self.code_snippet = get_code_snippet(file, self.lineno, self.end_lineno)
 
-            return f"Rule Category: {self.rule_category} \nFile: {self.file_name}, Line number: {self.lineno} \nDescription: {self.description} \nCode: \n {self.code_snippet}"
+            return f"Rule Category: {self.rule_category} \nFile: {file_name}, Line number: {self.lineno} \nDescription: {self.description} \nCode: \n {self.code_snippet}"

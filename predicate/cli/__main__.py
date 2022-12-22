@@ -6,7 +6,8 @@ import click
 import yaml
 
 from cli.policy_utils import create_policy_file, get_policy
-from lint.linter import linter
+from lint.linter import Linter
+from shutil import get_terminal_size
 
 
 @click.group()
@@ -94,17 +95,21 @@ def new(policy):
         create_policy_file(value, "")
         click.echo(f'policy "{value}" created.')
 
+
 @main.command()
-@click.argument("policy-file")
-def lint(policy_file):
+@click.argument("policy_file_path")
+def lint(policy_file_path):
     """
     Run Predicate linter on given file
     """
-    lint_result = linter(policy_file)
+    lint_result = Linter(policy_file_path).run()
     click.echo()
-    click.secho(f"Found {len(lint_result)} rule violations: \n", fg='red' if len(lint_result) >=1 else 'green')
     for report in lint_result:
+        if len(lint_result) > 1:
+            click.secho("-" * (get_terminal_size().columns // 2), fg='yellow')
         click.echo(f"{report}")
+
+    click.secho(f"Found {len(lint_result)} rule violation(s). \n", fg='red' if len(lint_result) >= 1 else 'green')
 
 
 if __name__ == "__main__":
