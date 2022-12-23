@@ -1,8 +1,7 @@
 from lint.rule import NoAllow, get_rules
 from solver.teleport import AccessNode, User
 from runpy import run_path
-from pytest import raises
-from solver.errors import ParameterError
+
 
 def test_NoAllow():
 

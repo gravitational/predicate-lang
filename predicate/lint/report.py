@@ -57,11 +57,20 @@ class Report:
             file.seek(0)
             self.code_snippet = get_code_snippet(file, self.lineno, self.end_lineno)
 
-            return f"File: {file_name}, Line number: {self.lineno} \nRule Category: {self.rule_category} \nDescription: {self.description} \nCode: \n {self.code_snippet}"
+            return {
+                "file": file_name,
+                "category": self.rule_category,
+                "description": self.description,
+                "line_number": self.lineno,
+                "line_end_number": self.end_lineno,
+                "code_snippet": self.code_snippet
+            }
+
 
 
 class ErrorReport:
     """"Errors encountered while running linter"""
+
     def __init__(
         self,
         file_name: str,

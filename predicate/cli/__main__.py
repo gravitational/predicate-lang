@@ -7,7 +7,7 @@ import yaml
 
 from cli.policy_utils import create_policy_file, get_policy
 from lint.linter import Linter
-from shutil import get_terminal_size
+from cli.output import print_colored, print_json
 
 
 @click.group()
@@ -97,28 +97,18 @@ def new(policy):
 
 
 @main.command()
+@click.option('--out', type=click.Choice(['stdout', 'json'], case_sensitive=False))
 @click.argument("policy_file_path")
-def lint(policy_file_path):
+def lint(out, policy_file_path):
     """
     Run Predicate linter on given file
     """
     lint_result = Linter(policy_file_path).run()
-    click.echo()
-    if lint_result is not None:
-        if len(lint_result[1]) >= 1:
-            click.secho("-" * (get_terminal_size().columns // 2), fg='red')
-            click.secho(f"Found {len(lint_result[1])} error(s) during scan. \n", fg='red' )
-            for errors in lint_result[1]:
-                click.echo(f"{errors}")
-                click.secho("-" * (get_terminal_size().columns // 4), fg='red')
-            click.secho("-" * (get_terminal_size().columns // 2), fg='blue')
-        for report in lint_result[0]:
-            if len(lint_result[0]) > 1:
-                click.secho("-" * (get_terminal_size().columns // 2), fg='yellow')
-            click.echo(f"{report}")
-
-        click.secho(f"Found {len(lint_result[0])} rule violation(s). \n", fg='red' if len(lint_result[0]) >= 1 else 'green')
-
+    if out is not None:
+        if out.strip() == "json":
+            print_json(lint_result)
+    else:
+        print_colored(lint_result)
 
 if __name__ == "__main__":
     main()
