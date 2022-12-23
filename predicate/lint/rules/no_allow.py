@@ -1,16 +1,11 @@
 """
 Sample forbid allow rules
 """
-
-from solver.teleport import AccessNode, User, JoinSession, Session, Node, Rules
+from solver.teleport import AccessNode, User, JoinSession, Session, Node
 
 
 no_allow = {
     "no root users": AccessNode(User.name == "root"),
-    "no if user is from admin team": AccessNode(
-        ((AccessNode.login == User.name) & (User.name != "root"))
-        | (User.traits["team"] == ("admins",))
-    ),
     "no join session by interns": JoinSession(
         (User.traits["team"].contains("dev"))
         & ((JoinSession.mode == "observer") | (JoinSession.mode == "peer"))
@@ -20,5 +15,9 @@ no_allow = {
         )
     ),
     "no wildcard assignment": AccessNode(User.name == "*"),
+    "no if user is from admin team": AccessNode(
+        ((AccessNode.login == User.name) & (User.name != "root"))
+        | (User.traits["team"] == ("admins",))
+    ),
     "no dbadmin in prod environment": AccessNode((Node.labels["env"] == "prod") & (User.name == "dbadmin"))
 }

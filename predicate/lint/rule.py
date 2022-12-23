@@ -14,32 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from runpy import run_path
-import traceback
+from typing import Any
+from solver.errors import ParameterError
 
 
 class NoAllow():
     """Checks if Policy contains spcefic rules denied by administrator"""
 
-    def check(self, rule, policy):
+    def check(self, policy, lint_rule):
         """check predicate"""
-        check = None
         try:
-            check = policy.equivalent(rule, "allow")
-            if check is not None:
-                return check[0]
-        except Exception:
-            return False
-        else:
+            check = policy.equivalent(lint_rule, "allow")
+            return check[0]
+        except ParameterError:
             return False
 
 
-def get_rules(path: str, name: str):
+def get_rules(path: str, name: str)-> dict[str, Any]:
     """Returns linter rules"""
-    try:
-        module = run_path(path)
-        return module[name]
-    except AttributeError:
-        # TODO: replace traceback once structured logging is implemented?
-        traceback.print_exc()
-        print(f"Invalid rule found in {path}")
-        return None
+    module = run_path(path)
+    return module[name]
+
+

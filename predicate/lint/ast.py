@@ -16,8 +16,10 @@ limitations under the License.
 
 import ast
 
+
 class AllowVisitor(ast.NodeVisitor):
     """Collect start and end line number for allow rules"""
+
     def __init__(self, class_name):
         self.lineno = 0
         self.end_lineno = 0
@@ -31,12 +33,10 @@ class AllowVisitor(ast.NodeVisitor):
                         if assign.arg == "allow":
                             self.lineno = assign.lineno
                             self.end_lineno = assign.end_lineno
-                        
+
         self.generic_visit(tree)
 
 
 def get_ast_tree(code_buf: str):
     """ return ast tree"""
     return ast.parse(code_buf)
-
-

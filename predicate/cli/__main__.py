@@ -104,12 +104,20 @@ def lint(policy_file_path):
     """
     lint_result = Linter(policy_file_path).run()
     click.echo()
-    for report in lint_result:
-        if len(lint_result) > 1:
-            click.secho("-" * (get_terminal_size().columns // 2), fg='yellow')
-        click.echo(f"{report}")
+    if lint_result is not None:
+        if len(lint_result[1]) >= 1:
+            click.secho("-" * (get_terminal_size().columns // 2), fg='red')
+            click.secho(f"Found {len(lint_result[1])} error(s) during scan. \n", fg='red' )
+            for errors in lint_result[1]:
+                click.echo(f"{errors}")
+                click.secho("-" * (get_terminal_size().columns // 4), fg='red')
+            click.secho("-" * (get_terminal_size().columns // 2), fg='blue')
+        for report in lint_result[0]:
+            if len(lint_result[0]) > 1:
+                click.secho("-" * (get_terminal_size().columns // 2), fg='yellow')
+            click.echo(f"{report}")
 
-    click.secho(f"Found {len(lint_result)} rule violation(s). \n", fg='red' if len(lint_result) >= 1 else 'green')
+        click.secho(f"Found {len(lint_result[0])} rule violation(s). \n", fg='red' if len(lint_result[0]) >= 1 else 'green')
 
 
 if __name__ == "__main__":

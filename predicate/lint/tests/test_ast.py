@@ -7,7 +7,7 @@ END_LINENO = 25
 
 def test_AllowVisitor():
     class_name = "Developer"
-    with open('lint/tests/mock_ast_test.py', 'r') as file:
+    with open('lint/tests/mock_ast_rule.py', 'r') as file:
         data = file.read()
         tree = get_ast_tree(data)
         visitor = AllowVisitor(class_name)

@@ -1,12 +1,5 @@
 from solver.ast import Duration
-from solver.teleport import AccessNode, Node, Options, OptionsSet, Policy, Rules, User
-
-
-class Administrator:
-    p = Rules(AccessNode((AccessNode.login == "dev")))
-
-    def test_administrator(self):
-        pass
+from solver.teleport import AccessNode, Node, Options, OptionsSet, Policy, Rules, User, JoinSession
 
 
 class Developer:
@@ -18,9 +11,12 @@ class Developer:
                 ((AccessNode.login == "testuser") & (User.name != "testuser"))
                 | (User.traits["team"] == ("testteam",))
             ),
-        ),
-        options=OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
-        deny=Rules(
+            Rules(
+                ((AccessNode.login == "testuser") & (User.name != "testuser"))
+                | (JoinSession.mode == "observer") == ("testteam",))
+            ),
+        options = OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
+        deny = Rules(
             AccessNode(
                 (AccessNode.login == "mike")
                 | (AccessNode.login == "jester")
@@ -31,7 +27,7 @@ class Developer:
 
     def test_developer(self):
         # Alice will be able to login to any machine as herself
-        ret, _ = self.p.check(
+        ret, _=self.p.check(
             AccessNode(
                 (AccessNode.login == "alice")
                 & (User.name == "alice")
@@ -40,10 +36,3 @@ class Developer:
         )
         assert ret is True, "Alice can login with her user to any node"
 
-        # No one is permitted to login as mike
-        ret, _ = self.p.query(AccessNode((AccessNode.login == "mike")))
-        assert ret is False, "This role does not allow access as mike"
-
-        # No one is permitted to login as jester
-        ret, _ = self.p.query(AccessNode((AccessNode.login == "jester")))
-        assert ret is False, "This role does not allow access as jester"

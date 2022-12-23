@@ -25,8 +25,6 @@ from . import ast
 from .errors import ParameterError
 
 
-
-
 RULESCOPE = Literal["allow", "deny", "all"]
 
 
@@ -299,6 +297,8 @@ class Rules:
         return [r for r in self.rules if r.__class__ == other.__class__]
 
 # t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
+
+
 def t_expr(predicate):
     if isinstance(predicate, ast.Predicate):
         return t_expr(predicate.expr)
@@ -405,7 +405,7 @@ class Policy:
         allow: Rules = None,
         deny: Rules = None,
         rule_scope: RULESCOPE = "all",
-        loud: bool = True,  
+        loud: bool = True,
     ):
         self.name = name
         if name == "":
@@ -420,14 +420,14 @@ class Policy:
 
     def check(self, other: ast.Predicate):
         return PolicySet([self], self.loud).check(other)
-        
+
     def equivalent(self, other, rule_scope):
         return PolicySet([self], self.loud).equivalent(other, rule_scope)
 
     def query(self, other: ast.Predicate):
         return PolicySet([self], self.loud).query(other)
 
-    def build_predicate(self, other: ast.Predicate, rule_scope: RULESCOPE = "all" ):
+    def build_predicate(self, other: ast.Predicate, rule_scope: RULESCOPE = "all"):
         return PolicySet([self], self.loud).build_predicate(other, rule_scope)
 
     def export(self):
@@ -490,7 +490,7 @@ class PolicySet:
             case "allow":
                 for p in self.policies:
                     allow.extend([e.expr for e in p.allow.collect_like(other)])
-                
+
                 if not allow:
                     raise ast.ParameterError(f"{rule_scope} policy set is empty")
 
@@ -499,11 +499,11 @@ class PolicySet:
                 pr = ast.Predicate(allow_expr, self.loud)
 
                 return pr
-        
+
             case "deny":
                 for p in self.policies:
                     deny.extend([e.expr for e in p.deny.collect_like(other)])
-                
+
                 if not deny:
                     raise ast.ParameterError(f"{rule_scope} policy set is empty")
 
@@ -520,7 +520,7 @@ class PolicySet:
                     # we are checking against, so our options are "sticky"
                     options.extend([o.expr for o in p.options.collect_like(other)])
                     deny.extend([ast.Not(e.expr) for e in p.deny.collect_like(other)])
-            
+
                 # all options should match
                 # TODO: how to deal with Teleport options logic that returns min out of two?
                 # probably < equation will solve this problem
@@ -547,7 +547,7 @@ class PolicySet:
                     pr = ast.Predicate(deny_expr, self.loud)
                 else:
                     pr = ast.Predicate(allow_expr & deny_expr, self.loud)
-                
+
                 return pr
 
     def check(self, other: ast.Predicate):
