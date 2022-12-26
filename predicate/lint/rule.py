@@ -13,8 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from runpy import run_path
-from typing import Any
+
 from solver.errors import ParameterError
 
 
@@ -28,11 +27,3 @@ class NoAllow():
             return check[0]
         except ParameterError:
             return False
-
-
-def get_rules(path: str, name: str)-> dict[str, Any]:
-    """Returns linter rules"""
-    module = run_path(path)
-    return module[name]
-
-

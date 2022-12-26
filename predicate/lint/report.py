@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from typing import Any
 from io import TextIOWrapper
-from lint.ast import get_ast_tree, AllowVisitor
+from lint.parser import get_ast_tree, AllowVisitor
 from lint.constants import RuleCategory
 
 
@@ -43,7 +44,7 @@ class Report:
         self.end_lineno = 0
         self.code_snippet = ""
 
-    def get_report(self, file_name):
+    def get_report(self, file_name) -> dict[str, Any]:
         """ Collect start and end line, along with code snippet using AST """
         with open(file_name, 'r', encoding="utf-8") as file:
             data = file.read()
@@ -67,7 +68,6 @@ class Report:
             }
 
 
-
 class ErrorReport:
     """"Errors encountered while running linter"""
 
@@ -79,5 +79,6 @@ class ErrorReport:
         self.file_name = file_name
         self.error_msg = error_msg
 
-    def get_report(self):
+    def get_report(self) -> str:
+        """ Formatted error report """
         return f"Error while scanning file: {self.file_name} \nError: {self.error_msg}"

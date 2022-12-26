@@ -48,7 +48,7 @@ class Developer:
 
 
 def test_get_policy():
-    class_name, policy = get_policy("cli/tests/mock_policy.py")
+    class_name, policy = get_policy("cli/tests/data/policy.py")
     assert (class_name == "Developer") & isinstance(policy, Policy) is True
 
 

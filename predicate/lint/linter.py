@@ -18,8 +18,8 @@ limitations under the License.
 import traceback
 from pathlib import Path
 import yaml
-from cli.policy_utils import get_policy
-from lint.rule import NoAllow, get_rules
+from lint.parser import get_policy, get_rules
+from lint.rule import NoAllow
 from lint.report import Report, ErrorReport
 from lint.constants import RuleCategory
 
@@ -27,18 +27,17 @@ from lint.constants import RuleCategory
 class Linter:
     """Linter tests given file or directory agains various linter rules"""
 
-    # Reports and error occured during lint runner should be collected here
-    reports = []
-    lint_errors = []
-
     def __init__(self, policy_file_path: str):
         self.policy_file_path = policy_file_path
         self.config = self.get_lint_config()
-        self.policies_file_path = []
+        # Reports and error occured during lint runner should be collected here
+        self.reports = []
+        self.lint_errors = []
+        self.policies_filepath = []
 
-        self.collect_policies(policy_file_path)
+        self.collect_policy_files(policy_file_path)
 
-    def collect_policies(self, policy_file_path):
+    def collect_policy_files(self, policy_file_path):
         """Collect all policy files if directory is given"""
         file_or_dir = Path(policy_file_path)
         if file_or_dir.exists() is False:
@@ -48,13 +47,13 @@ class Linter:
                 # collect policy files except the ones that trails with __
                 # filters files or directories such as __init__, __pycache__ etc.
                 if "__" not in file.stem:
-                    self.policies_file_path.append(str(file))
+                    self.policies_filepath.append(str(file))
         else:
-            self.policies_file_path.append(policy_file_path)
+            self.policies_filepath.append(policy_file_path)
 
     def get_lint_config(self):
         """Returns linter config file"""
-        # TODO: remove hardcoded config file location.
+        # TODO: remove hardcoded config file location once desired config location path is decided.
         with open("predicatelint.yml", "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
@@ -83,9 +82,10 @@ class Linter:
     def run(self):
         """
         Executes configured rule category on given policy file(s).
+        Returns a tuple of findings report and error.
         Exception should be handle inside main runner and reported to caller
         """
-        for policy_file_path in self.policies_file_path:
+        for policy_file_path in self.policies_filepath:
             class_name, policy = get_policy(policy_file_path)
             active_rules = self.config['linter']['active_rules']
             for rule_category in active_rules:

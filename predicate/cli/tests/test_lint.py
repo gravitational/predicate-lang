@@ -6,7 +6,7 @@ class TestLint():
     runner = CliRunner()
 
     def test_passing_command(self):
-        result = self.runner.invoke(lint, 'cli/tests/mock_policy.py')
+        result = self.runner.invoke(lint, 'cli/tests/data/policy.py')
         assert result.exit_code == 0
         assert result.output.strip().replace(" ", "") == "Found0ruleviolation(s)."
 
@@ -15,7 +15,7 @@ class TestLint():
         assert result.exit_code == 1 and isinstance(result.exception, FileNotFoundError)
 
     def valid_file_buggy_policy(self):
-        result = self.runner.invoke(lint, 'cli/tests/buggy_policy.py')
+        result = self.runner.invoke(lint, 'cli/tests/data/buggy_policy.py')
 
         assert result.exit_code == 0
 

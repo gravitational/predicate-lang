@@ -14,6 +14,6 @@ allow=Rules(
 
 
 def test_get_code_snippet():
-    with open('lint/tests/mock_ast_rule.py', 'r') as file:
+    with open('lint/tests/data/policy.py', 'r') as file:
         snippet = get_code_snippet(file, LINENO, END_LINENO)
-        assert (snippet.strip().replace(" ", "") == test_snippet.strip().replace(" ", "")) is True
+        assert (snippet.strip().replace(" ", "") == test_snippet.strip().replace(" ", ""))
