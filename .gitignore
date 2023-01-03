@@ -20,3 +20,13 @@ target/
 **/.pytest_cache/
 **/__pycache__/
 **/.mypy_cache/
+
+# NPM and VS Code dirs
+.DS_Store
+npm-debug.log
+node_modules/
+out/
+dist/
+.vs/
+tsconfig.lsif.json
+*.d.ts
