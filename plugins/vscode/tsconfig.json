@@ -7,7 +7,8 @@
 			"ES2020"
 		],
 		"sourceMap": true,
-		"rootDir": "src",
+		// "rootDir": "src",
+		"rootDirs": ["src", "test"],
 		"strict": true,   /* enable all strict type-checking options */
 		"strictNullChecks": false,
 		"noImplicitReturns": false,

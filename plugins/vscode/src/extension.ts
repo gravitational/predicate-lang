@@ -3,11 +3,13 @@
 import * as vscode from 'vscode';
 import {installSnippet, uninstallSnippet} from './snippets';
 
-// This method is called when predicate extension is activated
+/**
+ * this method is called when vscode.predicate is activated
+ */
 export function activate(context: vscode.ExtensionContext) {
   // register installSnippet command
   const installSnippetDisposable = vscode.commands.registerCommand(
-    'extension.installSnippet',
+    'predicate.installSnippet',
     () => {
       installSnippet();
     }
@@ -17,7 +19,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // register activateSnippet command
   const uninstallSnippetDisposable = vscode.commands.registerCommand(
-    'extension.uninstallSnippet',
+    'predicate.uninstallSnippet',
     () => {
       uninstallSnippet();
     }

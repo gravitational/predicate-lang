@@ -30,3 +30,4 @@ dist/
 .vs/
 tsconfig.lsif.json
 *.d.ts
+.vscode-test/
