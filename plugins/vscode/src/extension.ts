@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import {installSnippet, uninstallSnippet} from './snippets';
 
 /**
- * this method is called when vscode.predicate is activated
+ * This method is called when vscode.predicate is activated
  */
 export function activate(context: vscode.ExtensionContext) {
   // register installSnippet command
@@ -28,5 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(uninstallSnippetDisposable);
 }
 
-// This method is called when your extension is deactivated
+/*
+ * This method is called when your extension is deactivated
+ */
 export function deactivate() {}
