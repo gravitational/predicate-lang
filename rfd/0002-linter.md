@@ -15,13 +15,13 @@ Linter will scan and report violating lint rules (predicate-lang specific) in a 
 
 ### Out of scope
 
-Programming language specefic rules. Since predicate policies are authored in python, policy authors can take advantage of available python language linters such as [pylint](https://pylint.pycqa.org/en/latest/) to enforce python code-specific best practices. Predicate classes and methods will also be readily available on autosuggestions when using extensions such as the one available in [Python VS Code extension](https://code.visualstudio.com/docs/python/linting).
+Programming language specefic rules. Since predicate policies are authored in python, policy authors can take advantage of available python language linters such as [pylint](https://pylint.pycqa.org/en/latest/) to enforce python code-specific best practices.
 
 ## Lint rules
 
 Rules are the core part of a linter. For predicate we can basically divide rules into two categories:
 
-1. Styles rules:
+1. Style rules:
 
    - Opinionated rules on how a policy should be authored.
 
@@ -57,9 +57,12 @@ Security teams and Teleport administrators will benefit from these types of poli
 Note: While preventive methods like rule blacklisting enbales easy way to block authoring risky policies, a [permission boundary](https://github.com/gravitational/predicate-lang/issues/34) will be more effective to catch escaping and escalating roles.
 
 ## Implementation
-New `lint` package will be added to the project.
 
-### predicate lint command
+New `lint` package will be added to the project.
+For style rules, we will be mostly utilizing python AST parser.
+For policy specific lint rules, we will be mostly utilizing predicate solvers.
+
+### Predicate lint command
 
 A new "lint" command will be added to the predicate CLI which can be invoked as:
 
@@ -67,11 +70,19 @@ A new "lint" command will be added to the predicate CLI which can be invoked as:
 $ predicate lint -out=<output type> --config=<config file> <file or dir>
 ```
 
-### Defining Rules
+### Terminology
+
+- `Lint rule`: Defines what and how policy codes/files should be linted.
+- `Lint rule file`: Rule file that extends `Lint rule` with configurable rules and policies. Some `Lint rule` such as detecting two duplicate policies can be self-contained (no additional configuration is required) while others, such as `no_allow` rule, requires an additional rule file. In practice, users will only need to update rule files.
+- `Lint config file`: Config file `predicatelint.yml` with active lint rules, rule files path, etc. Any configuration to update linter runtime will go here. Currently lint command expects this config file in the root directory of predicate.
+- Lint results are printed to stdout. JSON output is also supported.
+
+### Defining rules
 
 All the supported rules are defined as a python class within linter package. Some rules like “checking if policy tests are written" can be fully self-contained while rules like allowing administrators to define a list of “deny rules” will require additional rule file maintained by predicate users.
 
-Below is an example of a rule file that forbids creating policy with certain rules:
+Below is an example of a `no_allow` rule file that forbids creating allow policy with specified rules:
+
 ```
 from solver.teleport import AccessNode, User, JoinSession, Session, Node
 
@@ -94,15 +105,10 @@ no_allow = {
 }
 ```
 
-### Linter techniques
-
-For styling, we will be mostly utilizing python AST parser.
-
-For policy specific lint rules, we will be mostly utilizing predicate solvers.
-
 ### Configuration
 
 A config file `predicatelint.yml` will be added to configure linter. Sample config file below:
+
 ```
 linter:
     # only run following linter rules
@@ -130,5 +136,3 @@ Real-time reporting can be available to Language Server Protocol (LSP) supported
 ### Error handling
 
 Linter should catch the error but continue runner until all the rules have been run. Errors occured inside runner will be reported back to the caller.
-
-
