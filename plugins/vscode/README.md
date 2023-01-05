@@ -2,7 +2,8 @@
 
 Auto complete, code snippets and linter for Predicate policies.
 
-[snippet-demo](./assets/vscode-snippet-command.mp4)
+https://user-images.githubusercontent.com/10177602/210737921-d127bef0-50a8-4071-8495-b27c396aef81.mp4
+
 
 ## Project Setup
 
