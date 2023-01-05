@@ -2,6 +2,8 @@
 
 Auto complete, code snippets and linter for Predicate policies.
 
+[snippet-demo](./assets/vscode-snippet-command.mp4)
+
 ## Project Setup
 
 - `npm install` inside project directory should install all the required dependencies.
