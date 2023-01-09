@@ -12,7 +12,11 @@ class Teleport:
                 | (User.traits["team"] == ("admins",))
             ),
         ),
-        options=OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
+        options=OptionsSet(
+            Options((Options.session_ttl < Duration.new(hours=10))),
+            Options((Options.locking_mode == "best_effort")),
+            Options((Options.ssh.allow_x11_forwarding == True)),
+        ),
         deny=Rules(
             AccessNode(
                 (AccessNode.login == "mike")
