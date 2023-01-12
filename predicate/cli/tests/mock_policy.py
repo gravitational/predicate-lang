@@ -1,11 +1,13 @@
 from solver.ast import Duration
 from solver.teleport import AccessNode, Node, Options, OptionsSet, Policy, Rules, User
 
+
 class Administrator:
     p = Rules(AccessNode((AccessNode.login == "dev")))
-    
+
     def test_administrator(self):
         pass
+
 
 class Developer:
     p = Policy(

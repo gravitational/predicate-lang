@@ -232,26 +232,77 @@ def map_policies(policy_names, policies):
     return PolicySet(mapped_policies)
 
 
-def reviews(*roles: tuple):
+def reviews(expr, *policies):
     """
     Reviews converts qualified reviews into a list ("review", "review")
     reviews((devs, expr)) -> ("review")
     """
 
-    def iff(iterator):
-        try:
-            role, expr = next(iterator)
-        except StopIteration:
-            return ast.StringTuple(())
-        else:
-            return ast.If(
-                # this is to collect all subexpressions related to review, if any
-                role.build_predicate(Review(ast.BoolLiteral(True))).expr,
-                ast.StringTuple.cons("review", iff(iterator)),
-                iff(iterator),
-            )
+    p = ast.Predicate(expr)
+    ret, model = p.solve()
+    if not ret:
+        return None
 
-    return iff(iter(roles))
+    # This takes the expression, and returns a Z3 list with concrete values of list of policies
+    # E.g. given expression:
+    #
+    # RequestPolicy.names == ("policy-a", "policy-b")
+    #
+    # model.eval returns Z3 equivalent
+    #
+    # ["policy-a", "policy-b"]
+    #
+    # But model eval is smarter than just taking equality, it can eval things like:
+    #
+    # RequestPolicy.names.contains("policy-a") & RequestPolicy.names.contains("policy-b")
+    #
+    # model.eval returns Z3 equivalent of
+    #
+    # ["policy-a", "policy-b"]
+    #
+    vals = model.eval(RequestPolicy.names.traverse())
+
+    out = []
+
+    # This loop iterates over each element in the Z3 list
+    # and checks if any of the review policies can review the policy in question
+    # individually. This is exactly how our Teleport's internal implementation work.
+    #
+    # So this translates to
+    #
+    # for i in range(len(policies)):
+    #   policy = model.eval(first_element(vals))
+    #   vals = list_without_first_element(vals)
+    #
+    for i in range(model.eval(ast.fn_string_list_len(vals)).as_long()):
+        el = model.eval(ast.StringListSort.car(vals)).as_string()
+        out.append(el)
+        vals = model.eval(ast.StringListSort.cdr(vals))
+
+    if len(out) == 0:
+        raise ParameterError(
+            """there are no concrete policies in the request, please use experession like RequestPolicy.names == "example" to fix the problem"""
+        )
+
+    reviews = dict()
+    for (user, reviewing_policy) in policies:
+        # this is to collect all subexpressions related to review, if any
+        reviewing_predicate = ast.Predicate(
+            reviewing_policy.build_predicate(Review(ast.BoolLiteral(True))).expr
+        )
+        for requested_policy_name in out:
+            review = Review(RequestPolicy.names == (requested_policy_name,))
+            reviews[requested_policy_name] = []
+            try:
+                ret, _ = reviewing_predicate.check(review)
+                if ret:
+                    reviews[requested_policy_name].append(user)
+            except ast.ParameterError as exc:
+                if "unsolvable" in str(exc.value):
+                    pass
+                else:
+                    raise
+    return reviews
 
 
 class User:
@@ -314,6 +365,14 @@ class RequestPolicy:
 @scoped
 class Request(ast.Predicate):
     def __init__(self, expr):
+        # always require at least one approval
+        expr = expr & (
+            RequestPolicy.names.for_each(lambda x: RequestPolicy.approvals[x].len() > 0)
+        )
+        # always, any denial will deny the request
+        expr = expr & (
+            RequestPolicy.names.for_each(lambda x: RequestPolicy.denials[x].len() < 1)
+        )
         ast.Predicate.__init__(self, expr)
 
     def traverse(self):
