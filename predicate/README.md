@@ -29,7 +29,7 @@ class Teleport:
                 | (User.traits["team"] == ("admins",))
             ),
         ),
-        options=OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
+        options=OptionsSet(Options((Options.session_ttl < Duration.new(hours=10)))),
         deny=Rules(
             AccessNode(
                 (AccessNode.login == "mike")
@@ -82,11 +82,13 @@ metadata:
   name: access
 spec:
   allow:
-    access_node: (((access_node.login == user.name) && (!(user.name == "root"))) ||
+    access_node:
+      (((access_node.login == user.name) && (!(user.name == "root"))) ||
       equals(user.traits["team"], ["admins"]))
   deny:
-    access_node: (((access_node.login == "mike") || (access_node.login == "jester"))
+    access_node:
+      (((access_node.login == "mike") || (access_node.login == "jester"))
       || (node.labels["env"] == "prod"))
-  options: (options.max_session_ttl < 36000000000000)
+  options: (options.session_ttl < 36000000000000)
 version: v1
 ```

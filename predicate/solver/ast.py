@@ -427,6 +427,34 @@ class Int(IntMixin):
         return "int({})".format(self.name)
 
 
+class LtInt:
+    """
+    LtInt is an int that only allows < inequalities.
+    """
+
+    def __init__(self, name: str):
+        self.name = name
+        self.val = z3.Int(self.name)
+
+    def traverse(self):
+        return self.val
+
+    def walk(self, fn):
+        fn(self)
+
+    def __str__(self):
+        return "ltint({})".format(self.name)
+
+    def __lt__(self, val):
+        if isinstance(val, int):
+            return Lt(self, IntLiteral(val))
+        if isinstance(val, (Int,)):
+            return Lt(self, val)
+        raise TypeError(
+            "unsupported type {}, supported integers only".format(type(val))
+        )
+
+
 class LtDuration:
     """
     LtDuration is a duration that only allows < inequalities.
@@ -488,7 +516,7 @@ class Duration(LtDuration):
 class Bool:
     def __init__(self, name: str):
         self.name = name
-        self.val = z3.Int(self.name)
+        self.val = z3.Bool(self.name)
 
     def __eq__(self, val):
         if isinstance(val, bool):
