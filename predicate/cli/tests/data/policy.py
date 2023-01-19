@@ -15,11 +15,11 @@ class Developer:
         loud=False,
         allow=Rules(
             AccessNode(
-                ((AccessNode.login == User.name) & (User.name != "root"))
-                | (User.traits["team"] == ("admins",))
+                ((AccessNode.login == "testuser") & (User.name != "testuser"))
+                | (User.traits["team"] == ("testteam",))
             ),
         ),
-        options=OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
+        options=OptionsSet(Options((Options.session_ttl < Duration.new(hours=10)))),
         deny=Rules(
             AccessNode(
                 (AccessNode.login == "mike")

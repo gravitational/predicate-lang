@@ -6,6 +6,8 @@ import click
 import yaml
 
 from cli.policy_utils import create_policy_file, get_policy
+from lint.linter import Linter
+from cli.output import print_colored, print_json
 
 
 @click.group()
@@ -93,6 +95,20 @@ def new(policy):
         create_policy_file(value, "")
         click.echo(f'policy "{value}" created.')
 
+
+@main.command()
+@click.option('--out', type=click.Choice(['stdout', 'json'], case_sensitive=False))
+@click.argument("policy_file_path")
+def lint(out, policy_file_path):
+    """
+    Run Predicate linter on given file
+    """
+    lint_result = Linter(policy_file_path).run()
+    if out is not None:
+        if out.strip() == "json":
+            print_json(lint_result)
+    else:
+        print_colored(lint_result)
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,9 @@
+linter:
+    # only run following linter rules
+    active_rules:
+        - no_allow
+
+
+# location of rule files
+rule_files:
+    no_allow: lint/tests/data/no_allow.py

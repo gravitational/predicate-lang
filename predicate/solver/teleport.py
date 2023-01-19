@@ -18,11 +18,14 @@ import functools
 import operator
 import re
 from collections.abc import Iterable
+from typing import Literal
 
 import z3
-
 from . import ast
 from .errors import ParameterError
+
+
+RULESCOPE = Literal["allow", "deny", "all"]
 
 
 def scoped(cls):
@@ -414,6 +417,8 @@ def define_bool_int_map():
 define_bool_int_map()
 
 # option_optimize optimizes the option literal towards it's preferred value and returns a z3 reference to the optimized value.
+
+
 def option_optimize(optimizer, literal):
     boolean_false = [
         Options.ssh.allow_agent_forwarding.name,
@@ -468,7 +473,7 @@ def point_evaluate_options(set: OptionsSet):
         raise ParameterError("cannot optimize options, no solution found")
 
     for (ref, literal) in pairs:
-        export_name = literal.name[len(optionsPrefix) :]
+        export_name = literal.name[len(optionsPrefix):]
         options[export_name] = str(optimizer.model()[ref])
 
     return options
@@ -490,6 +495,8 @@ def option_search_unknown(predicate):
 
 
 # t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
+
+
 def t_expr(predicate):
     if isinstance(predicate, ast.Predicate):
         return t_expr(predicate.expr)
@@ -595,6 +602,7 @@ class Policy:
         options: OptionsSet = None,
         allow: Rules = None,
         deny: Rules = None,
+        rule_scope: RULESCOPE = "all",
         loud: bool = True,
     ):
         self.name = name
@@ -605,16 +613,20 @@ class Policy:
         self.allow = allow or Rules()
         self.deny = deny or Rules()
         self.options = options or OptionsSet()
+        self.rule_scope = rule_scope
         self.loud = loud
 
     def check(self, other: ast.Predicate):
         return PolicySet([self], self.loud).check(other)
 
+    def equivalent(self, other, rule_scope):
+        return PolicySet([self], self.loud).equivalent(other, rule_scope)
+
     def query(self, other: ast.Predicate):
         return PolicySet([self], self.loud).query(other)
 
-    def build_predicate(self, other: ast.Predicate):
-        return PolicySet([self], self.loud).build_predicate(other)
+    def build_predicate(self, other: ast.Predicate, rule_scope: RULESCOPE = "all"):
+        return PolicySet([self], self.loud).build_predicate(other, rule_scope)
 
     def export(self):
         out = {
@@ -662,50 +674,91 @@ class PolicySet:
         self.policies = policies
         self.loud = loud
 
-    def build_predicate(self, other: ast.Predicate) -> ast.Predicate:
+    def build_predicate(self, other: ast.Predicate, rule_scope: RULESCOPE = "all") -> ast.Predicate:
+        """
+        Build predicate from allow, deny rules and option set.
+        rule_scope is used to determine if all the rules or specefic rules (e.g., allow or deny only) should be used.
+        """
         allow = []
         deny = []
         options = []
-        for p in self.policies:
-            allow.extend([e.expr for e in p.allow.collect_like(other)])
-            # here we collect options from our policies that are mentioned in the predicate
-            # we are checking against, so our options are "sticky"
-            options.extend([o.expr for o in p.options.collect_like(other)])
-            deny.extend([ast.Not(e.expr) for e in p.deny.collect_like(other)])
-
-        # all options should match
-        # TODO: how to deal with Teleport options logic that returns min out of two?
-        # probably < equation will solve this problem
         allow_expr = None
+        deny_expr = None
         options_expr = None
-        # if option predicates are present, apply them as mandatory
-        # to the allow expression, so allow is matching only if options
-        # match as well.
-        if options:
-            options_expr = functools.reduce(operator.and_, options)
-        if allow:
-            allow_expr = functools.reduce(operator.or_, allow)
-            if options:
-                allow_expr = allow_expr & options_expr
-        if deny:
-            deny_expr = functools.reduce(operator.and_, deny)
-
-        if not allow and not deny:
-            raise ast.ParameterError("policy set is empty {}")
         pr = None
-        if not deny:
-            pr = ast.Predicate(allow_expr, self.loud)
-        elif not allow_expr:
-            pr = ast.Predicate(deny_expr, self.loud)
-        else:
-            pr = ast.Predicate(allow_expr & deny_expr, self.loud)
-        return pr
+
+        match rule_scope:
+            case "allow":
+                for p in self.policies:
+                    allow.extend([e.expr for e in p.allow.collect_like(other)])
+
+                if not allow:
+                    raise ast.ParameterError(f"{rule_scope} policy set is empty")
+
+                allow_expr = functools.reduce(operator.or_, allow)
+
+                pr = ast.Predicate(allow_expr, self.loud)
+
+                return pr
+
+            case "deny":
+                for p in self.policies:
+                    deny.extend([e.expr for e in p.deny.collect_like(other)])
+
+                if not deny:
+                    raise ast.ParameterError(f"{rule_scope} policy set is empty")
+
+                deny_expr = functools.reduce(operator.or_, deny)
+
+                pr = ast.Predicate(deny_expr, self.loud)
+
+                return pr
+
+            case _:
+                for p in self.policies:
+                    allow.extend([e.expr for e in p.allow.collect_like(other)])
+                    # here we collect options from our policies that are mentioned in the predicate
+                    # we are checking against, so our options are "sticky"
+                    options.extend([o.expr for o in p.options.collect_like(other)])
+                    deny.extend([ast.Not(e.expr) for e in p.deny.collect_like(other)])
+
+                # all options should match
+                # TODO: how to deal with Teleport options logic that returns min out of two?
+                # probably < equation will solve this problem
+                allow_expr = None
+                options_expr = None
+                # if option predicates are present, apply them as mandatory
+                # to the allow expression, so allow is matching only if options
+                # match as well.
+                if options:
+                    options_expr = functools.reduce(operator.and_, options)
+                if allow:
+                    allow_expr = functools.reduce(operator.or_, allow)
+                    if options:
+                        allow_expr = allow_expr & options_expr
+                if deny:
+                    deny_expr = functools.reduce(operator.and_, deny)
+
+                if not allow and not deny:
+                    raise ast.ParameterError("policy set is empty")
+                pr = None
+                if not deny:
+                    pr = ast.Predicate(allow_expr, self.loud)
+                elif not allow_expr:
+                    pr = ast.Predicate(deny_expr, self.loud)
+                else:
+                    pr = ast.Predicate(allow_expr & deny_expr, self.loud)
+
+                return pr
 
     def check(self, other: ast.Predicate):
         return self.build_predicate(other).check(other)
 
     def query(self, other: ast.Predicate):
         return self.build_predicate(other).query(other)
+
+    def equivalent(self, other: ast.Predicate, rule_scope):
+        return self.build_predicate(other, rule_scope).equivalent(other)
 
     def names(self):
         """
