@@ -1,0 +1,19 @@
+{
+  "extends": "./node_modules/gts/tsconfig-google.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "sourceMap": true,
+    // "rootDir": "src",
+    "rootDirs": ["src", "test"],
+    "strict": true /* enable all strict type-checking options */,
+    "strictNullChecks": false,
+    "noImplicitReturns": false,
+    "declaration": false
+    /* Additional Checks */
+    // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
+    // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
+    // "noUnusedParameters": true,  /* Report errors on unused parameters. */
+  }
+}
