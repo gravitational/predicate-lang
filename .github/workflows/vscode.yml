@@ -1,0 +1,20 @@
+name: VS Code extension tests
+on:
+  push:
+    paths:
+      - plugins/vscode/**
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./plugins/vscode
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install dependencies
+        run: npm ci
+      - name: Run test
+        run: npm test
