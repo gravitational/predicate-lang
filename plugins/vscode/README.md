@@ -9,7 +9,7 @@ Auto complete, code snippets and linter for Predicate policies.
 - `eslint`, `prettier` and `google gts` is used code lint and formatting.
 - Typescript configuration at `tsconfig.json`.
 - `npm run test` inside project directory will run test files in extension dev host.
-- Github action workflow to test on linux mac and windows.
+- Github action workflow to test on linux, mac and windows.
 
 ### Dev build
 

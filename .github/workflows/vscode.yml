@@ -4,7 +4,7 @@ on:
     paths:
       - plugins/vscode/**
 jobs:
-  test:
+  test-vscode-extension:
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
