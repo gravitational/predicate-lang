@@ -147,31 +147,38 @@ class TestTeleport:
 
     def test_valid_options(self):
         # check that only < inequalities are possible
-        _ = Options(Options.max_session_ttl < Duration.new(hours=3))
-        _ = Options(Duration.new(hours=3) > Options.max_session_ttl)
+        _ = Options(Options.session_ttl < Duration.new(hours=3))
+        _ = Options(Duration.new(hours=3) > Options.session_ttl)
+        _ = Options(Options.ssh.max_connections < 5)
 
         with pytest.raises(Exception):
-            _ = Options(Options.max_session_ttl > Duration.new(hours=3))
+            _ = Options(Options.session_ttl > Duration.new(hours=3))
         with pytest.raises(Exception):
-            _ = Options(Duration.new(hours=3) < Options.max_session_ttl)
+            _ = Options(Duration.new(hours=3) < Options.session_ttl)
 
         with pytest.raises(Exception):
-            _ = Options(Options.max_session_ttl == Duration.new(hours=3))
+            _ = Options(Options.session_ttl == Duration.new(hours=3))
         with pytest.raises(Exception):
-            _ = Options(Duration.new(hours=3) == Options.max_session_ttl)
+            _ = Options(Duration.new(hours=3) == Options.session_ttl)
 
         with pytest.raises(Exception):
-            _ = Options(Options.max_session_ttl != Duration.new(hours=3))
+            _ = Options(Options.session_ttl != Duration.new(hours=3))
         with pytest.raises(Exception):
-            _ = Options(Duration.new(hours=3) != Options.max_session_ttl)
+            _ = Options(Duration.new(hours=3) != Options.session_ttl)
+        with pytest.raises(Exception):
+            _ = Options(Options.ssh.max_connections > 5)
+        with pytest.raises(Exception):
+            _ = Options(Options.ssh.max_connections == 5)
+        with pytest.raises(Exception):
+            _ = Options(Options.ssh.max_connections != 5)
 
     def test_options(self):
         p = Policy(
             name="b",
             options=OptionsSet(
                 Options(
-                    (Options.max_session_ttl < Duration.new(hours=10))
-                    & (Options.max_session_ttl < Duration.new(seconds=10)),
+                    (Options.session_ttl < Duration.new(hours=10))
+                    & (Options.session_ttl < Duration.new(seconds=10)),
                 )
             ),
             allow=Rules(
@@ -189,7 +196,7 @@ class TestTeleport:
             )
             # Since we only have <, it's impossible to specify a `session_ttl` that would not be valid.
             # This means that the predicate will always match the policy.
-            & Options(Options.max_session_ttl < Duration.new(hours=3))
+            & Options(Options.session_ttl < Duration.new(hours=3))
         )
 
         assert ret is True, "options and core predicate matches"
@@ -201,8 +208,8 @@ class TestTeleport:
         p = Policy(
             name="p",
             options=OptionsSet(
-                Options((Options.max_session_ttl < Duration.new(hours=10))),
-                Options(Options.pin_source_ip == True),
+                Options((Options.session_ttl < Duration.new(hours=10))),
+                Options(Options.ssh.pin_source_ip == False),
             ),
             allow=Rules(
                 # unrelated rules are with comma, related rules are part of the predicate
@@ -219,9 +226,9 @@ class TestTeleport:
                 & (Node.labels["os"] == "Linux")
             )
             & Options(
-                (Options.max_session_ttl < Duration.new(hours=3))
+                (Options.session_ttl < Duration.new(hours=3))
                 # TODO: `check` doesn't require that `pin_source_ip` is defined here, but should!?.
-                & (Options.pin_source_ip == True)
+                & (Options.ssh.pin_source_ip == False)
             )
         )
 
@@ -234,8 +241,8 @@ class TestTeleport:
                 & (Node.labels["os"] == "Linux")
             )
             & Options(
-                (Options.max_session_ttl < Duration.new(hours=3))
-                & (Options.pin_source_ip == False)
+                (Options.session_ttl < Duration.new(hours=3))
+                & (Options.ssh.pin_source_ip == True)
             )
         )
         assert ret is False, "options fails restriction when contradiction is specified"
@@ -244,8 +251,8 @@ class TestTeleport:
         a = Policy(
             name="a",
             options=OptionsSet(
-                Options((Options.max_session_ttl < Duration.new(hours=10))),
-                Options(Options.pin_source_ip == True),
+                Options((Options.session_ttl < Duration.new(hours=10))),
+                Options(Options.ssh.pin_source_ip == False),
             ),
             allow=Rules(
                 AccessNode(
@@ -272,8 +279,8 @@ class TestTeleport:
                 & (Node.labels["os"] == "Linux")
             )
             & Options(
-                (Options.max_session_ttl < Duration.new(hours=3))
-                & (Options.pin_source_ip == True)
+                (Options.session_ttl < Duration.new(hours=3))
+                & (Options.ssh.pin_source_ip == False)
             )
         )
 
@@ -286,8 +293,8 @@ class TestTeleport:
                 & (Node.labels["os"] == "Linux")
             )
             & Options(
-                (Options.max_session_ttl < Duration.new(hours=3))
-                & (Options.pin_source_ip == False)
+                (Options.session_ttl < Duration.new(hours=3))
+                & (Options.ssh.pin_source_ip == True)
             )
         )
 
@@ -299,8 +306,8 @@ class TestTeleport:
             name="a",
             options=OptionsSet(
                 Options(
-                    (Options.recording_mode > "best_effort")
-                    | (Options.recording_mode == "best_effort")
+                    (Options.ssh.session_recording_mode > "best_effort")
+                    | (Options.ssh.session_recording_mode == "best_effort")
                 ),
             ),
             allow=Rules(
@@ -314,7 +321,7 @@ class TestTeleport:
         b = Policy(
             name="b",
             options=OptionsSet(
-                Options(Options.recording_mode == "strict"),
+                Options(Options.ssh.session_recording_mode == "strict"),
             ),
             allow=Rules(
                 AccessNode(
@@ -331,7 +338,7 @@ class TestTeleport:
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
-            & Options(Options.recording_mode == "strict")
+            & Options(Options.ssh.session_recording_mode == "strict")
         )
 
         assert ret is True, "options and core predicate matches"
@@ -342,7 +349,7 @@ class TestTeleport:
                 & (Node.labels["env"] == "prod")
                 & (Node.labels["os"] == "Linux")
             )
-            & Options(Options.recording_mode == "best_effort")
+            & Options(Options.ssh.session_recording_mode == "best_effort")
         )
 
         assert (
@@ -355,7 +362,7 @@ class TestTeleport:
                 & (Node.labels["env"] == "stage")
                 & (Node.labels["os"] == "Linux")
             )
-            & Options(Options.recording_mode == "strict")
+            & Options(Options.ssh.session_recording_mode == "strict")
         )
 
         assert ret is True, "options and core predicate matches"
@@ -366,7 +373,7 @@ class TestTeleport:
                 & (Node.labels["env"] == "stage")
                 & (Node.labels["os"] == "Linux")
             )
-            & Options(Options.recording_mode == "best_effort")
+            & Options(Options.ssh.session_recording_mode == "best_effort")
         )
 
         assert (
@@ -566,7 +573,7 @@ class TestTeleport:
         ext = Policy(
             name="ext-stage",
             options=OptionsSet(
-                Options(Options.recording_mode == "strict"),
+                Options(Options.ssh.session_recording_mode == "strict"),
             ),
             allow=Rules(
                 AccessNode(

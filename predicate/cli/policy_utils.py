@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from typing import Any
-from typing import Tuple
 from pathlib import Path
 from runpy import run_path
-from jinja2 import FileSystemLoader, Environment, select_autoescape
+from typing import Any, Tuple
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
 from solver.teleport import Policy
 
 
@@ -31,7 +32,7 @@ def get_policy(policy_file: str) -> Tuple[str, dict[str, Any]]:
     class_name = ""
     for key, value in module.items():
         # Grabs 'p' of Policy class
-        if hasattr(value, 'p') and isinstance(value.p, Policy):
+        if hasattr(value, "p") and isinstance(value.p, Policy):
             class_name = key
 
     return class_name, module[class_name].p
@@ -52,7 +53,7 @@ def create_policy_file(name: str, path: str):
 
     # keeping "policies" as a default directory
     file_name = normalize_policy_name(name, "")
-    with open(f"{default_path}/{file_name}.py", 'w', encoding="utf-8") as file:
+    with open(f"{default_path}/{file_name}.py", "w", encoding="utf-8") as file:
         file.write(policy)
 
 
@@ -65,7 +66,7 @@ def create_policy_from_template(name: str):
     values = {
         "policyclass": class_name,
         "policyname": policy_name,
-        "testname": f"test_{policy_name}"
+        "testname": f"test_{policy_name}",
     }
 
     template_loader = FileSystemLoader(searchpath="./")

@@ -12,7 +12,7 @@ class Teleport:
                 | (User.traits["team"] == ("admins",))
             ),
         ),
-        options=OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
+        options=OptionsSet(Options((Options.session_ttl < Duration.new(hours=10)))),
         deny=Rules(
             AccessNode(
                 (AccessNode.login == "mike")

@@ -83,13 +83,13 @@ def test(policy_file):
 
 
 @main.command()
-@click.option('--policy', '-p', is_flag=True)
+@click.option("--policy", "-p", is_flag=True)
 def new(policy):
     """
     Create a new policy based on template
     """
     if policy:
-        value = click.prompt('Please enter a policy name', type=str)
+        value = click.prompt("Please enter a policy name", type=str)
         click.echo("creating policy...")
         # keeping "policies" as a default directory
         create_policy_file(value, "")

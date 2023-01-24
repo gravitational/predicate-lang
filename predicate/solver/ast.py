@@ -20,17 +20,22 @@ limitations under the License.
 # * book https://theory.stanford.edu/~nikolaj/programmingz3.html
 # * reference https://z3prover.github.io/api/html/namespacez3py.html
 
+
 import functools
 import operator
 import sre_constants
 import sre_parse
 import typing
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
 
 import z3
 
 from .errors import ParameterError
+
+# To add debugging verbose mode of Z3 itself, uncomment this line
+# z3.set_option(verbose=10)
 
 
 class LogicMixin:
@@ -427,6 +432,34 @@ class Int(IntMixin):
         return "int({})".format(self.name)
 
 
+class LtInt:
+    """
+    LtInt is an int that only allows < inequalities.
+    """
+
+    def __init__(self, name: str):
+        self.name = name
+        self.val = z3.Int(self.name)
+
+    def traverse(self):
+        return self.val
+
+    def walk(self, fn):
+        fn(self)
+
+    def __str__(self):
+        return "ltint({})".format(self.name)
+
+    def __lt__(self, val):
+        if isinstance(val, int):
+            return Lt(self, IntLiteral(val))
+        if isinstance(val, (Int,)):
+            return Lt(self, val)
+        raise TypeError(
+            "unsupported type {}, supported integers only".format(type(val))
+        )
+
+
 class LtDuration:
     """
     LtDuration is a duration that only allows < inequalities.
@@ -475,10 +508,16 @@ class Duration(LtDuration):
     def __str__(self):
         return "duration({})".format(self.name)
 
-    def __eq__(self, val: DurationLiteral):
+    def __eq__(self, val: object):
+        # Python recommends to make eq generic
+        # https://mypy.readthedocs.io/en/stable/common_issues.html#incompatible-overrides
+        if not isinstance(val, DurationLiteral):
+            return NotImplemented
         return Eq(self, val)
 
-    def __ne__(self, val: DurationLiteral):
+    def __ne__(self, val: object):
+        if not isinstance(val, DurationLiteral):
+            return NotImplemented
         return Not(Eq(self, val))
 
     def __gt__(self, val: DurationLiteral):
@@ -488,7 +527,7 @@ class Duration(LtDuration):
 class Bool:
     def __init__(self, name: str):
         self.name = name
-        self.val = z3.Int(self.name)
+        self.val = z3.Bool(self.name)
 
     def __eq__(self, val):
         if isinstance(val, bool):
@@ -605,6 +644,12 @@ class StringList:
             self.fn_map = z3.RecFunction(self.name, z3.StringSort(), StringListSort)
             z3.RecAddDefinition(self.fn_map, [arg_key], iff(values))
 
+    def for_each(self, lambda_fn):
+        """
+        For each creates an expression that should hold true for each element
+        """
+        return StringListForEach(self, lambda_fn)
+
     def first(self):
         """
         First returns first non-empty value
@@ -656,6 +701,28 @@ class StringList:
         return self.fn_map(z3.StringVal(self.name))
 
 
+class StringListElement(String):
+    """
+    StringListElement is a proxy value that represents element
+    of the list in the for_each loop expressions
+    """
+
+    def __init__(self, string_list: StringList, element_expr=None):
+        String.__init__(self, string_list.name + "_string_list_element")
+        self.string_list = string_list
+        self.element_expr = element_expr
+
+    def walk(self, fn):
+        fn(self)
+        self.string_list.walk(fn)
+
+    def __str__(self):
+        return """({}.element())""".format(self.string_list)
+
+    def traverse(self):
+        return self.element_expr
+
+
 class StringListContains(LogicMixin):
     def __init__(self, expr: StringList, val):
         self.E = expr
@@ -673,6 +740,66 @@ class StringListContains(LogicMixin):
         return fn_string_list_contains(
             self.E.fn_map(z3.StringVal(self.E.name)), self.V.traverse()
         ) == z3.BoolVal(True)
+
+
+class StringListForEach(LogicMixin):
+    def __init__(self, string_list: StringList, for_each):
+        self.string_list = string_list
+        self.for_each = for_each
+
+    def walk(self, fn):
+        fn(self)
+        self.for_each(StringListElement(self.string_list)).walk(fn)
+
+    def __str__(self):
+        return """({}.for_each({}))""".format(
+            self.string_list, self.for_each(StringListElement(self.string_list))
+        )
+
+    def traverse(self):
+        uid = "string_list_for_each_{}".format(uuid.uuid4().hex)
+        fn_string_list_for_each = z3.RecFunction(uid, StringListSort, z3.BoolSort())
+
+        vals = z3.Const(uid + "_vals", StringListSort)
+
+        # We have generated an expression from lambda,
+        #
+        # and passed this expression into the recursive function definition
+        #
+        # Given the lambda function
+        #
+        # for_each(x: x == "potato"),
+        #
+        # We would get:
+        #
+        # StringListSort.car(vals) == z3.StringVal("potato")
+        #
+        # We pass this expression into recursive function definition below,
+        # and we call this anonymous recursive function on our list parameter.
+
+        # Each function defined here is unique, because each underlying lambda
+        # function spec is also unique.
+
+        z3.RecAddDefinition(
+            fn_string_list_for_each,
+            [vals],
+            z3.If(
+                StringListSort.nil == vals,
+                z3.BoolVal(True),
+                z3.If(
+                    z3.Not(
+                        self.for_each(
+                            StringListElement(
+                                self.string_list, StringListSort.car(vals)
+                            )
+                        ).traverse()
+                    ),
+                    z3.BoolVal(False),
+                    fn_string_list_for_each(StringListSort.cdr(vals)),
+                ),
+            ),
+        )
+        return fn_string_list_for_each(self.string_list.traverse())
 
 
 class StringListFirst:
@@ -1574,6 +1701,14 @@ class Select:
         return iterate(iter(self.cases))
 
 
+def deduplicate(seq):
+    """
+    Deduplicate preserves the order
+    """
+    seen = set()
+    return [x for x in seq if not (x in seen or seen.add(x))]
+
+
 class StringSetMap:
     """
     Map of string sets:
@@ -1592,8 +1727,8 @@ class StringSetMap:
             def iff(fn_key, iterator):
                 try:
                     key, val = next(iterator)
-                    if isinstance(val, tuple):
-                        val = StringTuple(val)
+                    if isinstance(val, (tuple, list)):
+                        val = StringTuple(deduplicate(val))
                 except StopIteration:
                     return StringListSort.nil
                 else:
@@ -1618,6 +1753,17 @@ class StringSetMap:
         # Map Index should impact function definition, aggregate it
         return StringSetMapIndex(self, key)
 
+    def __eq__(self, other):
+        if isinstance(other, StringSetMap):
+            return StringSetMapCompare(self, other, operator.eq)
+        return NotImplemented
+
+    def for_each_key(self):
+        """
+        For each key creates an expression that should hold true for each key.
+        """
+        return StringSetMapForEachKeyConstraint(self)
+
     def add_value(self, key: String, val: String):
         return StringSetMapAddValue(self, key, val)
 
@@ -1628,13 +1774,92 @@ class StringSetMap:
         return StringSetMapOverwrite(self, values)
 
     def __str__(self):
-        return """({} ^ {})""".format(self.L, self.R)
+        return """map({})""".format(self.name)
 
     def walk(self, fn):
         fn(self)
 
     def traverse(self):
         return self.fn_map
+
+
+class StringSetMapCompare(LogicMixin):
+    def __init__(self, a, b: StringSetMap, compare_operator):
+        self.a = a
+        self.b = b
+        self.compare_operator = compare_operator
+
+    def walk(self, fn):
+        fn(self)
+
+    def __str__(self):
+        return """({} {} {})""".format(self.a, self.b, self.compare_operator)
+
+    def traverse(self):
+        # Quantifiers
+        # https://microsoft.github.io/z3guide/docs/logic/Quantifiers/
+        arg_key = z3.String(self.a.name + "_eq")
+        return z3.ForAll(
+            [arg_key],
+            self.compare_operator(self.a.fn_map(arg_key), self.b.fn_map(arg_key)),
+            patterns=[self.a.fn_map(arg_key)],
+        )
+
+
+class StringSetMapForEachKeyConstraint(StringSetMap):
+    def __init__(self, m: StringSetMap):
+        self.m = m
+
+    def walk(self, fn):
+        fn(self)
+
+    def len(self):
+        return StringSetMapForEachKeyConstraintLen(self.m)
+
+    def __str__(self):
+        return """({}.for_each_key())""".format(self.m.name)
+
+
+class StringSetMapForEachKeyConstraintLen(StringSetMap):
+    def __init__(self, m: StringSetMap):
+        self.m = m
+
+    def walk(self, fn):
+        fn(self)
+
+    def __str__(self):
+        return """({}.for_each_key().len())""".format(self.m.name)
+
+    def __gt__(self, val):
+        if isinstance(val, int):
+            return Gt(self, IntLiteral(val))
+        if isinstance(val, (Int,)):
+            return Gt(self, val)
+        raise TypeError(
+            "unsupported type {}, supported integers only".format(type(val))
+        )
+
+    def __lt__(self, val):
+        if isinstance(val, int):
+            return Lt(self, IntLiteral(val))
+        if isinstance(val, (Int,)):
+            return Lt(self, val)
+        raise TypeError(
+            "unsupported type {}, supported integers only".format(type(val))
+        )
+
+    def compare(self, op, other):
+        # Quantifiers
+        # https://microsoft.github.io/z3guide/docs/logic/Quantifiers/
+        arg_key = z3.String(self.m.name + "_any_key")
+        return z3.ForAll(
+            [arg_key],
+            op(fn_string_list_len(self.m.fn_map(arg_key)), other),
+            patterns=[fn_string_list_len(self.m.fn_map(arg_key))],
+        )
+
+    def traverse(self):
+        raise ParameterError("should not be called")
 
 
 class StringSetMapOverwrite(StringSetMap):
@@ -1651,7 +1876,7 @@ class StringSetMapOverwrite(StringSetMap):
         def iff(fn_key, iterator, wrapped_map_fn):
             try:
                 key, val = next(iterator)
-                if isinstance(val, tuple):
+                if isinstance(val, (tuple, list)):
                     val = StringTuple(val)
             except StopIteration:
                 return wrapped_map_fn(fn_key)
@@ -1717,9 +1942,7 @@ class StringSetMapAddValue(StringSetMap):
 
     def walk(self, fn):
         fn(self)
-        self.E.walk(fn)
-        self.K.walk(fn)
-        self.V.walk(fn)
+        self.m.walk(fn)
 
     def __str__(self):
         return """({}.add({}, {}))""".format(self.m.name, self.K, self.V)
@@ -1786,6 +2009,9 @@ class StringSetMapIndex:
         self.m = m
         self.key = key
 
+    def parent(self):
+        return self.m
+
     def first(self):
         """
         First returns first non-empty value
@@ -1829,7 +2055,7 @@ class StringSetMapIndex:
         fn(self)
 
     def __eq__(self, val):
-        if isinstance(val, tuple):
+        if isinstance(val, (tuple, list)):
             return StringSetMapIndexEquals(self, StringTuple(val))
         return StringSetMapIndexEquals(self, val)
 
@@ -1851,24 +2077,42 @@ class StringSetMapIndexContains(LogicMixin):
         return """({}.contains({}))""".format(self.E, self.V)
 
     def traverse(self):
+        if hasattr(self.E.key, "traverse"):
+            key = self.E.key.traverse()
+            print(
+                "expr: {}".format(
+                    fn_string_list_contains(self.E.m.fn_map(key), self.V.traverse())
+                    == z3.BoolVal(True)
+                )
+            )
+        else:
+            key = z3.StringVal(self.E.key)
+
         return fn_string_list_contains(
-            self.E.m.fn_map(z3.StringVal(self.E.key)), self.V.traverse()
+            self.E.m.fn_map(key), self.V.traverse()
         ) == z3.BoolVal(True)
 
 
 class StringSetMapIndexLen(IntMixin):
     def __init__(self, expr: StringSetMapIndex):
-        self.E = expr
+        self.map_index = expr
 
     def walk(self, fn):
         fn(self)
-        self.E.walk(fn)
+        self.map_index.walk(fn)
+
+    def parent(self):
+        return self.map_index
 
     def __str__(self):
-        return """({}.len())""".format(self.E)
+        return """({}.len())""".format(self.map_index)
 
     def traverse(self):
-        return fn_string_list_len(self.E.m.fn_map(z3.StringVal(self.E.key)))
+        if hasattr(self.map_index.key, "traverse"):
+            key = self.map_index.key.traverse()
+        else:
+            key = z3.StringVal(self.map_index.key)
+        return fn_string_list_len(self.map_index.m.fn_map(key))
 
 
 class StringSetMapIndexFirst:
@@ -2053,7 +2297,6 @@ class Predicate:
         if self.loud:
             print("OUR EXPR: {}".format(e))
         solver.add(self.expr.traverse())
-
         if solver.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
         return (True, solver.model())
@@ -2068,14 +2311,12 @@ class Predicate:
         if self.loud:
             print("OUR EXPR: {}".format(e))
         solver.add(e)
-
         if solver.check() == z3.unsat:
             raise ParameterError("our own predicate is unsolvable")
         o = other.expr.traverse()
         if self.loud:
             print("THEIR EXPR: {}".format(o))
         solver.add(o)
-
         # TODO do a second pass to build a key checking function
         # for both predicates!
         self.expr.walk(functools.partial(collect_symbols, self.symbols))

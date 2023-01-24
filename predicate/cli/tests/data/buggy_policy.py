@@ -14,9 +14,9 @@ class Developer:
             Rules(
                 ((AccessNode.login == "testuser") & (User.name != "testuser"))
                 | (JoinSession.mode == "observer") == ("testteam",))
-            ),
-        options = OptionsSet(Options((Options.max_session_ttl < Duration.new(hours=10)))),
-        deny = Rules(
+        ),
+        options=OptionsSet(Options((Options.session_ttl < Duration.new(hours=10)))),
+        deny=Rules(
             AccessNode(
                 (AccessNode.login == "mike")
                 | (AccessNode.login == "jester")
@@ -27,7 +27,7 @@ class Developer:
 
     def test_developer(self):
         # Alice will be able to login to any machine as herself
-        ret, _=self.p.check(
+        ret, _ = self.p.check(
             AccessNode(
                 (AccessNode.login == "alice")
                 & (User.name == "alice")
@@ -35,4 +35,3 @@ class Developer:
             )
         )
         assert ret is True, "Alice can login with her user to any node"
-

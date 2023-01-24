@@ -33,18 +33,62 @@ def scoped(cls):
     return cls
 
 
+class SSHOptions:
+    """
+    SSHOptions defines SSH specific options.
+    """
+
+    # The mode used for recording SSH sessions.
+    session_recording_mode = ast.StringEnum(
+        "options.ssh.session_recording_mode", set([(0, "best_effort"), (1, "strict")])
+    )
+
+    # Whether to allow agent forwarding.
+    allow_agent_forwarding = ast.Bool("options.ssh.allow_agent_forwarding")
+
+    # Whether to allow port forwarding.
+    allow_port_forwarding = ast.Bool("options.ssh.allow_port_forwarding")
+
+    # Whether to allow X11 forwarding.
+    allow_x11_forwarding = ast.Bool("options.ssh.allow_x11_forwarding")
+
+    # Whether to allow file copying.
+    allow_file_copying = ast.Bool("options.ssh.allow_file_copying")
+
+    # If false, terminates live sessions when the certificate expires.
+    allow_expired_cert = ast.Bool("options.ssh.allow_expired_cert")
+
+    # If false, do not enforce IP pinning.
+    pin_source_ip = ast.Bool("options.ssh.pin_source_ip")
+
+    # The max concurrent SSH connections a user can have.
+    max_connections = ast.LtInt("options.ssh.max_connections")
+
+    # The max concurrent SSH channels a user can have per connection.
+    max_sessions_per_connection = ast.LtInt("options.ssh.max_sessions_per_connection")
+
+    # Disconnect clients after this amount of time of inactivity.
+    client_idle_timeout = ast.LtDuration("options.ssh.client_idle_timeout")
+
+
 class Options(ast.Predicate):
     """
     Options apply to some allow rules if they match
     """
 
-    max_session_ttl = ast.LtDuration("options.max_session_ttl")
+    # SSH specific options
+    ssh = SSHOptions
 
-    pin_source_ip = ast.Bool("options.pin_source_ip")
+    # Max TTL for issued certificates.
+    session_ttl = ast.LtDuration("options.session_ttl")
 
-    recording_mode = ast.StringEnum(
-        "options.recording_mode", set([(0, "best_effort"), (1, "strict")])
+    # The locking mode used.
+    locking_mode = ast.StringEnum(
+        "options.locking_mode", set([(0, "best_effort"), (1, "strict")])
     )
+
+    # Enforce per-session MFA or PIV-hardware key restrictions on user login sessions.
+    session_mfa = ast.StringEnum("options.session_mfa", set([(0, "no"), (1, "yes")]))
 
     def __init__(self, expr):
         ast.Predicate.__init__(self, expr)
@@ -191,26 +235,77 @@ def map_policies(policy_names, policies):
     return PolicySet(mapped_policies)
 
 
-def reviews(*roles: tuple):
+def reviews(expr, *policies):
     """
     Reviews converts qualified reviews into a list ("review", "review")
     reviews((devs, expr)) -> ("review")
     """
 
-    def iff(iterator):
-        try:
-            role, expr = next(iterator)
-        except StopIteration:
-            return ast.StringTuple(())
-        else:
-            return ast.If(
-                # this is to collect all subexpressions related to review, if any
-                role.build_predicate(Review(ast.BoolLiteral(True))).expr,
-                ast.StringTuple.cons("review", iff(iterator)),
-                iff(iterator),
-            )
+    p = ast.Predicate(expr)
+    ret, model = p.solve()
+    if not ret:
+        return None
 
-    return iff(iter(roles))
+    # This takes the expression, and returns a Z3 list with concrete values of list of policies
+    # E.g. given expression:
+    #
+    # RequestPolicy.names == ("policy-a", "policy-b")
+    #
+    # model.eval returns Z3 equivalent
+    #
+    # ["policy-a", "policy-b"]
+    #
+    # But model eval is smarter than just taking equality, it can eval things like:
+    #
+    # RequestPolicy.names.contains("policy-a") & RequestPolicy.names.contains("policy-b")
+    #
+    # model.eval returns Z3 equivalent of
+    #
+    # ["policy-a", "policy-b"]
+    #
+    vals = model.eval(RequestPolicy.names.traverse())
+
+    out = []
+
+    # This loop iterates over each element in the Z3 list
+    # and checks if any of the review policies can review the policy in question
+    # individually. This is exactly how our Teleport's internal implementation work.
+    #
+    # So this translates to
+    #
+    # for i in range(len(policies)):
+    #   policy = model.eval(first_element(vals))
+    #   vals = list_without_first_element(vals)
+    #
+    for i in range(model.eval(ast.fn_string_list_len(vals)).as_long()):
+        el = model.eval(ast.StringListSort.car(vals)).as_string()
+        out.append(el)
+        vals = model.eval(ast.StringListSort.cdr(vals))
+
+    if len(out) == 0:
+        raise ParameterError(
+            """there are no concrete policies in the request, please use experession like RequestPolicy.names == "example" to fix the problem"""
+        )
+
+    reviews = dict()
+    for (user, reviewing_policy) in policies:
+        # this is to collect all subexpressions related to review, if any
+        reviewing_predicate = ast.Predicate(
+            reviewing_policy.build_predicate(Review(ast.BoolLiteral(True))).expr
+        )
+        for requested_policy_name in out:
+            review = Review(RequestPolicy.names == (requested_policy_name,))
+            reviews[requested_policy_name] = []
+            try:
+                ret, _ = reviewing_predicate.check(review)
+                if ret:
+                    reviews[requested_policy_name].append(user)
+            except ast.ParameterError as exc:
+                if "unsolvable" in str(exc.value):
+                    pass
+                else:
+                    raise
+    return reviews
 
 
 class User:
@@ -273,6 +368,14 @@ class RequestPolicy:
 @scoped
 class Request(ast.Predicate):
     def __init__(self, expr):
+        # always require at least one approval
+        expr = expr & (
+            RequestPolicy.names.for_each(lambda x: RequestPolicy.approvals[x].len() > 0)
+        )
+        # always, any denial will deny the request
+        expr = expr & (
+            RequestPolicy.names.for_each(lambda x: RequestPolicy.denials[x].len() < 1)
+        )
         ast.Predicate.__init__(self, expr)
 
     def traverse(self):
@@ -295,6 +398,101 @@ class Rules:
 
     def collect_like(self, other: ast.Predicate):
         return [r for r in self.rules if r.__class__ == other.__class__]
+
+
+optionsPrefix = "options."
+
+bool_int_map_fn = z3.RecFunction("bool_int_map", z3.BoolSort(), z3.IntSort())
+
+
+def define_bool_int_map():
+    b = z3.Bool("bool_int_map_b")
+    z3.RecAddDefinition(
+        bool_int_map_fn,
+        [b],
+        z3.If(b, z3.IntVal(1), z3.IntVal(0)),
+    )
+
+
+define_bool_int_map()
+
+# option_optimize optimizes the option literal towards it's preferred value and returns a z3 reference to the optimized value.
+
+
+def option_optimize(optimizer, literal):
+    boolean_false = [
+        Options.ssh.allow_agent_forwarding.name,
+        Options.ssh.allow_x11_forwarding.name,
+        Options.ssh.pin_source_ip.name,
+    ]
+    boolean_true = [
+        Options.ssh.allow_port_forwarding.name,
+        Options.ssh.allow_file_copying.name,
+        Options.ssh.allow_expired_cert.name,
+    ]
+
+    match literal.name:
+        case Options.session_ttl.name | Options.ssh.max_connections | Options.ssh.max_sessions_per_connection | Options.ssh.client_idle_timeout:
+            ref = literal.val
+            optimizer.maximize(ref)
+            return ref
+        case Options.locking_mode.name | Options.session_mfa.name | Options.ssh.session_recording_mode.name:
+            # string enums are tricky, the gist of it is that they are a fn(string) -> int
+            # and we want to minimize their output and then return the matching input string
+            ref = literal.fn(literal.fn_key_arg)
+            optimizer.minimize(ref)
+            return literal.fn_key_arg
+        case opt if opt in boolean_false:
+            ref = bool_int_map_fn(literal.val)
+            optimizer.minimize(ref)
+            return literal.val
+        case opt if opt in boolean_true:
+            ref = bool_int_map_fn(literal.val)
+            optimizer.maximize(ref)
+            return literal.val
+        case _:
+            raise Exception("failed to optimize unknown option")
+
+
+# point_evaluate evaluates a options set and returns a map of options values suitable for export.
+def point_evaluate_options(set: OptionsSet):
+    optimizer = z3.Optimize()
+    options = {}
+    pairs = []
+
+    for option_clause in set.options:
+        literal = option_search_unknown(option_clause.expr)
+        if literal is None:
+            raise ParameterError("unknown option not found")
+
+        optimizer.add(option_clause.expr.traverse())
+        ref = option_optimize(optimizer, literal)
+        pairs.append((ref, literal))
+
+    if optimizer.check() == z3.unsat:
+        raise ParameterError("cannot optimize options, no solution found")
+
+    for (ref, literal) in pairs:
+        export_name = literal.name[len(optionsPrefix):]
+        options[export_name] = str(optimizer.model()[ref])
+
+    return options
+
+
+# option_search_unknown searches for unknown option identifiers in the predicate.
+def option_search_unknown(predicate):
+    if isinstance(predicate, (ast.StringEnum, ast.Bool, ast.LtInt, ast.LtDuration)):
+        if not predicate.name.startswith(optionsPrefix):
+            return None
+
+        return predicate
+    elif isinstance(predicate, (ast.And, ast.Or, ast.Eq, ast.Lt)):
+        return option_search_unknown(predicate.L) or option_search_unknown(predicate.R)
+    elif isinstance(predicate, ast.Not):
+        return option_search_unknown(predicate.expr)
+    else:
+        return None
+
 
 # t_expr transforms a predicate-lang expression into a Teleport predicate expression which can be evaluated.
 
@@ -459,6 +657,9 @@ class Policy:
 
         if self.deny.rules:
             out["spec"]["deny"] = group_rules(operator.and_, self.deny.rules)
+
+        if self.options:
+            out["spec"]["options"] = point_evaluate_options(self.options)
 
         return out
 
