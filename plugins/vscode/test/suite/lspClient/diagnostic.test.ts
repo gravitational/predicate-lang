@@ -28,7 +28,7 @@ class Teleport:
     )
 `;
 
-// Test connection with lsp-server as well as diagnostic data.
+// Tests connection with lsp-server as well as diagnostic data.
 suite('Test Diagnostics', async () => {
   const docUri = getDocUri('failing_test.py');
 
