@@ -62,6 +62,13 @@ async function testFailing(
   docUri: vscode.Uri,
   expectedDiagnostics: vscode.Diagnostic[]
 ) {
+  await vscode.workspace.fs.writeFile(
+    docUri,
+    Buffer.from(failingPolicy, 'utf-8')
+  );
+
+  await vscode.workspace.saveAll();
+  await sleep(2000);
   const actualDiagnostics = vscode.languages.getDiagnostics(docUri);
 
   assert.deepEqual(actualDiagnostics.length, expectedDiagnostics.length);
