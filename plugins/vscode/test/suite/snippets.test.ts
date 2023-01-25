@@ -1,34 +1,26 @@
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as vscode from 'vscode';
 
-import {getDocUri, activate, sleep} from '../helper';
+import {activate, getDocUri} from '../helper';
 
 suite('Snippet command test suite', async () => {
   vscode.window.showInformationMessage('Start snippet command tests.');
-
   const folderPath = vscode.workspace?.workspaceFolders[0].uri
     .toString()
     .split(':')[1];
-
   const snippetPath = path.join(folderPath, '.vscode/predicate.code-snippets');
-
   test('execute installSnippet command', async () => {
     await activate(getDocUri('test.py'));
-
     await installSnippet();
   });
-
   test('test install snippet', async () => {
     await activate(getDocUri('test.py'));
-
     await testinst(snippetPath);
   });
-
   test('test uninstall snippet', async () => {
     await activate(getDocUri('test.py'));
-
     await uninstallSnippet(snippetPath);
   });
 });
