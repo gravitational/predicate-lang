@@ -71,13 +71,13 @@ async function testFailing(
   await sleep(2000);
   const actualDiagnostics = vscode.languages.getDiagnostics(docUri);
 
-  assert.deepEqual(actualDiagnostics.length, expectedDiagnostics.length);
+  assert.deepStrictEqual(actualDiagnostics.length, expectedDiagnostics.length);
 
   expectedDiagnostics.forEach((expectedDiagnostic, i) => {
     const actualDiagnostic = actualDiagnostics[i];
-    assert.equal(actualDiagnostic.message, expectedDiagnostic.message);
-    assert.deepEqual(actualDiagnostic.range, expectedDiagnostic.range);
-    assert.equal(actualDiagnostic.severity, expectedDiagnostic.severity);
+    assert.strictEqual(actualDiagnostic.message, expectedDiagnostic.message);
+    assert.deepStrictEqual(actualDiagnostic.range, expectedDiagnostic.range);
+    assert.strictEqual(actualDiagnostic.severity, expectedDiagnostic.severity);
   });
 }
 
@@ -90,7 +90,7 @@ async function testPassing(docUri: vscode.Uri) {
   await vscode.workspace.saveAll();
   await sleep(2000);
   const zeroDiagnostic = vscode.languages.getDiagnostics(docUri);
-  assert.deepEqual(zeroDiagnostic.length, 0);
+  assert.deepStrictEqual(zeroDiagnostic.length, 0);
 
   // update policy to default state (failing)
   await vscode.workspace.fs.writeFile(
