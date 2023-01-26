@@ -15,6 +15,9 @@ jobs:
         working-directory: ./plugins/vscode
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.7"
       - uses: actions/setup-node@v3
         with:
           node-version: 18
