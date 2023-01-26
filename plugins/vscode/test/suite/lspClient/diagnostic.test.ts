@@ -30,8 +30,6 @@ class Teleport:
 
 // Tests connection with lsp-server as well as diagnostic data.
 suite('Test Diagnostics', async () => {
-  const docUri = getDocUri('failing_test.py');
-
   const expectedFailingDiagnostics: vscode.Diagnostic[] = [
     {
       message: 'no root users',
@@ -41,12 +39,14 @@ suite('Test Diagnostics', async () => {
     },
   ];
 
-  test('Get diagnostics on failing test', async () => {
+  test('Get diagnostics on failing test (on file open)', async () => {
+    const docUri = getDocUri('failing_test.py');
     await activate(docUri);
     await testFailing(docUri, expectedFailingDiagnostics);
   });
 
-  test('Update diagnostics on passing test', async () => {
+  test('Update diagnostics on resolved issue', async () => {
+    const docUri = getDocUri('resolve_failing_test.py');
     await activate(docUri);
     await testPassing(docUri);
   });
