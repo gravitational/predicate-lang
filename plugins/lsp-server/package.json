@@ -9,18 +9,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:predicate-lsp-server.helloWorld"
-  ],
   "main": "./dist/server.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "predicate-lsp-server.helloWorld",
-        "title": "Hello World"
-      }
-    ]
-  },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "webpack",

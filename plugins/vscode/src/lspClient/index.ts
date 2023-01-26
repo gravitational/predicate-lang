@@ -10,7 +10,7 @@ import {
 export function startLSPClient(): LanguageClient {
   const serverModule = path.resolve(
     __dirname,
-    '../../predicate-lsp-server/dist/server.js'
+    '../../lsp-server/dist/server.js'
   );
 
   // The debug options for the server

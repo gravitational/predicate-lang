@@ -57,6 +57,7 @@ interface ExecOut {
 export class Linter {
   activeDocument: TextDocument;
   // TODO: Remove hardcoded predicate binary path.
+  // See https://github.com/gravitational/predicate-lang/issues/81
   linterExecutablePath: string = path.resolve(__dirname, '../../../predicate');
 
   constructor(activeDocument: TextDocument) {
@@ -85,7 +86,6 @@ export class Linter {
             uri: this.activeDocument.uri,
             range: Object.assign({}, diagnostic.range),
           },
-          // TODO: custom message reporting?
           message: 'Consider using less privileged rule.',
         },
       ];
