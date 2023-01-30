@@ -1,0 +1,4 @@
+build/
+webpack.config.js
+src/snippets/snippets.ts
+test/

@@ -2,7 +2,10 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import {installSnippet, uninstallSnippet} from './snippets';
+import {startLSPClient} from './lspClient';
+import {LanguageClient} from 'vscode-languageclient/node';
 
+let client: LanguageClient;
 /**
  * This method is called when vscode.predicate is activated
  */
@@ -26,9 +29,17 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(uninstallSnippetDisposable);
+
+  const client = startLSPClient();
+  client.start();
 }
 
 /*
  * This method is called when your extension is deactivated
  */
-export function deactivate() {}
+export function deactivate() {
+  if (!client) {
+    return undefined;
+  }
+  return client.stop();
+}
