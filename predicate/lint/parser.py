@@ -20,6 +20,11 @@ from runpy import run_path
 from solver.teleport import Policy
 
 
+def get_ast_tree(code_buf: str):
+    """ return ast tree"""
+    return ast.parse(code_buf)
+
+
 class AllowVisitor(ast.NodeVisitor):
     """Collect start and end line number for allow rules"""
 
@@ -40,9 +45,32 @@ class AllowVisitor(ast.NodeVisitor):
         self.generic_visit(tree)
 
 
-def get_ast_tree(code_buf: str):
-    """ return ast tree"""
-    return ast.parse(code_buf)
+class DuplicateVisitor(ast.NodeVisitor):
+    """Collect start and end line number for allow rules"""
+
+    def __init__(self, class_name, options):
+        self.lineno = 0
+        self.end_lineno = 0
+        self.class_name = class_name
+        self.options = options
+
+    def visit_ClassDef(self, tree: ast.ClassDef):
+        if tree.name == self.class_name:
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Assign):
+                    for assign in node.value.keywords:
+                        if self.options["is_file"]:
+                            if assign.arg == "name":
+                                self.lineno = assign.lineno
+                                self.end_lineno = assign.end_lineno
+                        else:
+                            if assign.arg == "allow":
+                                self.lineno = assign.lineno
+                                self.end_lineno = assign.end_lineno
+                            elif assign.arg == "deny":
+                                self.end_lineno = assign.end_lineno
+
+        self.generic_visit(tree)
 
 
 # TODO: abstract this function into "common" package.

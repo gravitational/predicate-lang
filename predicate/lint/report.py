@@ -16,7 +16,7 @@ limitations under the License.
 
 from typing import Any
 from io import TextIOWrapper
-from lint.parser import get_ast_tree, AllowVisitor
+from lint.parser import get_ast_tree, AllowVisitor, DuplicateVisitor
 from lint.constants import RuleCategory
 
 
@@ -36,10 +36,12 @@ class Report:
         rule_category: str,
         description: str,
         class_name: str,
+        options: dict[Any, Any],
     ):
         self.rule_category = rule_category
         self.description = description
         self.class_name = class_name
+        self.options = options
         self.lineno = 0
         self.end_lineno = 0
         self.code_snippet = ""
@@ -52,6 +54,8 @@ class Report:
             visitor = None
             if self.rule_category == RuleCategory.NO_ALLOW:
                 visitor = AllowVisitor(self.class_name)
+            if self.rule_category == RuleCategory.DUPLICATE:
+                visitor = DuplicateVisitor(self.class_name, self.options)
             visitor.visit(tree)
             self.lineno, self.end_lineno = visitor.lineno, visitor.end_lineno
 
@@ -59,9 +63,8 @@ class Report:
             self.code_snippet = get_code_snippet(file, self.lineno, self.end_lineno)
 
             return {
-                "file": file_name,
-                "category": self.rule_category,
                 "description": self.description,
+                "category": self.rule_category,
                 "line_number": self.lineno,
                 "line_end_number": self.end_lineno,
                 "code_snippet": self.code_snippet

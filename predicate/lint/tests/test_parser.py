@@ -19,4 +19,4 @@ def test_AllowVisitor():
 
 def test_get_rules():
     rules = get_rules("lint/tests/data/no_allow.py", "no_allow")
-    assert len(rules) == 5
+    assert len(rules) == 6

@@ -1,9 +1,13 @@
 linter:
-    # only run following linter rules
-    active_rules:
-        - no_allow
+  # only run following linter rules
+  active_rules:
+    - no_allow
+    - duplicate
 
+# Expects "/policies" directory under current directory by default.
+# Directory supplied in `$ predicate lint ...` will override this value
+policy_dir: /Users/sshah/dojo/goteleport/predicate-lang/predicate/lint/tests/data/policy_sample
 
 # location of rule files
 rule_files:
-    no_allow: lint/tests/data/no_allow.py
+  no_allow: lint/tests/data/no_allow.py

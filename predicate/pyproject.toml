@@ -4,11 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Joel Wejdenstål <jwejdenstal@icloud.com>"]
 readme = "README.md"
-packages = [
-    { include = "solver" },
-    { include = "cli" },
-     { include = "lint" },
-]
+packages = [{ include = "solver" }, { include = "cli" }, { include = "lint" }]
 
 [tool.poetry.scripts]
 predicate = 'cli:main'

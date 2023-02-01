@@ -14,7 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from dataclasses import dataclass
+from typing import List
+from pathlib import PurePath
+from lint.parser import get_policy
 from solver.errors import ParameterError
+from solver.ast import Predicate
+from solver.teleport import build_predicate
+
+from common.constants import PredicateExpr
 
 
 class NoAllow():
@@ -23,7 +31,102 @@ class NoAllow():
     def check(self, policy, lint_rule):
         """check predicate"""
         try:
-            check = policy.equivalent(lint_rule, "allow")
+            check = policy.equivalent(lint_rule, PredicateExpr.ALLOW, PredicateExpr.COLLECT_ALL)
             return check[0]
+        except ParameterError:
+            return False
+
+
+@dataclass
+class DuplicateRule:
+
+    def __init__(
+        self,
+        matched_policies: List[str],
+        findings: str,
+        is_name: bool,
+    ):
+        self.matched_policies = matched_policies
+        self.findings = findings
+        self.is_name = is_name
+
+
+@dataclass
+class DuplicateRules:
+    policy: DuplicateRule
+
+
+class Duplicate():
+    """
+    Checks if a policy matches existing policy.
+    1. Checks duplicate policy name.
+    2. Checks duplicate policy.
+    """
+
+    def __init__(self, policy_filepath: str):
+        self.duplicates: DuplicateRules = []
+        self.dupe_name_files = [policy_filepath]
+
+    # def sort_matched_policy(self, list1) -> bool:
+    #     for match in self.duplicates:
+    #         list1.sort()
+    #         match.matched_policies.sort()
+    #         if list1 == match.matched_policies:
+    #             return True
+    #     return False
+
+    def policy_name_matcher(self):
+        pass
+
+    def policy_matcher(self, policy1, policy2) -> bool:
+        """
+        Check policy using z3.equivalent.
+        We will individually check each allow, options and deny rules
+        and return false if one of them is unequal
+        """
+        try:
+
+            policy2_expr = build_predicate([policy2], [], policy2.loud, PredicateExpr.ALL, PredicateExpr.COLLECT_ALL)
+            check = policy1.equivalent(policy2_expr, PredicateExpr.ALL, PredicateExpr.COLLECT_ALL)
+
+            return check[0]
+
+        except ParameterError as err:
+            print("caught ParameterError", str(err))
+            return False
+        except AttributeError:
+            print("catching attribue error")
+            return False
+
+    def check(self, ppolicy, ppolicy_filepath, policies_filepath):
+        """check predicate"""
+        # print("running on DUPLICATE")
+        dupe: DuplicateRule = []
+        try:
+            # get policy from all the files
+            for spolicy_filepath in policies_filepath:
+                if PurePath(ppolicy_filepath).name != PurePath(spolicy_filepath).name:
+                    _, spolicy = get_policy(spolicy_filepath)
+
+                    if (ppolicy.name == spolicy.name):
+                        # print("matched: ", PurePath(ppolicy_filepath).name, PurePath(spolicy_filepath).name)
+                        # duplicate name found, but check if the two files were detected on previous iteration.
+                        # if self.sort_matched_policy([ppolicy_filepath, spolicy_filepath]) is False:
+                        self.dupe_name_files.append(spolicy_filepath)
+                        findings = f"Duplicate policy names in files {self.dupe_name_files}"
+                        dupe.append(DuplicateRule(self.dupe_name_files, findings, True))
+
+                    z3equal = self.policy_matcher(ppolicy, spolicy)
+
+                    # z3equal = self.policy_matcher(ppolicy, s3)
+                    # print("z3equal: ", z3equal)
+                    if (z3equal):
+                        self.dupe_name_files.append(spolicy_filepath)
+                        findings = f"Duplicate policy rule in files {self.dupe_name_files}"
+                        dupe.append(DuplicateRule(self.dupe_name_files, findings, False))
+
+            # print("dupe: ", dupe)
+            return dupe
+
         except ParameterError:
             return False

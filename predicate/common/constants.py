@@ -1,5 +1,5 @@
 """
-Copyright 2022 Gravitational, Inc
+Copyright 2023 Gravitational, Inc
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,3 +22,21 @@ class RuleCategory:
     """ Defines supported linter rules"""
     NO_ALLOW = "no_allow"
     DUPLICATE = "duplicate"
+
+
+@dataclass
+class BuildPredicateExpr:
+    """ Defines supported linter rules"""
+    NO_ALLOW = "no_allow"
+    DUPLICATE = "duplicate"
+
+
+@dataclass
+class PredicateExpr:
+    """ Defines predicate constants"""
+    COLLECT_LIKE = True
+    COLLECT_ALL = False
+    ALLOW = "allow"
+    DENY = "deny"
+    OPTIONS = "options"
+    ALL = "all"
