@@ -22,13 +22,7 @@ class RuleCategory:
     """ Defines supported linter rules"""
     NO_ALLOW = "no_allow"
     DUPLICATE = "duplicate"
-
-
-@dataclass
-class BuildPredicateExpr:
-    """ Defines supported linter rules"""
-    NO_ALLOW = "no_allow"
-    DUPLICATE = "duplicate"
+    DUPLICATE_TYPE = {"is_name": bool}
 
 
 @dataclass

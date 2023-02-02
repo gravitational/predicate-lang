@@ -17,7 +17,7 @@ limitations under the License.
 from typing import Any
 from io import TextIOWrapper
 from lint.parser import get_ast_tree, AllowVisitor, DuplicateVisitor
-from lint.constants import RuleCategory
+from common.constants import RuleCategory
 
 
 def get_code_snippet(file: TextIOWrapper, lineno, end_lineno) -> str:

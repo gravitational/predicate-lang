@@ -6,7 +6,7 @@ linter:
 
 # Expects "/policies" directory under current directory by default.
 # Directory supplied in `$ predicate lint ...` will override this value
-policy_dir: /Users/sshah/dojo/goteleport/predicate-lang/predicate/lint/tests/data/policy_sample
+policy_dir: lint/tests/data/policy_sample
 
 # location of rule files
 rule_files:

@@ -18,10 +18,10 @@ limitations under the License.
 import traceback
 from pathlib import Path
 from common.file_utils import get_lint_config
-from lint.parser import get_policy, get_rules
+from common.policy_utils import get_policy, get_rules
 from lint.rule import NoAllow, Duplicate
 from lint.report import Report, ErrorReport
-from lint.constants import RuleCategory
+from common.constants import RuleCategory
 
 
 class Linter:
@@ -94,7 +94,7 @@ class Linter:
                                 RuleCategory.DUPLICATE,
                                 report.findings,
                                 class_name,
-                                {"is_file": report.is_name}
+                                {"is_name": report.is_name}
                             ).get_report(policy_filepath))
 
                         return {
@@ -133,8 +133,3 @@ class Linter:
                     final_report[policy_filepath] = report
 
         return final_report, self.lint_errors
-
-
-def pp(lists):
-    for x, v in enumerate(lists):
-        print(x, v)

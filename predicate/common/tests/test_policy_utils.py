@@ -1,11 +1,12 @@
 import shutil
 from pathlib import Path
 
-from cli.policy_utils import (
+from common.policy_utils import (
     create_policy_file,
     create_policy_from_template,
     get_policy,
     normalize_policy_name,
+    get_rules
 )
 from solver.teleport import Policy, Rules
 
@@ -67,3 +68,8 @@ def test_normalize_policy_name():
     assert (class_name == "TestPolicyNameTest") & (
         file_name == "test_policy_name_test"
     ) is True
+
+
+def test_get_rules():
+    rules = get_rules("lint/tests/data/no_allow.py", "no_allow")
+    assert len(rules) == 6

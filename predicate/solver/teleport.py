@@ -101,14 +101,10 @@ class OptionsSet:
     def __init__(self, *options: Options):
         self.options = options
 
-    def collect_like(self, other: ast.Predicate):
-        # for o in self.options:
-        #     print("options: ", o, len(o.symbols.intersection(other.symbols)) > 0)
-        return [
-            o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0
-        ]
-
-    def collect(self, other: ast.Predicate, collect_like):
+    def collect(self, other: ast.Predicate, collect_like: bool):
+        """
+        Collect predicate expression.
+        """
         if collect_like:
             return [o for o in self.options if len(o.symbols.intersection(other.symbols)) > 0]
         else:
@@ -403,10 +399,10 @@ class Rules:
     def __init__(self, *rules):
         self.rules = rules or []
 
-    def collect_like(self, other: ast.Predicate):
-        return [r for r in self.rules if r.__class__ == other.__class__]
-
     def collect(self, other: ast.Predicate, collect_like):
+        """
+        Collect predicate expression.
+        """
         if collect_like:
             return [r for r in self.rules if r.__class__ == other.__class__]
         else:

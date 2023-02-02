@@ -23,19 +23,32 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from solver.teleport import Policy
 
 
+# TODO: abstract this function into "common" package.
 def get_policy(policy_file: str) -> Tuple[str, dict[str, Any]]:
     """
     Return classname and policy from given file
     """
-    module = run_path(policy_file)
+    try:
+        module = run_path(policy_file)
 
-    class_name = ""
-    for key, value in module.items():
-        # Grabs 'p' of Policy class
-        if hasattr(value, "p") and isinstance(value.p, Policy):
-            class_name = key
+        class_name = ""
+        for key, value in module.items():
+            if hasattr(value, 'p') and isinstance(value.p, Policy):
+                class_name = key
 
-    return class_name, module[class_name].p
+        return class_name, module[class_name].p
+    except AttributeError as err:
+        raise AttributeError(err) from None
+    except IndentationError as err:
+        raise IndentationError(err) from None
+    except SyntaxError as err:
+        raise SyntaxError(err) from None
+
+
+def get_rules(path: str, name: str) -> dict[str, Any]:
+    """Returns linter rules"""
+    module = run_path(path)
+    return module[name]
 
 
 def create_policy_file(name: str, path: str):

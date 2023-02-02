@@ -26,7 +26,7 @@ def get_lint_config():
         return yaml.safe_load(f)
 
 
-def get_policy_files(self, policy_filepath):
+def get_policy_files(policy_filepath):
     """ Get policy files."""
     policy_files = []
     file_or_dir = Path(policy_filepath)

@@ -17,9 +17,8 @@ limitations under the License.
 from dataclasses import dataclass
 from typing import List
 from pathlib import PurePath
-from lint.parser import get_policy
+from common.policy_utils import get_policy
 from solver.errors import ParameterError
-from solver.ast import Predicate
 from solver.teleport import build_predicate
 
 from common.constants import PredicateExpr
@@ -60,23 +59,12 @@ class Duplicate():
     """
     Checks if a policy matches existing policy.
     1. Checks duplicate policy name.
-    2. Checks duplicate policy.
+    2. Checks duplicate policy rule.
     """
 
     def __init__(self, policy_filepath: str):
         self.duplicates: DuplicateRules = []
         self.dupe_name_files = [policy_filepath]
-
-    # def sort_matched_policy(self, list1) -> bool:
-    #     for match in self.duplicates:
-    #         list1.sort()
-    #         match.matched_policies.sort()
-    #         if list1 == match.matched_policies:
-    #             return True
-    #     return False
-
-    def policy_name_matcher(self):
-        pass
 
     def policy_matcher(self, policy1, policy2) -> bool:
         """
@@ -100,7 +88,6 @@ class Duplicate():
 
     def check(self, ppolicy, ppolicy_filepath, policies_filepath):
         """check predicate"""
-        # print("running on DUPLICATE")
         dupe: DuplicateRule = []
         try:
             # get policy from all the files
@@ -109,23 +96,17 @@ class Duplicate():
                     _, spolicy = get_policy(spolicy_filepath)
 
                     if (ppolicy.name == spolicy.name):
-                        # print("matched: ", PurePath(ppolicy_filepath).name, PurePath(spolicy_filepath).name)
-                        # duplicate name found, but check if the two files were detected on previous iteration.
-                        # if self.sort_matched_policy([ppolicy_filepath, spolicy_filepath]) is False:
                         self.dupe_name_files.append(spolicy_filepath)
                         findings = f"Duplicate policy names in files {self.dupe_name_files}"
                         dupe.append(DuplicateRule(self.dupe_name_files, findings, True))
 
                     z3equal = self.policy_matcher(ppolicy, spolicy)
 
-                    # z3equal = self.policy_matcher(ppolicy, s3)
-                    # print("z3equal: ", z3equal)
                     if (z3equal):
                         self.dupe_name_files.append(spolicy_filepath)
                         findings = f"Duplicate policy rule in files {self.dupe_name_files}"
                         dupe.append(DuplicateRule(self.dupe_name_files, findings, False))
 
-            # print("dupe: ", dupe)
             return dupe
 
         except ParameterError:

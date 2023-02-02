@@ -35,17 +35,23 @@ def print_colored(lint_result):
 
     total_reports = 0
 
-    def print_values(elements):
+    def print_report(elements):
         for key, value in elements.items():
             if key == "description":
                 click.secho(value, fg='red')
+
             elif key == "category":
                 if 'findings' in elements:
+                    # we handle findings below separately
                     pass
                 else:
                     click.echo(f"{key}: {value}")
+
             elif key == "code_snippet":
+                # newline for code snippet
                 click.echo(f"{key}: \n{value}")
+
+            # In duplciate rule category, findings is a list of duplicate reports.
             elif key == "findings" and isinstance(value, list):
                 for f in value:
                     for k, v in f.items():
@@ -55,6 +61,7 @@ def print_colored(lint_result):
                             click.echo(f"{k}: \n{v}")
                         else:
                             click.echo(f"{k}: {v}")
+
             else:
                 click.echo(f"{key}: {value}")
 
@@ -65,7 +72,7 @@ def print_colored(lint_result):
             click.echo(f"File: {file}. " + click.style(f"Found {len(data)} rule violation(s).\n", fg='red'))
 
             for elements in data:
-                print_values(elements)
+                print_report(elements)
 
     click.secho("-" * (get_terminal_size().columns // 2), fg='red')
     click.secho(f"Found total {total_reports} rule violation(s) in {len(lint_result[0])} file. \n", fg='red' if total_reports >= 1 else 'green')
