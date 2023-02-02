@@ -23,7 +23,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from solver.teleport import Policy
 
 
-# TODO: abstract this function into "common" package.
 def get_policy(policy_file: str) -> Tuple[str, dict[str, Any]]:
     """
     Return classname and policy from given file

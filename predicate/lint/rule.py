@@ -97,7 +97,7 @@ class Duplicate():
 
                     if (ppolicy.name == spolicy.name):
                         self.dupe_name_files.append(spolicy_filepath)
-                        findings = f"Duplicate policy names in files {self.dupe_name_files}"
+                        findings = f"Duplicate policy name in files {self.dupe_name_files}"
                         dupe.append(DuplicateRule(self.dupe_name_files, findings, True))
 
                     z3equal = self.policy_matcher(ppolicy, spolicy)
