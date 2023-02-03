@@ -5,7 +5,7 @@ from types import FunctionType
 import click
 import yaml
 
-from cli.policy_utils import create_policy_file, get_policy
+from common.policy_utils import create_policy_file, get_policy
 from lint.linter import Linter
 from cli.output import print_colored, print_json
 
@@ -109,6 +109,7 @@ def lint(out, policy_file_path):
             print_json(lint_result)
     else:
         print_colored(lint_result)
+
 
 if __name__ == "__main__":
     main()

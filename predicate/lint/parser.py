@@ -15,9 +15,12 @@ limitations under the License.
 """
 
 import ast
-from typing import Any, Tuple
-from runpy import run_path
-from solver.teleport import Policy
+from common.constants import RuleCategory
+
+
+def get_ast_tree(code_buf: str):
+    """ return ast tree"""
+    return ast.parse(code_buf)
 
 
 class AllowVisitor(ast.NodeVisitor):
@@ -40,34 +43,29 @@ class AllowVisitor(ast.NodeVisitor):
         self.generic_visit(tree)
 
 
-def get_ast_tree(code_buf: str):
-    """ return ast tree"""
-    return ast.parse(code_buf)
+class DuplicateVisitor(ast.NodeVisitor):
+    """Collect start and end line number for allow rules"""
 
+    def __init__(self, class_name, options: RuleCategory.DUPLICATE_TYPE):
+        self.lineno = 0
+        self.end_lineno = 0
+        self.class_name = class_name
+        self.options = options
 
-# TODO: abstract this function into "common" package.
-def get_policy(policy_file: str) -> Tuple[str, dict[str, Any]]:
-    """
-    Return classname and policy from given file
-    """
-    try:
-        module = run_path(policy_file)
+    def visit_ClassDef(self, tree: ast.ClassDef):
+        if tree.name == self.class_name:
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Assign):
+                    for assign in node.value.keywords:
+                        if self.options["is_name"]:
+                            if assign.arg == "name":
+                                self.lineno = assign.lineno
+                                self.end_lineno = assign.end_lineno
+                        else:
+                            if assign.arg == "allow":
+                                self.lineno = assign.lineno
+                                self.end_lineno = assign.end_lineno
+                            elif assign.arg == "deny":
+                                self.end_lineno = assign.end_lineno
 
-        class_name = ""
-        for key, value in module.items():
-            if hasattr(value, 'p') and isinstance(value.p, Policy):
-                class_name = key
-
-        return class_name, module[class_name].p
-    except AttributeError as err:
-        raise AttributeError(err) from None
-    except IndentationError as err:
-        raise IndentationError(err) from None
-    except SyntaxError as err:
-        raise SyntaxError(err) from None
-
-
-def get_rules(path: str, name: str) -> dict[str, Any]:
-    """Returns linter rules"""
-    module = run_path(path)
-    return module[name]
+        self.generic_visit(tree)

@@ -2325,7 +2325,10 @@ class Predicate:
             return (False, "predicate is unsolvable against %s" % (other.expr,))
         return (True, solver.model())
 
-    def equivalent(self, other):
+    def equivalent(self, other: "Predicate"):
+        """
+        Compares two predicates for equality using z3.Distinct
+        """
         solver = z3.Solver()
         solver.add(z3.Distinct(self.expr.traverse(), other.expr.traverse()))
         result = solver.check()

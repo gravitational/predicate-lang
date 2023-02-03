@@ -19,16 +19,16 @@ class Developer:
         loud=False,
         allow=Rules(
             AccessNode(
-                ((AccessNode.login == User.name) & (User.name != "root"))
-                | (User.traits["team"] == ("admins",))
+                ((AccessNode.login == User.name) & (User.name != "beta"))
+                | (User.traits["team"] == ("alpha",))
             ),
         ),
         options=OptionsSet(Options((Options.session_ttl < Duration.new(hours=10)))),
         deny=Rules(
             AccessNode(
-                (AccessNode.login == "mike")
-                | (AccessNode.login == "jester")
-                | (Node.labels["env"] == "prod")
+                (AccessNode.login == "john")
+                | (AccessNode.login == "joker")
+                | (Node.labels["env"] == "test")
             ),
         ),
     )
